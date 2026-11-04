@@ -241,6 +241,10 @@ struct FichaConsorcio: View {
                     if estado.esDuenio { Button { editando = true } label: { Label("Editar el consorcio", systemImage: "pencil") } }
                 } label: { Image(systemName: "plus") }
             }
+            Menu {
+                Button { estado.abrir(ASeccion(clave: "bienes", id: id)) } label: { Label("Bienes del edificio", systemImage: "fire.extinguisher") }
+                Button { estado.abrir(ASeccion(clave: "reglamento", id: id)) } label: { Label("Reglamento", systemImage: "doc.text") }
+            } label: { Image(systemName: "ellipsis.circle") }
         }
         .task(id: estado.version) { await cargar() }
         .vistaPrevia($previo)

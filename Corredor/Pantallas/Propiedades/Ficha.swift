@@ -235,6 +235,7 @@ struct FichaPropiedad: View {
                 filaAccion("chart.bar", "Vistas y consultas") { estado.abrir(ASeccion(clave: "vistas", id: p.id)) }
                 filaAccion("paperplane", "A quién se la mandaste") { estado.abrir(ASeccion(clave: "envios", id: p.id)) }
                 filaAccion("waveform", "Recorridas dictadas") { estado.abrir(ASeccion(clave: "grabaciones", id: p.id)) }
+                filaAccion("folder", "Documentos") { estado.abrir(ASeccion(clave: "documentos-propiedad", id: p.id)) }
                 filaAccion("hand.raised", "Reservas") { estado.abrir(ASeccion(clave: "reservas-propiedad", id: p.id)) }
                 filaAccion("plus.square.on.square", "Duplicar") { Task { await duplicar(p) } }
                 if estado.esDuenio { filaAccion("trash", "Mandar a la papelera", rojo: true) { Task { await borrar(p) } } }

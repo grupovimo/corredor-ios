@@ -640,6 +640,7 @@ struct FichaContrato: View {
                         if let p = k.propiedadId { Button("Inventario y actas") { estado.abrir(AInventario(id: p)) }.buttonStyle(BotonHundido()) }
                         Button("Ver o imprimir el contrato") { Task { if let u = await Documentos.contrato(k, api: estado.api) { previo = ArchivoPrevio(url: u) } } }
                             .buttonStyle(BotonHundido())
+                        Button("Documentos") { estado.abrir(ASeccion(clave: "documentos-contrato", id: id)) }.buttonStyle(BotonHundido())
                         if estado.escribe {
                             Button("Renovar") { estado.abrir(ASeccion(clave: "contrato-renovar", id: id)) }.buttonStyle(BotonHundido())
                             if k.estado != "rescindido" { Button("Rescindir") { Task { await rescindir() } }.buttonStyle(BotonTexto(color: C.error)) }

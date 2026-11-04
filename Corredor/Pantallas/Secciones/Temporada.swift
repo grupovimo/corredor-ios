@@ -171,6 +171,7 @@ struct NuevaReservaTemporada: View {
 struct EmprendimientoAPI: Codable, Identifiable, Hashable {
     var id: String
     var nombre: String
+    var masterplanUrl: String?
     var tipo: String?
     var estado: String?
     var descripcion: String?
@@ -242,6 +243,7 @@ struct FichaEmprendimiento: View {
     var id: String
     @State private var e: EmprendimientoAPI?
     @State private var unidades: [Propiedad] = []
+    @State private var lotes = false
 
     var body: some View {
         ScrollView {
@@ -255,7 +257,9 @@ struct FichaEmprendimiento: View {
                                       pie: e.entrega.map { "Entrega: \($0)" } ?? "Sin fecha de entrega")
                     }
                     if let d = e.descripcion { Text(d).estilo(.body16).foregroundStyle(C.texto) }
+                    MasterplanVista(emprendimiento: id, imagen: e.masterplanUrl, unidades: unidades)
                     TituloBloque(texto: "Unidades", cuenta: "\(unidades.count)")
+                    if estado.escribe { Button("Crear lotes en serie") { lotes = true }.buttonStyle(BotonHundido()) }
                     VStack(spacing: 0) {
                         ForEach(Array(unidades.enumerated()), id: \.element.id) { i, p in
                             Button { estado.abrir(AFichaPropiedad(id: p.id)) } label: {
@@ -278,6 +282,7 @@ struct FichaEmprendimiento: View {
             } else { ProgressView().padding(.top, 60) }
         }
         .pantallaApilada(e?.nombre ?? "Emprendimiento")
+        .sheet(isPresented: $lotes) { NuevosLotes(emprendimiento: id) }
         .task(id: estado.version) {
             e = try? await estado.api.get("/v1/emprendimientos/\(id)")
             unidades = (try? await estado.api.get("/v1/emprendimientos/\(id)/unidades")) ?? e?.unidades ?? []

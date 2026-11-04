@@ -45,6 +45,10 @@ struct Seccion: View {
         case "grabaciones": if let id { Grabaciones(propiedad: id) }
         case "reservas-propiedad": if let id { Reservas(ruta: "/v1/propiedades/\(id)/reservas") }
         case "importar": Importar()
+        case "documentos-propiedad": if let id { DocumentosLista(de: "propiedad", id: id) }
+        case "documentos-contrato": if let id { DocumentosLista(de: "contrato", id: id) }
+        case "bienes": if let id { BienesConsorcio(consorcio: id) }
+        case "reglamento": if let id { ReglamentoConsorcio(consorcio: id) }
         case "ia": CorredorEnTuIA()
         case "firma": FirmaYSesiones()
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
