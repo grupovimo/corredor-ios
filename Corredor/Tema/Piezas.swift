@@ -227,34 +227,6 @@ struct Insignia: View {
     }
 }
 
-/// Chip de filtro (34 de alto): activo con fondo `text` y texto `bg-elevated`.
-struct ChipFiltro: View {
-    var texto: String
-    var cuenta: Int?
-    var cuentaAlerta = false
-    var activo: Bool
-    var accion: () -> Void
-    var body: some View {
-        Button(action: accion) {
-            HStack(spacing: 6) {
-                Text(texto)
-                if let cuenta, cuenta > 0 {
-                    Text("\(cuenta)").fontWeight(.bold).monospacedDigit()
-                        .foregroundStyle(activo ? C.elevado.opacity(0.75) : (cuentaAlerta ? C.errorTinta : C.texto2))
-                }
-            }
-            .estilo(.label)
-            .foregroundStyle(activo ? C.elevado : C.texto)
-            .padding(.horizontal, 13)
-            .frame(height: 34)
-            .background(activo ? C.texto : C.superficie, in: Capsule())
-            .overlay(Capsule().strokeBorder(activo ? Color.clear : C.linea2, lineWidth: 1))
-            .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(activo ? .isSelected : [])
-    }
-}
 
 // MARK: - Segmentado y buscador
 

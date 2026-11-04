@@ -27,21 +27,21 @@ struct Seccion: View {
         case "actas": if let id { Inventario(propiedad: id) }
         case "rendiciones": RendicionesListas()
         case "papelera": Papelera()
-        case "actividad": ListaGenerica(titulo: "Actividad", ruta: "/v1/actividad", icono: "clock.arrow.circlepath", vacio: "Todavía no hay movimientos.")
+        case "actividad": Actividad()
         case "revision": Revision()
         case "informe": Informe()
         case "indices": Indices()
-        case "vistas": if let id { ListaGenerica(titulo: "Vistas y consultas", ruta: "/v1/propiedades/\(id)/vistas", icono: "eye", vacio: "Todavía nadie la vio.") }
-        case "tarifas": if let id { Tarifas(propiedad: id) }
+        case "vistas": if let id { VistasPropiedad(propiedad: id) }
+        case "tarifas": if let id { TarifasTemporada(propiedad: id) }
         case "web", "plantillas", "editor": MiWeb()
-        case "difusion": ListaGenerica(titulo: "Difusión", ruta: "/v1/publicaciones", icono: "megaphone", vacio: "Todavía no publicaste en portales.")
+        case "difusion": Portales()
         case "emprendimientos": Emprendimientos()
         case "emprendimiento": if let id { FichaEmprendimiento(id: id) }
         case "temporada": Temporada()
         case "reservas": ListaGenerica(titulo: "Reservas", ruta: "/v1/reservas", icono: "hand.raised", vacio: "No hay reservas abiertas.")
         case "consorcios": Consorcios()
         case "consorcio": if let id { FichaConsorcio(id: id) }
-        case "ia": ConectarIA()
+        case "ia": CorredorEnTuIA()
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
         }
     }
@@ -405,6 +405,7 @@ struct NuevaLicencia: View {
 /// Integraciones: el número de WhatsApp, Mercado Libre (conectar con su hoja) y los feeds de portales.
 struct Integraciones: View {
     @Environment(Estado.self) private var estado
+    @State private var conectarWA = false
     @State private var numero: JSONLibre?
     @State private var ml: JSONLibre?
     @State private var feeds: JSONLibre?
@@ -417,7 +418,7 @@ struct Integraciones: View {
                     LabeledContent("Estado", value: n["estado"]?.texto?.capitalized ?? "Conectado")
                 } else {
                     Text("Todavía no conectaste tu número.").foregroundStyle(C.texto2)
-                    Link("Conectar WhatsApp", destination: Api.web().appendingPathComponent("configuracion/integraciones"))
+                    Button("Conectar WhatsApp") { conectarWA = true }
                 }
             }
             Section(header: Text("Mercado Libre"), footer: Text("Publicás desde la ficha y respondés las preguntas en Mensajes.")) {
@@ -440,7 +441,8 @@ struct Integraciones: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Integraciones")
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
+        .sheet(isPresented: $conectarWA) { ConectarWhatsApp() }
     }
 
     private func cargar() async {
