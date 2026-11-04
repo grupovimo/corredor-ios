@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Lo que completa el alcance del panel: documentos, bienes y reglamento de consorcios, y lotes y
 // masterplan de emprendimientos.

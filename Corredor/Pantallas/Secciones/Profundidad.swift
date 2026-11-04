@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
 
 // Las secciones del panel que en la primera tanda eran listas genéricas, ahora con todo lo de la web.
 
