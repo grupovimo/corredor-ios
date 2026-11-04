@@ -195,8 +195,12 @@ final class PantallasTests: XCTestCase {
     func testFirmas() { montar(Firmas(clave: "p1/a1")) }
     func testSecciones() {
         for c in ["mas", "configuracion", "equipo", "integraciones", "respuestas", "proveedores", "objetivos", "inventarios", "rendiciones",
-                  "papelera", "actividad", "revision", "informe", "indices", "web", "difusion", "consorcios", "ia", "no-existe"] {
+                  "papelera", "actividad", "revision", "informe", "indices", "web", "difusion", "consorcios", "ia", "importar", "no-existe"] {
             montar(Seccion(clave: c, id: nil), segundos: 1, nombre: "Seccion-\(c)")
+        }
+        // Las que cuelgan de una propiedad, un contrato, un consorcio o un emprendimiento.
+        for c in ["documentos-propiedad", "documentos-contrato", "bienes", "reglamento", "envios", "grabaciones", "reservas-propiedad", "emprendimiento", "consorcio"] {
+            montar(Seccion(clave: c, id: "x1"), segundos: 1, nombre: "Seccion-\(c)")
         }
     }
     func testEntrada() { montar(Entrada()) }
