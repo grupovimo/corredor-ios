@@ -27,6 +27,7 @@ struct CorredorApp: App {
             .onAppear {
                 delegado.estado = estado
                 Abrir.estado = estado
+                ActividadVisita.api = estado.api
             }
             .onChange(of: estado.fase) { _, f in
                 if f == .adentro, let r = Abrir.pendiente {
@@ -40,7 +41,10 @@ struct CorredorApp: App {
                 if let id = a.userInfo?[CSSearchableItemActivityIdentifier] as? String, let r = Ruta(texto: id) { estado.ir(r) }
             }
             .onOpenURL { url in
-                if let r = Ruta(texto: url.absoluteString) { estado.ir(r) }
+                // El link de una invitación (corredor.com.ar/invitacion/<token>): entra directo a la inmobiliaria.
+                if url.host?.hasSuffix("corredor.com.ar") == true, url.pathComponents.count > 2, url.pathComponents[1] == "invitacion" {
+                    Task { await estado.aceptarInvitacion(url.pathComponents[2]) }
+                } else if let r = Ruta(texto: url.absoluteString) { estado.ir(r) }
             }
             .onContinueUserActivity("ar.com.corredor.app.propiedad") { a in
                 if let id = a.userInfo?["id"] as? String { estado.ir(Ruta(.propiedades, AFichaPropiedad(id: id))) }

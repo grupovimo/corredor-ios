@@ -320,6 +320,7 @@ struct ReciboVista: View {
     @State private var k: ContratoAPI?
     @State private var inmo: Inmobiliaria?
     @State private var link: URL?
+    @State private var previo: ArchivoPrevio?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -363,11 +364,16 @@ struct ReciboVista: View {
                 }
                 .foregroundStyle(Color(hex: 0x0B3D1F)).frame(maxWidth: .infinity, minHeight: 54).background(Color(hex: 0x25D366), in: .rect(cornerRadius: 15, style: .continuous))
             }
-            if let link { ShareLink("Compartir el recibo", item: link).font(Estilo.subheadFuerte.font).foregroundStyle(C.accion) }
+            HStack(spacing: 16) {
+                if let link { ShareLink("Compartir el link", item: link) }
+                Button { Task { if let c, let u = await Documentos.recibo(c, contrato: k, api: estado.api) { previo = ArchivoPrevio(url: u) } } } label: { Label("PDF", systemImage: "doc.richtext") }
+            }
+            .font(Estilo.subheadFuerte.font).foregroundStyle(C.accion)
         }
         .padding(16)
         .background(C.superficie)
         .navigationTitle("Recibo listo").navigationBarTitleDisplayMode(.inline)
+        .vistaPrevia($previo)
         .toolbar { if enHoja { Button("Listo") { cerrar() } } }
         .task {
             let l: [MesContrato] = (try? await estado.api.get("/v1/contratos/\(contrato)/cobros")) ?? []
@@ -520,8 +526,18 @@ struct FichaContrato: View {
     @State private var ajuste: AjusteAPI?
     @State private var cobrando: FilaCobranza?
     @State private var recibo: ARecibo?
+    @State private var previo: ArchivoPrevio?
 
-    struct AjusteAPI: Codable { var fecha: String?; var montoNuevo: Double?; var porcentaje: Double?; var estimado: Bool?; var avisado: Bool? }
+    /// GET /v1/contratos/{id}/ajuste: el próximo ajuste y a quién ya se le avisó.
+    struct AjusteAPI: Codable {
+        struct Proximo: Codable { var indice: String?; var fecha: String?; var monto: Double?; var estimado: Bool? }
+        var proximo: Proximo?
+        var avisos: [String: Date]?
+        var fecha: String? { proximo?.fecha }
+        var montoNuevo: Double? { proximo?.monto }
+        var estimado: Bool? { proximo?.estimado }
+        var avisado: Bool? { (avisos?.isEmpty == false) }
+    }
 
     var body: some View {
         ScrollView {
@@ -622,10 +638,8 @@ struct FichaContrato: View {
                     }
                     VStack(spacing: 8) {
                         if let p = k.propiedadId { Button("Inventario y actas") { estado.abrir(AInventario(id: p)) }.buttonStyle(BotonHundido()) }
-                        Link(destination: Api.web().appendingPathComponent("contratos/\(id)/imprimir")) {
-                            Text("Ver o imprimir el contrato").font(Estilo(tamano: 15, peso: .semibold, relativo: .subheadline).font).foregroundStyle(C.texto)
-                                .frame(maxWidth: .infinity, minHeight: 44).background(C.hundida, in: .rect(cornerRadius: 12))
-                        }
+                        Button("Ver o imprimir el contrato") { Task { if let u = await Documentos.contrato(k, api: estado.api) { previo = ArchivoPrevio(url: u) } } }
+                            .buttonStyle(BotonHundido())
                         if estado.escribe {
                             Button("Renovar") { estado.abrir(ASeccion(clave: "contrato-renovar", id: id)) }.buttonStyle(BotonHundido())
                             if k.estado != "rescindido" { Button("Rescindir") { Task { await rescindir() } }.buttonStyle(BotonTexto(color: C.error)) }
@@ -636,6 +650,7 @@ struct FichaContrato: View {
             } else { ProgressView().padding(.top, 60) }
         }
         .pantallaApilada("Contrato")
+        .vistaPrevia($previo)
         .task(id: estado.version) { await cargar() }
         .sheet(item: $cobrando) { c in HojaCobro(fila: c) { recibo = $0 }.presentationDetents([.medium]) }
         .sheet(item: Binding(get: { recibo.map { ReciboHoja(r: $0) } }, set: { recibo = $0?.r })) { x in
@@ -724,6 +739,7 @@ struct RendicionVista: View {
     @State private var descripcion = ""
     @State private var monto: Double?
     @State private var link: URL?
+    @State private var previo: ArchivoPrevio?
 
     var body: some View {
         ScrollView {
@@ -777,6 +793,16 @@ struct RendicionVista: View {
             } else { ProgressView().padding(.top, 60) }
         }
         .pantallaApilada("Rendición")
+        .vistaPrevia($previo)
+        .toolbar {
+            Button {
+                Task {
+                    let k: ContratoAPI? = try? await estado.api.get("/v1/contratos/\(contrato)")
+                    if let r, let u = await Documentos.rendicion(r, contrato: k, api: estado.api) { previo = ArchivoPrevio(url: u) }
+                }
+            } label: { Image(systemName: "printer") }
+            .accessibilityLabel("PDF de la rendición")
+        }
         .task(id: estado.version) { r = try? await estado.api.get("/v1/contratos/\(contrato)/rendiciones/\(id)") }
     }
 
@@ -1027,9 +1053,9 @@ struct NuevaReserva: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Reservar") {
                         Task {
-                            struct Cuerpo: Encodable { var contactoId: String?; var sena: Double?; var senaMoneda: String; var venceEl: String }
+                            struct Cuerpo: Encodable { var contactoId: String?; var interesadoNombre: String?; var sena: Double?; var senaMoneda: String; var reservadaEl: String; var venceEl: String }
                             do {
-                                try await estado.api.hacer("POST", "/v1/propiedades/\(propiedad.id)/reservas", Cuerpo(contactoId: con?.id, sena: sena, senaMoneda: moneda, venceEl: Formato.diaISO(vence)))
+                                try await estado.api.hacer("POST", "/v1/propiedades/\(propiedad.id)/reservas", Cuerpo(contactoId: con?.id, interesadoNombre: con?.titulo, sena: sena, senaMoneda: moneda, reservadaEl: Formato.diaISO(Date()), venceEl: Formato.diaISO(vence)))
                                 estado.version += 1
                                 estado.avisar("\(propiedad.nombre) quedó reservada")
                                 cerrar()

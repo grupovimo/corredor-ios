@@ -17,12 +17,12 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
         let ver = UNNotificationAction(identifier: "ver", title: "Abrir", options: [.foreground])
         let llamar = UNNotificationAction(identifier: "llamar", title: "Llamar", options: [.foreground])
         let cobrar = UNNotificationAction(identifier: "cobrar", title: "Registrar cobro", options: [.authenticationRequired, .foreground])
-        let confirmar = UNNotificationAction(identifier: "confirmar", title: "Confirmar visita", options: [.authenticationRequired])
+        let hecha = UNNotificationAction(identifier: "hecha", title: "Marcar como hecha", options: [.authenticationRequired])
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: "mensaje", actions: [responder, ver], intentIdentifiers: []),
             UNNotificationCategory(identifier: "consulta", actions: [responder, llamar, ver], intentIdentifiers: []),
             UNNotificationCategory(identifier: "cobro", actions: [cobrar, ver], intentIdentifiers: []),
-            UNNotificationCategory(identifier: "visita", actions: [confirmar, ver], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "visita", actions: [ver, hecha], intentIdentifiers: []),
         ])
         MenuIcono.cargar()
         return true
@@ -65,10 +65,10 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
             case "responder":
                 guard let texto = respuesta?.trimmingCharacters(in: .whitespacesAndNewlines), !texto.isEmpty else { return }
                 Task { await Delegado.responder(estado, ruta: ruta, texto: texto, info: info) }
-            case "confirmar":
-                if let id = info["citaId"] as? String {
+            case "hecha":
+                if let id = (ruta?.destino as? ACita)?.id ?? info["citaId"] as? String {
                     Task {
-                        struct Cuerpo: Encodable { var estado = "confirmada" }
+                        struct Cuerpo: Encodable { var estado = "hecha" }
                         try? await estado.api.hacer("PATCH", "/v1/agenda/\(id)", Cuerpo())
                     }
                 }

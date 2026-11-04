@@ -135,6 +135,9 @@ enum Spotlight {
 
 /// 14A, 14D La Live Activity de la próxima visita: arranca una hora antes y se termina al pasar.
 enum ActividadVisita {
+    /// La API manda las actualizaciones (cambio de hora, hecha, cancelada) a este token.
+    @MainActor static weak var api: Api?
+
     static func actualizar(_ cita: Cita?) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let actuales = Activity<VisitaActividad>.activities
@@ -147,8 +150,23 @@ enum ActividadVisita {
             Task { await a.update(ActivityContent(state: estado, staleDate: c.terminaEn)) }
         } else {
             for a in actuales { Task { await a.end(nil, dismissalPolicy: .immediate) } }
-            _ = try? Activity.request(attributes: VisitaActividad(citaId: c.id, donde: c.donde, con: c.contactoNombre),
-                                      content: ActivityContent(state: estado, staleDate: c.terminaEn))
+            guard let a = try? Activity.request(attributes: VisitaActividad(citaId: c.id, donde: c.donde, con: c.contactoNombre),
+                                                content: ActivityContent(state: estado, staleDate: c.terminaEn), pushType: .token) else { return }
+            Task {
+                for await t in a.pushTokenUpdates {
+                    let hex = t.map { String(format: "%02x", $0) }.joined()
+                    struct C: Encodable {
+                        var token: String
+                        var citaId: String
+                        #if DEBUG
+                        var entorno = "sandbox"
+                        #else
+                        var entorno = "produccion"
+                        #endif
+                    }
+                    try? await api?.hacer("POST", "/v1/push/actividades", C(token: hex, citaId: c.id))
+                }
+            }
         }
     }
 }

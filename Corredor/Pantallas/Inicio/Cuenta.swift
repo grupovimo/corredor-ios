@@ -419,6 +419,7 @@ struct Perfil: View {
         ("person.2", "Contactos", AContactos()), ("rectangle.split.3x1", "Operaciones", AOperaciones()),
         ("doc.text", "Contratos y cobranzas", ACobranzas()), ("checklist", "Actas de entrega", ASeccion(clave: "inventarios")),
         ("flag", "Objetivo del mes", ASeccion(clave: "objetivos")), ("bell", "Avisos", AAvisos()),
+        ("signature", "Firma y sesiones abiertas", ASeccion(clave: "firma")),
         ("gearshape", "Configuración, consorcios e informes", ASeccion(clave: "mas")),
     ]
 

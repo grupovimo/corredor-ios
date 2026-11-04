@@ -28,7 +28,7 @@ struct Seccion: View {
         case "rendiciones": RendicionesListas()
         case "papelera": Papelera()
         case "actividad": Actividad()
-        case "revision": Revision()
+        case "revision": RevisionIA()
         case "informe": Informe()
         case "indices": Indices()
         case "vistas": if let id { VistasPropiedad(propiedad: id) }
@@ -38,10 +38,15 @@ struct Seccion: View {
         case "emprendimientos": Emprendimientos()
         case "emprendimiento": if let id { FichaEmprendimiento(id: id) }
         case "temporada": Temporada()
-        case "reservas": ListaGenerica(titulo: "Reservas", ruta: "/v1/reservas", icono: "hand.raised", vacio: "No hay reservas abiertas.")
+        case "reservas": Reservas()
         case "consorcios": Consorcios()
         case "consorcio": if let id { FichaConsorcio(id: id) }
+        case "envios": if let id { FichasMandadas(propiedad: id) }
+        case "grabaciones": if let id { Grabaciones(propiedad: id) }
+        case "reservas-propiedad": if let id { Reservas(ruta: "/v1/propiedades/\(id)/reservas") }
+        case "importar": Importar()
         case "ia": CorredorEnTuIA()
+        case "firma": FirmaYSesiones()
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
         }
     }
@@ -62,6 +67,7 @@ struct Todo: View {
                             ("doc.plaintext", "Rendiciones", ASeccion(clave: "rendiciones")), ("checklist", "Actas de entrega", ASeccion(clave: "inventarios")),
                             ("chart.line.uptrend.xyaxis", "Índices", ASeccion(clave: "indices")), ("building.columns", "Consorcios", ASeccion(clave: "consorcios"))]),
             ("Difusión", [("globe", "Mi web", ASeccion(clave: "web")), ("megaphone", "Portales", ASeccion(clave: "difusion")),
+                          ("square.and.arrow.down", "Importar la cartera", ASeccion(clave: "importar")),
                           ("quote.bubble", "Respuestas guardadas", ASeccion(clave: "respuestas"))]),
             ("Equipo", [("flag", "Objetivos", ASeccion(clave: "objetivos")), ("chart.bar", "Informe", ASeccion(clave: "informe")),
                         ("checkmark.shield", "Revisión de la IA", ASeccion(clave: "revision")), ("clock.arrow.circlepath", "Actividad", ASeccion(clave: "actividad"))]),
@@ -457,9 +463,9 @@ struct Integraciones: View {
             return estado.avisar("No se pudo abrir Mercado Libre.", ok: false)
         }
         if let vuelta = try? await HojaWeb().abrir(u), let c = URLComponents(url: vuelta, resolvingAgainstBaseURL: false) {
-            struct Cuerpo: Encodable { var code: String; var state: String }
+            struct Cuerpo: Encodable { var codigo: String; var estado: String }
             if let code = c.queryItems?.first(where: { $0.name == "code" })?.value {
-                try? await estado.api.hacer("POST", "/v1/mercadolibre/vuelta", Cuerpo(code: code, state: c.queryItems?.first { $0.name == "state" }?.value ?? ""))
+                try? await estado.api.hacer("POST", "/v1/mercadolibre/vuelta", Cuerpo(codigo: code, estado: c.queryItems?.first { $0.name == "state" }?.value ?? ""))
             }
         }
         await cargar()
@@ -629,7 +635,7 @@ struct NuevoObjetivo: View {
     @Environment(\.dismiss) private var cerrar
     @State private var equipo: [Miembro] = []
     @State private var quien = ""
-    @State private var metrica = "operaciones"
+    @State private var metrica = "operaciones_cerradas"
     @State private var meta = 5.0
 
     var body: some View {
@@ -733,19 +739,6 @@ struct Papelera: View {
     }
 }
 
-/// Revisión: lo que tu IA (Corredor en tu IA) quiere cambiar y espera tu ok.
-struct Revision: View {
-    @Environment(Estado.self) private var estado
-    var body: some View {
-        ListaGenerica(titulo: "Revisión de la IA", ruta: "/v1/revision", icono: "checkmark.shield", vacio: "Nada para revisar.") { x in
-            guard let id = x["id"]?.texto, estado.escribe else { return [] }
-            struct Cuerpo: Encodable { var estado: String }
-            return [("Aprobar", { Task { try? await estado.api.hacer("PATCH", "/v1/revision/\(id)", Cuerpo(estado: "aprobado")); estado.version += 1 } }),
-                    ("Descartar", { Task { try? await estado.api.hacer("DELETE", "/v1/revision/\(id)"); estado.version += 1 } })]
-        }
-    }
-}
-
 /// El informe: visitas, consultas por origen, embudo, cierres, honorarios; y exportar a Excel.
 struct Informe: View {
     @Environment(Estado.self) private var estado
@@ -793,10 +786,20 @@ struct Informe: View {
                         }
                     }
                 }
+                Button {
+                    Task {
+                        if let j: JSONLibre = try? await estado.api.get("/v1/informe/mensual"),
+                           let u = await Documentos.generico(titulo: "Informe de \(Formato.mesDe(Date()))", subtitulo: estado.inmobiliaria?.nombre, json: j, api: estado.api, nombre: "Informe \(Formato.mesDe(Date()))") {
+                            exportando = u
+                        }
+                    }
+                } label: { Label("El informe del mes en PDF", systemImage: "printer") }
+                .buttonStyle(BotonHundido())
                 VStack(alignment: .leading, spacing: 8) {
                     TituloBloque(texto: "Exportar a Excel")
                     VStack(spacing: 0) {
-                        ForEach([("propiedades", "Propiedades"), ("contactos", "Contactos"), ("operaciones", "Operaciones"), ("contratos", "Contratos"), ("cobros", "Cobros")], id: \.0) { r, n in
+                        ForEach([("propiedades", "Propiedades"), ("contactos", "Contactos"), ("operaciones", "Operaciones"), ("contratos", "Contratos"), ("cobros", "Cobros"),
+                                 ("agenda", "Agenda"), ("reservas", "Reservas"), ("temporada", "Temporada"), ("emprendimientos", "Emprendimientos")], id: \.0) { r, n in
                             Button { Task { await exportar(r) } } label: {
                                 HStack { Label(n, systemImage: "tablecells"); Spacer(); Image(systemName: "square.and.arrow.down") }
                                     .estilo(.body16).foregroundStyle(C.texto).padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
@@ -855,22 +858,6 @@ struct Indices: View {
     }
 }
 
-/// Tarifas de temporada de una propiedad.
-struct Tarifas: View {
-    @Environment(Estado.self) private var estado
-    var propiedad: String
-    var body: some View {
-        ListaGenerica(titulo: "Tarifas", ruta: "/v1/propiedades/\(propiedad)/tarifas", icono: "calendar.badge.clock", vacio: "Cargá las tarifas desde la web por ahora.")
-    }
-}
-
-/// Corredor en tu IA: las conexiones (Claude, ChatGPT) con permiso para leer y proponer cambios.
-struct ConectarIA: View {
-    var body: some View {
-        ListaGenerica(titulo: "Corredor en tu IA", ruta: "/v1/ia/conexiones", icono: "sparkles", vacio: "Todavía no conectaste tu IA. Agregá Corredor como conector en Claude o ChatGPT con mcp.corredor.com.ar.")
-    }
-}
-
 // MARK: - Mi web
 
 /// Mi web: el link para compartir, la plantilla, los colores, la frase, nosotros, contacto y los
@@ -884,6 +871,13 @@ struct MiWeb: View {
     @State private var completa: [String: JSONLibre] = [:]
     @State private var barrios: [BarrioWeb] = []
     @State private var guardado: Task<Void, Never>?
+    @State private var guardadas: JSONLibre?
+    @State private var dominio: JSONLibre?
+    @State private var dominioNuevo = ""
+    @State private var reescribiendo: String?
+    @State private var paginaNueva = false
+    @State private var tituloPagina = ""
+    @State private var editandoSeccion: Int?
 
     struct BarrioWeb: Codable, Identifiable { var nombre: String; var cantidad: Int?; var texto: String?; var id: String { nombre } }
 
@@ -916,14 +910,57 @@ struct MiWeb: View {
                     Text("Foto de fondo").tag("foto"); Text("Foto arriba").tag("arriba"); Text("Partida").tag("partida")
                 }
             }
+            Section(header: Text("Sumar a la página de inicio")) {
+                Menu {
+                    ForEach(["texto", "testimonios", "equipo", "tasacion", "contacto", "temporada", "emprendimiento"], id: \.self) { t in
+                        Button(Self.nombreSeccion(t)) { sumarSeccion(t) }
+                    }
+                } label: { Label("Sumar sección", systemImage: "plus.rectangle.on.rectangle") }
+                ForEach(Array(secciones.enumerated()).filter { ["texto", "testimonios"].contains($0.element["tipo"]?.texto ?? "") }, id: \.offset) { i, x in
+                    Button { editandoSeccion = i } label: {
+                        LabeledContent(Self.nombreSeccion(x["tipo"]?.texto), value: x["titulo"]?.texto ?? "Editar")
+                    }
+                }
+            }
+            Section(header: Text("Páginas"), footer: Text("Las propias viven en tu web con su link. Lo apagado no sale en el menú.")) {
+                ForEach(Array(paginas.enumerated()), id: \.offset) { i, x in
+                    let id = x["id"]?.texto ?? ""
+                    Toggle(Self.nombrePagina(x), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
+                                                               set: { on in ocultarPagina(i, !on) }))
+                        .disabled(id == "inicio" || id == "propiedades")
+                        .swipeActions { if id.hasPrefix("p-") { Button("Quitar", role: .destructive) { quitarPagina(i) } } }
+                }
+                Button { paginaNueva = true } label: { Label("Nueva página", systemImage: "plus") }
+            }
+            if let g = guardadas {
+                Section("Guardadas esta semana") {
+                    LabeledContent("Corazones", value: Informe.num(g["favoritos"]))
+                    LabeledContent("Búsquedas con alerta", value: Informe.num(g["busquedas"]))
+                    if let m = g["masGuardada"], let t = m["titulo"]?.texto {
+                        Button { if let id = m["id"]?.texto { estado.abrir(AFichaPropiedad(id: id)) } } label: { LabeledContent("La más guardada", value: t) }
+                    }
+                }
+            }
+            Section(header: Text("Dominio propio"), footer: Text("Apuntá un registro A a 187.41.102.190 (o un CNAME de www). Se conecta solo, con certificado.")) {
+                if let d = dominio?["dominio"]?.texto {
+                    LabeledContent(d, value: dominio?["verificado"].map { if case .bool(true) = $0 { return "Conectado" }; return "Verificando" } ?? "Verificando")
+                    Button("Verificar ahora") { Task { try? await estado.api.hacer("POST", "/v1/inmobiliaria/dominio/verificar"); await cargarDominio() } }
+                    Button("Quitar el dominio", role: .destructive) { Task { await ponerDominio("") } }
+                } else {
+                    TextField("tuinmobiliaria.com.ar", text: $dominioNuevo).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                    Button("Conectar") { Task { await ponerDominio(dominioNuevo) } }.disabled(!dominioNuevo.contains("."))
+                }
+            }
             Section("Marca") {
                 ColorPicker("Color principal", selection: color("colorPrimario", 0x16443B), supportsOpacity: false)
                 ColorPicker("Color de acento", selection: color("colorSecundario", 0xF2BB57), supportsOpacity: false)
                 TextField("Frase de la portada", text: campo("frase", ""))
+                botonIA("frase")
             }
             Section("Nosotros") {
                 TextField("Título", text: campo("nosotrosTitulo", ""))
                 TextField("Quiénes son, desde cuándo, en qué barrios trabajan.", text: campo("nosotros", ""), axis: .vertical).lineLimit(3...8)
+                botonIA("nosotros")
             }
             Section("Contacto") {
                 TextField("WhatsApp", text: campo("whatsapp", "")).keyboardType(.phonePad)
@@ -956,6 +993,20 @@ struct MiWeb: View {
                 marca = (i.marca ?? [:]).compactMapValues { $0.texto }
             }
             barrios = (try? await estado.api.get("/v1/web/barrios")) ?? []
+            guardadas = try? await estado.api.get("/v1/web/guardadas", query: [.init(name: "dias", value: "7")])
+            await cargarDominio()
+        }
+        .alert("Página nueva", isPresented: $paginaNueva) {
+            TextField("Servicios, Tasaciones…", text: $tituloPagina)
+            Button("Cancelar", role: .cancel) {}
+            Button("Crear") { sumarPagina(tituloPagina); tituloPagina = "" }
+        }
+        .sheet(item: Binding(get: { editandoSeccion.map { CampoAlta(id: String($0)) } }, set: { editandoSeccion = $0.flatMap { Int($0.id) } })) { x in
+            EditorSeccionWeb(seccion: secciones[Int(x.id) ?? 0]) { nueva in
+                var l = secciones
+                l[Int(x.id) ?? 0] = nueva
+                conWeb { $0["inicio"] = .lista(l) }
+            }
         }
     }
 
@@ -1004,6 +1055,85 @@ struct MiWeb: View {
         }
     }
 
+    private var paginas: [JSONLibre] {
+        if case .lista(let l)? = completa["web"]?["paginas"] { return l }
+        return ["inicio", "propiedades", "temporada", "emprendimientos", "tasaciones", "nosotros"].map { .objeto(["id": .texto($0)]) }
+    }
+
+    static func nombrePagina(_ x: JSONLibre) -> String {
+        if let t = x["titulo"]?.texto { return t }
+        return ["inicio": "Inicio", "propiedades": "Comprar · Alquilar", "temporada": "Temporada", "emprendimientos": "Emprendimientos",
+                "tasaciones": "Tasá tu propiedad", "nosotros": "Nosotros"][x["id"]?.texto ?? ""] ?? "Página"
+    }
+
+    private func ocultarPagina(_ i: Int, _ oculta: Bool) {
+        var l = paginas
+        guard case .objeto(var o) = l[i] else { return }
+        o["oculta"] = oculta ? .bool(true) : nil
+        l[i] = .objeto(o)
+        conWeb { $0["paginas"] = .lista(l) }
+    }
+
+    private func quitarPagina(_ i: Int) {
+        var l = paginas
+        let antes = l
+        l.remove(at: i)
+        conWeb { $0["paginas"] = .lista(l) }
+        estado.avisar("Página quitada") { conWeb { $0["paginas"] = .lista(antes) } }
+    }
+
+    private func sumarPagina(_ titulo: String) {
+        let ruta = titulo.lowercased().folding(options: .diacriticInsensitive, locale: nil)
+            .replacingOccurrences(of: "ñ", with: "n").components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: "-")
+        guard !ruta.isEmpty else { return }
+        var l = paginas
+        l.append(.objeto(["id": .texto("p-\(ruta)"), "titulo": .texto(titulo), "ruta": .texto(ruta), "texto": .texto("")]))
+        conWeb { $0["paginas"] = .lista(l) }
+    }
+
+    private func sumarSeccion(_ tipo: String) {
+        var l = secciones
+        var o: [String: JSONLibre] = ["id": .texto(tipo == "texto" ? "texto-\(Int(Date().timeIntervalSince1970))" : tipo), "tipo": .texto(tipo)]
+        if tipo == "texto" { o["titulo"] = .texto("Un título"); o["texto"] = .texto("") }
+        if tipo != "texto", l.contains(where: { $0["tipo"]?.texto == tipo }) { return estado.avisar("Esa sección ya está.", ok: false) }
+        l.append(.objeto(o))
+        conWeb { $0["inicio"] = .lista(l) }
+        estado.avisar("Sumaste «\(Self.nombreSeccion(tipo))»")
+    }
+
+    @ViewBuilder
+    private func botonIA(_ k: String) -> some View {
+        Button {
+            Task {
+                reescribiendo = k
+                defer { reescribiendo = nil }
+                struct C: Encodable { var campo: String; var texto: String }
+                struct R: Decodable { var texto: String }
+                do {
+                    let antes = marca[k] ?? ""
+                    let r: R = try await estado.api.enviar("POST", "/v1/web/reescribir", C(campo: k, texto: antes))
+                    marca[k] = r.texto
+                    programar()
+                    estado.avisar("Reescrito") { marca[k] = antes; programar() }
+                } catch { estado.avisar(error) }
+            }
+        } label: {
+            Label(reescribiendo == k ? "Reescribiendo…" : "Reescribir con IA", systemImage: "sparkles").foregroundStyle(C.avisoTinta)
+        }
+        .disabled(reescribiendo != nil || (marca[k] ?? "").isEmpty)
+    }
+
+    private func cargarDominio() async { dominio = try? await estado.api.get("/v1/inmobiliaria/dominio") }
+
+    private func ponerDominio(_ d: String) async {
+        struct C: Encodable { var dominio: String }
+        do {
+            try await estado.api.hacer("PATCH", "/v1/inmobiliaria", C(dominio: d.trimmingCharacters(in: .whitespaces).lowercased()))
+            dominioNuevo = ""
+            await cargarDominio()
+        } catch { estado.avisar(error) }
+    }
+
     private func campo(_ k: String, _ def: String) -> Binding<String> {
         Binding(get: { marca[k] ?? def }, set: { marca[k] = $0; programar() })
     }
@@ -1040,5 +1170,64 @@ struct MiWeb: View {
         struct Cuerpo: Encodable { var texto: String }
         try? await estado.api.hacer("PUT", "/v1/web/barrios/\(b.nombre.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? b.nombre)", Cuerpo(texto: b.texto ?? ""))
         estado.avisar("Guardado el texto de \(b.nombre)")
+    }
+}
+
+
+/// Editar una sección de texto o de testimonios del inicio de la web (con «Reescribir con IA»).
+struct EditorSeccionWeb: View {
+    @Environment(Estado.self) private var estado
+    @Environment(\.dismiss) private var cerrar
+    var seccion: JSONLibre
+    var guardar: (JSONLibre) -> Void
+    @State private var titulo = ""
+    @State private var texto = ""
+    @State private var items: [(String, String)] = []
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                TextField("Título", text: $titulo)
+                if seccion["tipo"]?.texto == "testimonios" {
+                    ForEach(items.indices, id: \.self) { i in
+                        VStack {
+                            TextField("Lo que dijo", text: Binding(get: { items[i].0 }, set: { items[i].0 = $0 }), axis: .vertical)
+                            TextField("Quién", text: Binding(get: { items[i].1 }, set: { items[i].1 = $0 }))
+                        }
+                    }
+                    .onDelete { items.remove(atOffsets: $0) }
+                    Button { items.append(("", "")) } label: { Label("Sumar testimonio", systemImage: "plus") }
+                } else {
+                    TextField("Texto", text: $texto, axis: .vertical).lineLimit(4...14)
+                    Button {
+                        Task {
+                            struct C: Encodable { var campo = "texto"; var texto: String }
+                            struct R: Decodable { var texto: String }
+                            if let r: R = try? await estado.api.enviar("POST", "/v1/web/reescribir", C(texto: texto)) { texto = r.texto }
+                        }
+                    } label: { Label("Reescribir con IA", systemImage: "sparkles") }
+                    .disabled(texto.isEmpty)
+                }
+            }
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Listo") {
+                        guard case .objeto(var o) = seccion else { return cerrar() }
+                        o["titulo"] = titulo.isEmpty ? nil : .texto(titulo)
+                        if seccion["tipo"]?.texto == "testimonios" {
+                            o["items"] = .lista(items.filter { !$0.0.isEmpty }.map { .objeto(["texto": .texto($0.0), "autor": .texto($0.1)]) })
+                        } else { o["texto"] = .texto(texto) }
+                        guardar(.objeto(o))
+                        cerrar()
+                    }
+                }
+            }
+        }
+        .onAppear {
+            titulo = seccion["titulo"]?.texto ?? ""
+            texto = seccion["texto"]?.texto ?? ""
+            if case .lista(let l)? = seccion["items"] { items = l.map { ($0["texto"]?.texto ?? "", $0["autor"]?.texto ?? "") } }
+        }
     }
 }

@@ -539,6 +539,13 @@ struct Captadas: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     private let cola = ColaMira.compartida
+    /// Las captadas de cualquier aparato (y de la web): propiedades con la nota «Captada con MIRA».
+    @State private var delServidor: [Propiedad] = []
+
+    private func traer() async {
+        let l: [Propiedad] = (try? await estado.api.get("/v1/propiedades", query: [.init(name: "limite", value: "200")])) ?? []
+        delServidor = l.filter(\.deMira)
+    }
 
     var body: some View {
         ScrollView {
@@ -552,7 +559,25 @@ struct Captadas: View {
                     }
                     .padding(.horizontal, 12).padding(.vertical, 10).background(C.hundida, in: .rect(cornerRadius: 14, style: .continuous))
                 }
-                if cola.fotos.isEmpty {
+                ForEach(delServidor.filter { p in !cola.fotos.contains { $0.propiedadId == p.id } }) { p in
+                    Button { estado.abrir(AFichaPropiedad(id: p.id), en: .propiedades); estado.pestana = .propiedades; estado.miraAbierta = false } label: {
+                        HStack(spacing: 12) {
+                            Foto(url: p.miniatura).frame(width: 72, height: 72).clipShape(.rect(cornerRadius: 12))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(p.nombre).font(Estilo(tamano: 16, peso: .bold, relativo: .body).font).foregroundStyle(C.texto)
+                                Text(p.precioTexto).estilo(.footnote).foregroundStyle(C.texto2)
+                                Spacer(minLength: 2)
+                                let falta = p.fotosUrl?.isEmpty != false
+                                Label(falta ? "Faltan las fotos" : "Captada", systemImage: falta ? "camera" : "checkmark.circle").font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font)
+                                    .foregroundStyle(falta ? C.avisoTinta : C.okTinta).padding(.horizontal, 9).frame(height: 24).background(falta ? C.avisoFondo : C.okFondo, in: Capsule())
+                            }
+                            Spacer()
+                        }
+                        .padding(10).tarjeta()
+                    }
+                    .buttonStyle(.plain)
+                }
+                if cola.fotos.isEmpty && delServidor.isEmpty {
                     EstadoVacio(icono: "viewfinder", titulo: "Todavía no captaste carteles",
                                 texto: "Fotografiá un cartel de «Vende» y MIRA lo carga por vos.").padding(.top, 40)
                 }
@@ -588,8 +613,8 @@ struct Captadas: View {
             .padding(.horizontal, 16).padding(.vertical, 8)
         }
         .pantallaApilada("Captadas")
-        .refreshable { await cola.leerPendientes(estado.api) }
-        .task { await cola.leerPendientes(estado.api) }
+        .refreshable { await cola.leerPendientes(estado.api); await traer() }
+        .task { await cola.leerPendientes(estado.api); await traer() }
     }
 
     private func abrir(_ f: FotoMira) {

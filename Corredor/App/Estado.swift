@@ -136,7 +136,11 @@ final class Estado {
 
     private func entrarSegunInmobiliaria() {
         guard let s = sesion else { fase = .afuera; return }
-        if s.inmobiliariaId == nil || (s.inmobiliarias.count > 1 && !UserDefaults.standard.bool(forKey: "eligio-\(s.usuario.id)")) {
+        if let t = invitacionPendiente, s.inmobiliariaId == nil {
+            // Recién entra y lo invitaron: mientras se acepta, la pantalla de elegir.
+            fase = .eligiendo
+            Task { await aceptarInvitacion(t) }
+        } else if s.inmobiliariaId == nil || (s.inmobiliarias.count > 1 && !UserDefaults.standard.bool(forKey: "eligio-\(s.usuario.id)")) {
             fase = .eligiendo
         } else {
             fase = .adentro
@@ -145,6 +149,7 @@ final class Estado {
     }
 
     private func despuesDeEntrar() async {
+        if let t = invitacionPendiente { await aceptarInvitacion(t) }
         await pedirPermisoPush()
         cola.subir()
     }
@@ -191,6 +196,32 @@ final class Estado {
         Guardado.guardar(i.sesion, clave: "sesion")
         SesionCompartida.guardar(token: i.token, api: api.base)
         entrarSegunInmobiliaria()
+    }
+
+    /// Una invitación pendiente de aceptar (el link llegó antes de entrar).
+    var invitacionPendiente: String? {
+        get { UserDefaults.standard.string(forKey: "invitacion") }
+        set { UserDefaults.standard.set(newValue, forKey: "invitacion") }
+    }
+
+    /// Acepta la invitación del link y entra a esa inmobiliaria. Sin sesión, la guarda para después.
+    func aceptarInvitacion(_ token: String) async {
+        guard api.token != nil, fase != .afuera else {
+            invitacionPendiente = token
+            avisar("Entrá con tu cuenta y te sumamos a la inmobiliaria.")
+            return
+        }
+        struct C: Encodable { var token: String }
+        do {
+            let antes = Set(sesion?.inmobiliarias.map(\.id) ?? [])
+            try await api.hacer("POST", "/v1/invitaciones/aceptar", C(token: token))
+            invitacionPendiente = nil
+            try await cargarSesion()
+            if let nueva = sesion?.inmobiliarias.first(where: { !antes.contains($0.id) }) {
+                try await elegir(nueva)
+                avisar("Ya estás en \(nueva.nombre) como \(ElegirInmobiliaria.rol(nueva.rol).lowercased())")
+            }
+        } catch { avisar(error) }
     }
 
     /// 1C: elegir (o cambiar) la inmobiliaria.

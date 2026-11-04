@@ -40,10 +40,14 @@ struct Propiedad: Codable, Identifiable, Hashable {
     var propietarioId: String?
     var emprendimientoId: String?
     var fotosUrl: [String]?
+    /// La ficha libre (notas internas, datos de MIRA).
+    var ficha: JSONLibre?
     var creadaEn: Date?
     var actualizadoEn: Date?
 
     var nombre: String { titulo?.nonEmpty ?? direccion ?? "Propiedad" }
+    /// Captada con MIRA (lo que la web muestra en «Captadas»).
+    var deMira: Bool { ficha?["notasInternas"]?.texto?.hasPrefix("Captada con MIRA") == true }
     var portada: URL? { fotosUrl?.first.flatMap { URL(string: $0) } }
     var miniatura: URL? { fotosUrl?.first.flatMap { URL(string: $0 + ($0.contains("?") ? "&" : "?") + "tam=chica") } }
 

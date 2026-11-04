@@ -137,7 +137,7 @@ struct AgendaRaiz: View {
             Button { estado.abrir(ACita(id: c.id)) } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Label("\(c.tipoTexto) · \(c.donde)", systemImage: c.icono).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(tono)
-                    Text([c.contactoNombre.map { "Con \($0)" }, c.agenteNombre.map { estado.esDuenio ? $0 : nil } ?? nil, c.estado == "confirmada" ? "Confirmada" : nil]
+                    Text([c.contactoNombre.map { "Con \($0)" }, c.agenteNombre.map { estado.esDuenio ? $0 : nil } ?? nil, c.estado == "hecha" ? "Hecha" : nil]
                         .compactMap { $0 }.joined(separator: " · ").nonEmpty ?? (c.titulo ?? ""))
                         .estilo(.texto14).foregroundStyle(C.texto2).multilineTextAlignment(.leading)
                     if c.tipo == "visita" && c.terminaEn > Date() && Calendar.current.isDateInToday(c.empiezaEn) {
@@ -204,7 +204,7 @@ struct AgendaRaiz: View {
         case "visita": return C.oroTinta
         case "tasacion": return C.violetaTinta
         case "firma": return C.okTinta
-        case "llamada": return C.azulTinta
+        case "llamado": return C.azulTinta
         default: return C.texto2
         }
     }
@@ -477,10 +477,10 @@ struct FichaCita: View {
                     if let n = c.notas?.nonEmpty { Text(n).estilo(.body16).foregroundStyle(C.texto).padding(14).frame(maxWidth: .infinity, alignment: .leading).tarjeta() }
                     if estado.escribe {
                         VStack(spacing: 8) {
-                            if c.estado != "confirmada" && c.estado != "realizada" {
-                                Button("Confirmar") { Task { await poner("confirmada") } }.buttonStyle(BotonAccion())
+                            if c.estado != "hecha" { Button("Marcar como hecha") { Task { await poner("hecha") } }.buttonStyle(BotonAccion()) }
+                            if c.estado == "pendiente" || c.estado == nil {
+                                Button("Estoy llegando") { llegando(c) }.buttonStyle(BotonHundido())
                             }
-                            if c.estado != "realizada" { Button("Marcar como hecha") { Task { await poner("realizada") } }.buttonStyle(BotonHundido()) }
                             Button("Editar") { editando = true }.buttonStyle(BotonHundido())
                             if c.estado != "cancelada" { Button("Cancelar la cita") { Task { await poner("cancelada") } }.buttonStyle(BotonTexto(color: C.error)) }
                         }
@@ -500,7 +500,7 @@ struct FichaCita: View {
     }
 
     static func estadoTexto(_ e: String?) -> String {
-        ["pendiente": "Pendiente", "confirmada": "Confirmada", "realizada": "Hecha", "cancelada": "Cancelada"][e ?? ""] ?? "Pendiente"
+        ["pendiente": "Pendiente", "hecha": "Hecha", "cancelada": "Cancelada"][e ?? ""] ?? "Pendiente"
     }
 
     private func enlace(_ i: String, _ t: String, primera: Bool, _ hacer: @escaping () -> Void) -> some View {
@@ -523,11 +523,20 @@ struct FichaCita: View {
         do {
             try await estado.cola.enviar("PATCH", "/v1/agenda/\(id)", Cuerpo(estado: nuevo), etiqueta: "Cita \(Self.estadoTexto(nuevo).lowercased())")
             estado.version += 1
-            if nuevo == "realizada" { Haptico.exito() }
+            if nuevo == "hecha" { Haptico.exito() }
             estado.avisar("Cita \(Self.estadoTexto(nuevo).lowercased())") {
                 Task { try? await estado.api.hacer("PATCH", "/v1/agenda/\(id)", Cuerpo(estado: antes)); estado.version += 1 }
             }
         } catch { estado.avisar(error) }
+    }
+
+    private func llegando(_ c: Cita) {
+        guard let id = c.contactoId else { return estado.avisar("La visita no tiene un contacto cargado.", ok: false) }
+        Task {
+            struct Ct: Decodable { var nombre: String?; var telefono: String? }
+            let x: Ct? = try? await estado.api.get("/v1/contactos/\(id)")
+            Afuera.whatsapp(x?.telefono, texto: "Hola \(x?.nombre?.split(separator: " ").first.map(String.init) ?? ""), estoy llegando a \(c.donde).")
+        }
     }
 
     private func borrar() {

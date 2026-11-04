@@ -49,7 +49,7 @@ struct Cita: Codable, Identifiable, Hashable {
 
     static let tipos: [(String, String, String)] = [
         ("visita", "Visita", "house"), ("tasacion", "Tasación", "ruler"), ("firma", "Firma", "signature"),
-        ("llamada", "Llamada", "phone"), ("reunion", "Reunión", "person.2"), ("otro", "Otro", "calendar"),
+        ("llamado", "Llamado", "phone"), ("otro", "Tarea", "checklist"),
     ]
     var icono: String { Cita.tipos.first { $0.0 == tipo }?.2 ?? "calendar" }
     var tipoTexto: String { Cita.tipos.first { $0.0 == tipo }?.1 ?? "Cita" }
@@ -81,10 +81,12 @@ struct Objetivo: Codable, Identifiable, Hashable {
     var avance: Double?
     var porcentaje: Double?
 
+    /// Las métricas que registra la API (objetivos.Registrar).
     static let metricas: [String: (String, String)] = [
-        "operaciones": ("operación", "operaciones"), "captaciones": ("captación", "captaciones"),
-        "visitas": ("visita", "visitas"), "tasaciones": ("tasación", "tasaciones"), "contactos": ("contacto", "contactos"),
-        "facturacion": ("peso", "pesos"),
+        "operaciones_cerradas": ("operación cerrada", "operaciones cerradas"), "propiedades_captadas": ("captación", "captaciones"),
+        "visitas_hechas": ("visita", "visitas"), "contactos_nuevos": ("contacto nuevo", "contactos nuevos"),
+        "contratos_firmados": ("contrato firmado", "contratos firmados"), "honorarios_usd": ("dólar de honorarios", "dólares de honorarios"),
+        "honorarios_ars": ("peso de honorarios", "pesos de honorarios"),
     ]
 }
 

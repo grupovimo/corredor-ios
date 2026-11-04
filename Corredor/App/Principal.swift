@@ -6,6 +6,7 @@ import SwiftUI
 /// Inicio. La barra es la del handoff (fondo `bar` con desenfoque, ícono 27, texto 10/600).
 struct Principal: View {
     @Environment(Estado.self) private var estado
+    @State private var recorrido = false
 
     var body: some View {
         @Bindable var estado = estado
@@ -31,6 +32,11 @@ struct Principal: View {
             }
         }
         .animation(.spring(duration: 0.3), value: estado.aviso)
+        .overlay { if recorrido { Recorrido(visible: $recorrido).zIndex(10) } }
+        .task {
+            // La primera vez (en cualquier aparato), el recorrido.
+            if estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { recorrido = true }
+        }
     }
 
     private func pestana<V: View>(_ p: Pestana, @ViewBuilder _ raiz: () -> V) -> some View {

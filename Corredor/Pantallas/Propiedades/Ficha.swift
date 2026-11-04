@@ -233,6 +233,9 @@ struct FichaPropiedad: View {
                 if p.operacion == "temporario" || p.tambienTemporario == true { filaAccion("calendar.badge.clock", "Tarifas y disponibilidad") { estado.abrir(ASeccion(clave: "tarifas", id: p.id)) } }
                 filaAccion("checklist", "Inventario y actas") { estado.abrir(ASeccion(clave: "actas", id: p.id)) }
                 filaAccion("chart.bar", "Vistas y consultas") { estado.abrir(ASeccion(clave: "vistas", id: p.id)) }
+                filaAccion("paperplane", "A quién se la mandaste") { estado.abrir(ASeccion(clave: "envios", id: p.id)) }
+                filaAccion("waveform", "Recorridas dictadas") { estado.abrir(ASeccion(clave: "grabaciones", id: p.id)) }
+                filaAccion("hand.raised", "Reservas") { estado.abrir(ASeccion(clave: "reservas-propiedad", id: p.id)) }
                 filaAccion("plus.square.on.square", "Duplicar") { Task { await duplicar(p) } }
                 if estado.esDuenio { filaAccion("trash", "Mandar a la papelera", rojo: true) { Task { await borrar(p) } } }
             }
@@ -421,6 +424,7 @@ struct HojaCompartir: View {
     var web: String?
     var interesados: [Interesado] = []
     @State private var lista: [Interesado] = []
+    @State private var previo: ArchivoPrevio?
 
     private var link: URL? {
         guard let web, let slug = propiedad.slug else { return nil }
@@ -483,7 +487,7 @@ struct HojaCompartir: View {
                 } label: { filaHoja("Copiar link de la ficha", "doc.on.doc") }
                 Rectangle().fill(C.linea).frame(height: 0.5)
                 Button {
-                    if let u = URL(string: "\(Api.web())/propiedades/\(propiedad.id)/imprimir") { UIApplication.shared.open(u) }
+                    Task { if let u = await Documentos.ficha(propiedad, api: estado.api) { previo = ArchivoPrevio(url: u) } }
                 } label: { filaHoja("Imprimir ficha A4", "printer") }
             }
             .background(C.superficie, in: .rect(cornerRadius: 14, style: .continuous))
@@ -491,6 +495,7 @@ struct HojaCompartir: View {
         }
         .padding(.horizontal, 16).padding(.top, 20)
         .background(C.hundida.ignoresSafeArea())
+        .vistaPrevia($previo)
         .task {
             lista = interesados
             if lista.isEmpty { lista = (try? await estado.api.get("/v1/propiedades/\(propiedad.id)/interesados")) ?? [] }

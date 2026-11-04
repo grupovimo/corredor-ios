@@ -42,6 +42,7 @@ struct Inventario: View {
     @State private var nuevoItem = ""
     @State private var nuevoAmbiente = ""
     @State private var sumandoAmbiente = false
+    @State private var dictando = false
 
     private var ambientes: [String] {
         var vistos: [String] = []
@@ -167,6 +168,13 @@ struct Inventario: View {
             .padding(.horizontal, 16).padding(.vertical, 14)
         }
         .pantallaApilada("Acta de entrega")
+        .toolbar { if estado.escribe { Button { dictando = true } label: { Label("Dictar", systemImage: "mic") } } }
+        .sheet(isPresented: $dictando) {
+            DictarInventario(propiedad: propiedad) { n in
+                estado.avisar("Sumamos \(Formato.cantidad(n, "ítem", "ítems")) al inventario")
+                Task { await cargar() }
+            }
+        }
         .task(id: estado.version) { await cargar() }
         .alert("Ambiente nuevo", isPresented: $sumandoAmbiente) {
             TextField("Living, baño, cocina…", text: $nuevoAmbiente)
@@ -238,6 +246,7 @@ struct Firmas: View {
     var clave: String
     @State private var acta: Acta?
     @State private var firmando: String?
+    @State private var previo: ArchivoPrevio?
 
     private var propiedad: String { String(clave.split(separator: "/").first ?? "") }
     private var actaId: String { String(clave.split(separator: "/").last ?? "") }
@@ -282,8 +291,15 @@ struct Firmas: View {
                 }
                 let completa = (acta?.firmas?.count ?? 0) >= 3
                 Button {
-                    if let u = URL(string: "\(Api.web())/propiedades/\(propiedad)/actas/\(actaId)/imprimir") { UIApplication.shared.open(u) }
-                    Haptico.exito()
+                    Task {
+                        guard let acta else { return }
+                        let items: [ItemInventario] = (try? await estado.api.get("/v1/propiedades/\(propiedad)/inventario")) ?? []
+                        let p: Propiedad? = try? await estado.api.get("/v1/propiedades/\(propiedad)")
+                        if let u = await Documentos.acta(acta, items: items, propiedad: p?.nombre ?? "", api: estado.api) {
+                            Haptico.exito()
+                            previo = ArchivoPrevio(url: u)
+                        }
+                    }
                 } label: {
                     Text("Cerrar acta y mandar PDF").font(Estilo(tamano: 17, peso: .semibold, relativo: .headline).font)
                         .foregroundStyle(completa ? C.sobreAccion : C.texto3).frame(maxWidth: .infinity, minHeight: 52)
@@ -294,6 +310,7 @@ struct Firmas: View {
             .padding(.horizontal, 16).padding(.vertical, 14)
         }
         .pantallaApilada("Firmas")
+        .vistaPrevia($previo)
         .task { await cargar() }
         .sheet(item: Binding(get: { firmando.map { CampoAlta(id: $0) } }, set: { firmando = $0?.id })) { p in
             HojaFirma(parte: p.id) { nombre, trazo in Task { await firmar(p.id, nombre, trazo) } }.presentationDetents([.medium])
@@ -394,4 +411,134 @@ struct HojaFirma: View {
             t.enumerated().map { i, p in "\(i == 0 ? "M" : "L") \(Int(p.x * ex)) \(Int(p.y * ey))" }.joined(separator: " ")
         }.joined(separator: " ")
     }
+}
+
+struct GrabacionAPI: Codable, Identifiable, Hashable {
+    var id: String
+    var transcripcion: String?
+    var audioUrl: String?
+    var audioSegundos: Int?
+    var itemsCreados: Int?
+    var creadaPor: String?
+    var creadaEn: Date?
+}
+
+/// Dictar la recorrida: se graba la voz, se transcribe en el iPhone y la API arma los ítems del
+/// inventario («living: paredes bien, una mancha de humedad en el techo…»).
+struct DictarInventario: View {
+    @Environment(Estado.self) private var estado
+    @Environment(\.dismiss) private var cerrar
+    var propiedad: String
+    var alTerminar: (Int) -> Void
+    @State private var dictado = Dictado()
+    @State private var enviando = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Dictá la recorrida").estilo(.titulo)
+            Text(Formato.sinViudas("Ambiente por ambiente: qué hay y cómo está. Armamos los ítems del inventario.")).estilo(.subhead).foregroundStyle(C.texto2)
+            ScrollView {
+                Text(dictado.texto.isEmpty ? "«Living: paredes bien, piso de madera con un rayón, una mancha de humedad en el techo…»" : dictado.texto)
+                    .estilo(.body16).foregroundStyle(dictado.texto.isEmpty ? C.texto3 : C.texto).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: .infinity)
+            .padding(14).background(C.hundida, in: .rect(cornerRadius: 16))
+            if dictado.grabando {
+                Button("Terminar") { Task { await terminar() } }.buttonStyle(BotonPrincipal())
+            } else if dictado.texto.isEmpty {
+                Button { dictado.empezar(base: "") } label: { Label("Empezar a dictar", systemImage: "mic.fill") }.buttonStyle(BotonPrincipal())
+            } else {
+                Button(enviando ? "Armando los ítems…" : "Armar el inventario") { Task { await enviar() } }.buttonStyle(BotonPrincipal()).disabled(enviando)
+                Button("Dictar de nuevo") { dictado.texto = ""; dictado.empezar(base: "") }.buttonStyle(BotonTexto())
+            }
+        }
+        .padding(20)
+        .background(C.fondo)
+    }
+
+    private func terminar() async { dictado.parar() }
+
+    private func enviar() async {
+        enviando = true
+        defer { enviando = false }
+        do {
+            struct C: Encodable { var transcripcion: String; var tipoActa = "entrega" }
+            let g: GrabacionAPI = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/grabaciones", C(transcripcion: dictado.texto))
+            Haptico.exito()
+            alTerminar(g.itemsCreados ?? 0)
+            cerrar()
+        } catch { estado.avisar(error) }
+    }
+}
+
+/// Las recorridas dictadas de una propiedad: escuchar el audio, leer la transcripción y cuántos ítems armó.
+struct Grabaciones: View {
+    @Environment(Estado.self) private var estado
+    var propiedad: String
+    @State private var lista: [GrabacionAPI] = []
+    @State private var dictando = false
+
+    var body: some View {
+        ScrollView {
+            VStack(spacing: 10) {
+                if lista.isEmpty { EstadoVacio(icono: "waveform", titulo: "Sin recorridas dictadas", texto: "Dictá la recorrida y armamos el inventario.", accion: estado.escribe ? ("Dictar", { dictando = true }) : nil).padding(.top, 40) }
+                ForEach(lista) { g in
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text(g.creadaEn.map { Formato.cuando($0) } ?? "").estilo(.footnote).foregroundStyle(C.texto3)
+                            Spacer()
+                            if let n = g.itemsCreados { Text(Formato.cantidad(n, "ítem", "ítems")).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.okTinta) }
+                        }
+                        if let u = g.audioUrl { AudioMensaje(url: URL(string: u)) }
+                        Text(g.transcripcion ?? "").estilo(.texto14).foregroundStyle(C.texto)
+                    }
+                    .padding(14).tarjeta()
+                }
+            }
+            .padding(16)
+        }
+        .pantallaApilada("Recorridas dictadas")
+        .toolbar { if estado.escribe { Button { dictando = true } label: { Image(systemName: "mic") }.accessibilityLabel("Dictar") } }
+        .task(id: estado.version) { lista = (try? await estado.api.get("/v1/propiedades/\(propiedad)/grabaciones")) ?? [] }
+        .sheet(isPresented: $dictando) { DictarInventario(propiedad: propiedad) { _ in estado.version += 1 } }
+    }
+}
+
+struct EnvioAPI: Codable, Identifiable, Hashable {
+    var id: String
+    var contactoId: String?
+    var contactoNombre: String?
+    var canal: String?
+    var enviadaPor: String?
+    var enviadaEn: Date?
+}
+
+/// A quién se le mandó la ficha, por dónde y cuándo.
+struct FichasMandadas: View {
+    @Environment(Estado.self) private var estado
+    var propiedad: String
+    @State private var lista: [EnvioAPI] = []
+
+    var body: some View {
+        List {
+            if lista.isEmpty { Text("Todavía no se la mandaste a nadie.").foregroundStyle(C.texto2) }
+            ForEach(lista) { e in
+                Button { if let c = e.contactoId { estado.abrir(AFichaContacto(id: c)) } } label: {
+                    HStack {
+                        Image(systemName: e.canal == "email" ? "envelope" : "bubble.left").foregroundStyle(C.accion)
+                        VStack(alignment: .leading) {
+                            Text(e.contactoNombre ?? "Contacto").estilo(.filaLista).foregroundStyle(C.texto)
+                            Text([e.enviadaPor, e.enviadaEn.map { Formato.cuando($0) }].compactMap { $0 }.joined(separator: " · ")).estilo(.footnote).foregroundStyle(C.texto2)
+                        }
+                    }
+                }
+                .swipeActions { if estado.escribe { Button("Quitar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/propiedades/\(propiedad)/envios/\(e.id)"); await cargar() } } } }
+            }
+        }
+        .scrollContentBackground(.hidden).background(FondoApp())
+        .navigationTitle("Fichas mandadas")
+        .task { await cargar() }
+    }
+
+    private func cargar() async { lista = (try? await estado.api.get("/v1/propiedades/\(propiedad)/envios")) ?? [] }
 }

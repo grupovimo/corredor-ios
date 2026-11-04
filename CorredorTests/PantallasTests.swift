@@ -124,7 +124,20 @@ final class PantallasTests: XCTestCase {
         ]
     }
 
-    private func montar<V: View>(_ vista: V, rol: String = "duenio", segundos: Double = 3) {
+    /// Dónde dejar las capturas (las sube el CI para compararlas con el handoff).
+    static let capturas: URL? = {
+        guard let d = ProcessInfo.processInfo.environment["CAPTURAS"] ?? (FileManager.default.fileExists(atPath: "/tmp/capturas-corredor") ? "/tmp/capturas-corredor" : nil) else { return nil }
+        let u = URL(fileURLWithPath: d)
+        try? FileManager.default.createDirectory(at: u, withIntermediateDirectories: true)
+        return u
+    }()
+
+    private func montar<V: View>(_ vista: V, rol: String = "duenio", segundos: Double = 3, nombre: String = #function) {
+        montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: false)
+        if Self.capturas != nil { montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: true) }
+    }
+
+    private func montarEn<V: View>(_ vista: V, rol: String, segundos: Double, nombre: String, oscuro: Bool) {
         let conf = URLSessionConfiguration.ephemeral
         conf.protocolClasses = [ApiFalsa.self]
         let estado = Estado(api: Api(base: URL(string: "https://api.prueba")!, token: "x", http: URLSession(configuration: conf)))
@@ -134,9 +147,15 @@ final class PantallasTests: XCTestCase {
             .environment(estado)
             .environment(estado.cola)
         let ventana = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        ventana.overrideUserInterfaceStyle = oscuro ? .dark : .light
         ventana.rootViewController = UIHostingController(rootView: raiz)
         ventana.makeKeyAndVisible()
         RunLoop.main.run(until: Date().addingTimeInterval(segundos))
+        if let dir = Self.capturas {
+            let img = UIGraphicsImageRenderer(bounds: ventana.bounds).image { _ in ventana.drawHierarchy(in: ventana.bounds, afterScreenUpdates: true) }
+            let n = nombre.replacingOccurrences(of: "()", with: "").replacingOccurrences(of: "test", with: "")
+            try? img.pngData()?.write(to: dir.appendingPathComponent("\(n)-\(oscuro ? "oscuro" : "claro").png"))
+        }
         ventana.isHidden = true
     }
 
@@ -177,7 +196,7 @@ final class PantallasTests: XCTestCase {
     func testSecciones() {
         for c in ["mas", "configuracion", "equipo", "integraciones", "respuestas", "proveedores", "objetivos", "inventarios", "rendiciones",
                   "papelera", "actividad", "revision", "informe", "indices", "web", "difusion", "consorcios", "ia", "no-existe"] {
-            montar(Seccion(clave: c, id: nil), segundos: 1)
+            montar(Seccion(clave: c, id: nil), segundos: 1, nombre: "Seccion-\(c)")
         }
     }
     func testEntrada() { montar(Entrada()) }

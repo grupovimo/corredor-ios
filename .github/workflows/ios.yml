@@ -37,6 +37,9 @@ jobs:
       - if: failure()
         run: grep -E 'error:' compilar.log | sort -u | head -60
       - name: Probar
+        env:
+          # Las capturas de cada pantalla (claro y oscuro) para compararlas con el handoff.
+          TEST_RUNNER_CAPTURAS: ${{ runner.temp }}/capturas
         run: |
           set -o pipefail
           # En Release, como lo que llega a TestFlight (optimizado), con testability para @testable.
@@ -53,3 +56,9 @@ jobs:
             echo "== $f"
             python3 -c "import json,sys; t=open(sys.argv[1]).read(); h,b=t.split(chr(10),1); d=json.loads(b); print(d.get('exception'), d.get('termination')); th=[x for x in d['threads'] if x.get('triggered')][0]; imgs=d['usedImages']; [print(i, imgs[f['imageIndex']].get('name'), f.get('symbol'), f.get('sourceFile'), f.get('sourceLine')) for i,f in enumerate(th['frames'][:40])]; print(d.get('asi'))" "$f" || head -c 6000 "$f"
           done
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas
+          path: ${{ runner.temp }}/capturas
+          if-no-files-found: ignore

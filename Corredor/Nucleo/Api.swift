@@ -181,13 +181,18 @@ struct Archivo: Codable, Identifiable, Hashable {
 extension Api {
     /// Sube un archivo (multipart, campo `archivo`).
     func subir(_ datos: Data, nombre: String, tipo: String, uso: String) async throws -> Archivo {
+        try Api.decodificador.decode(Archivo.self, from: try await multipart("/v1/archivos", query: [URLQueryItem(name: "uso", value: uso)], datos: datos, nombre: nombre, tipo: tipo))
+    }
+
+    /// Un POST multipart (campo `archivo`) a cualquier ruta: la respuesta cruda.
+    func multipart(_ ruta: String, query: [URLQueryItem], datos: Data, nombre: String, tipo: String) async throws -> Data {
         let limite = "corredor-\(UUID().uuidString)"
         var cuerpo = Data()
         cuerpo.append("--\(limite)\r\nContent-Disposition: form-data; name=\"archivo\"; filename=\"\(nombre)\"\r\nContent-Type: \(tipo)\r\n\r\n".data(using: .utf8)!)
         cuerpo.append(datos)
         cuerpo.append("\r\n--\(limite)--\r\n".data(using: .utf8)!)
-        var c = URLComponents(url: base.appendingPathComponent("/v1/archivos"), resolvingAgainstBaseURL: false)!
-        c.queryItems = [URLQueryItem(name: "uso", value: uso)]
+        var c = URLComponents(url: base.appendingPathComponent(ruta), resolvingAgainstBaseURL: false)!
+        if !query.isEmpty { c.queryItems = query }
         var r = URLRequest(url: c.url!, timeoutInterval: 120)
         r.httpMethod = "POST"
         r.setValue("multipart/form-data; boundary=\(limite)", forHTTPHeaderField: "Content-Type")
@@ -202,6 +207,6 @@ extension Api {
             throw ErrorApi(estado: (resp as? HTTPURLResponse)?.statusCode ?? 0, codigo: "archivo", titulo: p?.title ?? "No se subió",
                            detalle: p?.detail ?? "No se pudo subir el archivo.")
         }
-        return try Api.decodificador.decode(Archivo.self, from: d)
+        return d
     }
 }

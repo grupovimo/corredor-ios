@@ -349,7 +349,7 @@ struct FichaContacto: View {
         case "visita", "cita": return "calendar"
         case "web", "consulta": return "globe"
         case "envio", "ficha": return "paperplane"
-        case "llamada": return "phone"
+        case "llamado", "llamada": return "phone"
         case "vista": return "eye"
         default: return "text.bubble"
         }

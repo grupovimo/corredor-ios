@@ -93,9 +93,9 @@ struct Temporada: View {
     }
 
     private func checkin(_ r: ReservaTemporada) async {
-        struct C: Encodable { var saldo: Double?; var deposito: Double? }
+        struct C: Encodable { var llaves = true }
         do {
-            try await estado.api.hacer("PUT", "/v1/temporada/reservas/\(r.id)/checkin", C(saldo: r.saldo, deposito: nil))
+            try await estado.api.hacer("PUT", "/v1/temporada/reservas/\(r.id)/checkin", C())
             Haptico.exito()
             estado.avisar("Check-in de \(r.quien) hecho")
             await cargar()

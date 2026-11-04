@@ -207,6 +207,7 @@ struct FichaConsorcio: View {
     @State private var texto = ""
     @State private var monto: Double?
     @State private var pagando: UnidadAPI?
+    @State private var previo: ArchivoPrevio?
 
     private static let partes = [("unidades", "Unidades"), ("expensas", "Expensas"), ("deudores", "Deudores"), ("trabajos", "Trabajos"), ("novedades", "Novedades"), ("personal", "Personal")]
 
@@ -242,6 +243,7 @@ struct FichaConsorcio: View {
             }
         }
         .task(id: estado.version) { await cargar() }
+        .vistaPrevia($previo)
         .sheet(isPresented: $editando) { EditarConsorcio(c: c) }
         .alert(Self.tituloNuevo(nuevo), isPresented: Binding(get: { nuevo != nil }, set: { if !$0 { nuevo = nil } })) {
             TextField(nuevo == "periodo" ? "2026-11" : "Nombre o título", text: $texto)
@@ -284,8 +286,8 @@ struct FichaConsorcio: View {
             }, vacio: "No hay trabajos pendientes.")
         case "novedades":
             lista(novedades.map { n in
-                Fila(id: n.id, titulo: n.titulo, detalle: n.descripcion ?? "", derecha: Self.estadoTexto(n.estado), tono: n.estado == "resuelta" ? .verde : .oro,
-                     acciones: [("Marcar resuelta", { Task { await estadoNovedad(n, "resuelta") } })])
+                Fila(id: n.id, titulo: n.titulo, detalle: n.descripcion ?? "", derecha: Self.estadoTexto(n.estado), tono: n.estado == "resuelto" ? .verde : .oro,
+                     acciones: [("Marcar resuelta", { Task { await estadoNovedad(n, "resuelto") } }), ("En curso", { Task { await estadoNovedad(n, "en_curso") } })])
             }, vacio: "Sin novedades.")
         default:
             VStack(alignment: .leading, spacing: 12) {
@@ -297,10 +299,11 @@ struct FichaConsorcio: View {
                     TituloBloque(texto: "Recibos de sueldo")
                     lista(recibos.map { r in
                         Fila(id: r.id, titulo: r.empleado ?? "Recibo", detalle: r.periodo ?? "", derecha: "", tono: .neutro,
-                             acciones: [("Mandar link", { Task { await link("/v1/consorcios/\(id)/sueldos/\(r.id)/link", nil) } })])
+                             acciones: [("Mandar link", { Task { await link("/v1/consorcios/\(id)/sueldos/\(r.id)/link", nil) } }),
+                                        ("PDF del recibo", { Task { await reciboPDF(r) } })])
                     }, vacio: "")
                 }
-                Link("Formulario 931 del mes", destination: Api.web().appendingPathComponent("consorcios/\(id)/f931")).font(Estilo.subheadFuerte.font)
+                Button { Task { await f931() } } label: { Label("Formulario 931 del mes", systemImage: "doc.text") }.font(Estilo.subheadFuerte.font)
             }
         }
     }
@@ -340,7 +343,8 @@ struct FichaConsorcio: View {
     }
 
     static func estadoTexto(_ e: String?) -> String {
-        ["pendiente": "Pendiente", "en_curso": "En curso", "hecho": "Hecho", "abierta": "Abierta", "resuelta": "Resuelta", "presupuestado": "Presupuestado"][e ?? ""] ?? (e?.capitalized ?? "")
+        ["pendiente": "Pendiente", "aprobado": "Aprobado", "en_curso": "En curso", "hecho": "Hecho", "cancelado": "Cancelado", "abierto": "Abierta",
+         "resuelto": "Resuelta", "abierta": "Abierta", "resuelta": "Resuelta"][e ?? ""] ?? (e?.capitalized ?? "")
     }
 
     static func tituloNuevo(_ t: String?) -> String {
@@ -376,7 +380,7 @@ struct FichaConsorcio: View {
                 struct T: Encodable { var titulo: String; var estado = "pendiente"; var prioridad = "media" }
                 try await estado.api.hacer("POST", "\(b)/trabajos", T(titulo: t))
             case "novedad":
-                struct N: Encodable { var titulo: String; var tipo = "reclamo"; var estado = "abierta"; var ocurrioEl: String }
+                struct N: Encodable { var titulo: String; var tipo = "reclamo"; var estado = "abierto"; var ocurrioEl: String }
                 try await estado.api.hacer("POST", "\(b)/novedades", N(titulo: t, ocurrioEl: Formato.diaISO(Date())))
             default:
                 struct E: Encodable { var nombre: String }
@@ -417,6 +421,20 @@ struct FichaConsorcio: View {
         await cargar()
     }
 
+    private func reciboPDF(_ r: ReciboSueldoAPI) async {
+        guard let j: JSONLibre = try? await estado.api.get("/v1/consorcios/\(id)/sueldos/\(r.id)") else { return }
+        if let u = await Documentos.generico(titulo: "Recibo de sueldo", subtitulo: "\(r.empleado ?? "") · \(r.periodo ?? "")", json: j, api: estado.api, nombre: "Sueldo \(r.empleado ?? "")") {
+            previo = ArchivoPrevio(url: u)
+        }
+    }
+
+    private func f931() async {
+        do {
+            let u = try await Documentos.archivo("/v1/consorcios/\(id)/sueldos/f931", nombre: "F931-\(String(Formato.diaISO(Date()).prefix(7))).txt", api: estado.api)
+            previo = ArchivoPrevio(url: u)
+        } catch { estado.avisar(error) }
+    }
+
     private func reciboSueldo(_ e: EmpleadoAPI) async {
         struct R: Encodable { var empleadoId: String; var periodo: String }
         do {
@@ -436,6 +454,7 @@ struct TarjetaPeriodo: View {
     @State private var detalle: PeriodoAPI?
     @State private var gasto = ""
     @State private var monto: Double?
+    @State private var previo: ArchivoPrevio?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -469,16 +488,25 @@ struct TarjetaPeriodo: View {
                         Button("Cerrar") { Task { await accion("cerrar", "Período cerrado") } }.buttonStyle(BotonHundido())
                     }
                 }
-                Link("Ver la liquidación para imprimir", destination: Api.web().appendingPathComponent("consorcios/\(consorcio)/imprimir/expensas/\(p.id)")).font(Estilo.footnoteFuerte.font)
+                Button {
+                    Task {
+                        if let j: JSONLibre = try? await estado.api.get("/v1/consorcios/\(consorcio)/periodos/\(p.id)/prorrateo"),
+                           let u = await Documentos.generico(titulo: "Expensas de \(ReciboVista.mes(p.periodo))", subtitulo: "Liquidación por unidad", json: j, api: estado.api, nombre: "Expensas \(p.periodo)") {
+                            previo = ArchivoPrevio(url: u)
+                        }
+                    }
+                } label: { Label("La liquidación en PDF", systemImage: "printer") }
+                .font(Estilo.footnoteFuerte.font)
             }
         }
         .padding(14).tarjeta()
+        .vistaPrevia($previo)
     }
 
     private func cargar() async { detalle = try? await estado.api.get("/v1/consorcios/\(consorcio)/periodos/\(p.id)") }
 
     private func sumar() async {
-        struct G: Encodable { var descripcion: String; var monto: Double; var tipo = "ordinario"; var fecha: String }
+        struct G: Encodable { var descripcion: String; var monto: Double; var tipo = "ordinaria"; var fecha: String }
         try? await estado.api.hacer("POST", "/v1/consorcios/\(consorcio)/periodos/\(p.id)/gastos", G(descripcion: gasto, monto: monto ?? 0, fecha: Formato.diaISO(Date())))
         gasto = ""
         monto = nil

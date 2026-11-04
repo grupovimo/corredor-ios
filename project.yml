@@ -36,6 +36,10 @@ targets:
           - $(AppIdentifierPrefix)ar.com.corredor.app
         com.apple.developer.applesignin:
           - Default
+        # Universal Links: las invitaciones y los links del panel abren la app (apple-app-site-association en la web).
+        com.apple.developer.associated-domains:
+          - applinks:corredor.com.ar
+          - webcredentials:corredor.com.ar
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: ar.com.corredor.app

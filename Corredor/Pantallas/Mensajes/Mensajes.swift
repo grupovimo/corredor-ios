@@ -24,6 +24,7 @@ struct FilaBandeja: Identifiable {
     var sinDueno: Bool
     var fuera: Bool
     var ir: AnyHashable
+    var contactoId: String? = nil
 }
 
 /// 6A Bandeja: WhatsApp, Mercado Libre y las consultas de la web juntas, con filtros.
@@ -134,6 +135,25 @@ struct MensajesRaiz: View {
         }
         .buttonStyle(.plain)
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
+        .contextMenu {
+            if x.canal == "web", x.sinDueno, estado.escribe, let c = x.contactoId {
+                Button { Task { await tomar(c) } } label: { Label("Tomarla yo", systemImage: "person.crop.circle.badge.checkmark") }
+            }
+        }
+        .swipeActions {
+            if x.canal == "web", x.sinDueno, estado.escribe, let c = x.contactoId {
+                Button("Tomarla") { Task { await tomar(c) } }.tint(C.verde700)
+            }
+        }
+    }
+
+    private func tomar(_ contacto: String) async {
+        struct C: Encodable { var agenteId: String? }
+        do {
+            try await estado.api.hacer("POST", "/v1/consultas/\(contacto)/asignar", C(agenteId: estado.usuario?.id))
+            estado.avisar("La consulta es tuya")
+            await cargar()
+        } catch { estado.avisar(error) }
     }
 
     private func etiqueta(_ t: String, _ f: Color, _ c: Color) -> some View {
@@ -159,7 +179,8 @@ struct MensajesRaiz: View {
             f += web.map { a in
                 FilaBandeja(id: "web" + a.id, canal: "web", nombre: a.titulo ?? "Consulta desde tu web", texto: a.cuerpo ?? "", cuando: a.creadoEn, propiedad: nil,
                             nuevo: a.hechoEn == nil, mio: false, sinDueno: true, fuera: false,
-                            ir: a.url.flatMap { Ruta(texto: $0)?.destino } ?? AnyHashable(AAvisos()))
+                            ir: a.url.flatMap { Ruta(texto: $0)?.destino } ?? AnyHashable(AAvisos()),
+                            contactoId: a.url.flatMap { Ruta(texto: $0)?.destino as? AFichaContacto }?.id)
             }
             filas = f.sorted { ($0.cuando ?? .distantPast) > ($1.cuando ?? .distantPast) }
             estado.sinLeer = wa.reduce(0) { $0 + ($1.noLeidos ?? 0) } + ml.filter { $0.estado == "sin_responder" }.count
