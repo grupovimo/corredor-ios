@@ -315,11 +315,11 @@ struct MasterplanVista: View {
                 GeometryReader { g in
                     ZStack(alignment: .topLeading) {
                         AsyncImage(url: u) { $0.resizable().scaledToFit() } placeholder: { C.hundida }
-                        ForEach(marcas, id: \.0) { id, x, y in
-                            let p = unidades.first { $0.id == id }
+                        ForEach(marcas, id: \.0) { m in
+                            let p = unidades.first { $0.id == m.0 }
                             Circle().fill(Self.color(p?.estado)).frame(width: 14, height: 14).overlay(Circle().stroke(.white, lineWidth: 2))
-                                .position(x: g.size.width * x / 100, y: g.size.height * y / 100)
-                                .onTapGesture { estado.abrir(AFichaPropiedad(id: id)) }
+                                .position(x: g.size.width * m.1 / 100, y: g.size.height * m.2 / 100)
+                                .onTapGesture { estado.abrir(AFichaPropiedad(id: m.0)) }
                         }
                     }
                     .contentShape(Rectangle())

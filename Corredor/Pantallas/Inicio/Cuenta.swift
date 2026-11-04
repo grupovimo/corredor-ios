@@ -302,7 +302,7 @@ struct ConfigAvisos: View {
 
         private func cambiar(_ i: Int, _ f: @escaping (inout Vista.Canales, Bool) -> Void) -> (Bool) -> Void {
             { valor in
-                guard v != nil else { return }
+                guard v != nil, v!.tipos.indices.contains(i) else { return }
                 f(&v!.tipos[i], valor)
                 guardar()
             }
