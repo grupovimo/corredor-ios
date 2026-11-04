@@ -1,6 +1,6 @@
 """Cliente mínimo de la API de App Store Connect con la clave de equipo (asc.env).
 
-Uso: asc.py perfiles_corredor <cert_id> <dir_salida> | grupos <app> | grupo_equipo <app> <email> <nombre> <apellido> | builds <app>
+Uso: asc.py capacidades <bundle> [CAPACIDAD…] | perfiles_corredor <cert_id> <dir_salida> | grupos <app> | grupo_equipo <app> <email> <nombre> <apellido> | builds <app>
 """
 import base64, os, sys, time, json, secrets, subprocess
 import jwt, requests
@@ -49,6 +49,18 @@ def bundle_o_crear(identificador, nombre):
         'attributes': {'identifier': identificador, 'name': nombre, 'platform': 'IOS'}}})
     print('bundle creado', identificador)
     return b['data']['id']
+
+def capacidades(identificador, *activar):
+    """Las capacidades del App ID; con nombres (PUSH_NOTIFICATIONS, ASSOCIATED_DOMAINS…) activa las que falten."""
+    bid = bundle(identificador)
+    tiene = {c['attributes']['capabilityType'] for c in api('GET', f'/v1/bundleIds/{bid}/bundleIdCapabilities')['data']}
+    for c in activar:
+        if c not in tiene:
+            api('POST', '/v1/bundleIdCapabilities', {'data': {'type': 'bundleIdCapabilities', 'attributes': {'capabilityType': c},
+                'relationships': {'bundleId': {'data': {'type': 'bundleIds', 'id': bid}}}}})
+            print('activada', c)
+            tiene.add(c)
+    print(identificador, sorted(tiene))
 
 def perfiles_corredor(cert_id, salida):
     """Perfiles App Store de la app y de los widgets, con el certificado de distribución que ya existe."""
