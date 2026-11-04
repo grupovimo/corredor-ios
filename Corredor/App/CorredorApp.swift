@@ -1,4 +1,6 @@
+import CoreSpotlight
 import SwiftUI
+import WidgetKit
 
 @main
 struct CorredorApp: App {
@@ -22,7 +24,21 @@ struct CorredorApp: App {
             }
             .preferredColorScheme(tema == "claro" ? .light : (tema == "oscuro" ? .dark : nil))
             .tint(C.accion)
-            .onAppear { delegado.estado = estado }
+            .onAppear {
+                delegado.estado = estado
+                Abrir.estado = estado
+            }
+            .onChange(of: estado.fase) { _, f in
+                if f == .adentro, let r = Abrir.pendiente {
+                    Abrir.pendiente = nil
+                    estado.ir(r)
+                }
+                if f == .afuera { Spotlight.olvidar() }
+                WidgetCenter.shared.reloadAllTimelines()
+            }
+            .onContinueUserActivity(CSSearchableItemActionType) { a in
+                if let id = a.userInfo?[CSSearchableItemActivityIdentifier] as? String, let r = Ruta(texto: id) { estado.ir(r) }
+            }
             .onOpenURL { url in
                 if let r = Ruta(texto: url.absoluteString) { estado.ir(r) }
             }

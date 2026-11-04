@@ -24,7 +24,16 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
             UNNotificationCategory(identifier: "cobro", actions: [cobrar, ver], intentIdentifiers: []),
             UNNotificationCategory(identifier: "visita", actions: [confirmar, ver], intentIdentifiers: []),
         ])
+        MenuIcono.cargar()
         return true
+    }
+
+    // El menú del ícono llega por la escena (14F).
+    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession,
+                     options: UIScene.ConnectionOptions) -> UISceneConfiguration {
+        let c = UISceneConfiguration(name: nil, sessionRole: connectingSceneSession.role)
+        c.delegateClass = EscenaDelegado.self
+        return c
     }
 
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {

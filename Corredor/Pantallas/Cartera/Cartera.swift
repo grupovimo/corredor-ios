@@ -175,6 +175,7 @@ struct Contactos: View {
             lista = try await estado.api.get("/v1/contactos", query: [.init(name: "limite", value: "2000")])
             error = nil
             Guardado.guardar(lista, clave: "contactos")
+            if let lista { Spotlight.indexar(contactos: lista) }
         } catch let e as ErrorApi {
             if lista == nil { lista = Guardado.leer([Contacto].self, clave: "contactos")?.0 }
             if lista == nil { error = e }

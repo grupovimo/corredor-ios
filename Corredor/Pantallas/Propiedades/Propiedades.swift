@@ -157,6 +157,7 @@ struct PropiedadesRaiz: View {
             let l: [Propiedad] = try await estado.api.get("/v1/propiedades", query: [.init(name: "limite", value: "500"), .init(name: "orden", value: "actualizada")])
             props = l
             error = nil
+            Spotlight.indexar(propiedades: l)
             Guardado.guardar(l, clave: "propiedades")
             let s: [Senal] = (try? await estado.api.get("/v1/propiedades/senales")) ?? []
             senales = Dictionary(s.map { ($0.propiedadId, $0) }, uniquingKeysWith: { a, _ in a })

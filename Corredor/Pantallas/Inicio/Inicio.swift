@@ -169,6 +169,7 @@ struct InicioRaiz: View {
             }
             estado.sinLeer = d.conversaciones.reduce(0) { $0 + ($1.noLeidos ?? 0) }
             datos = d
+            ActividadVisita.actualizar(proximaVisita(d))
             error = nil
             Guardado.guardar(d.panel, clave: "panel")
         } catch let e as ErrorApi {
