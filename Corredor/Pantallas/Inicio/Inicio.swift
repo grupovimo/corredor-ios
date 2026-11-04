@@ -152,7 +152,7 @@ struct InicioRaiz: View {
             let api = estado.api
             d.panel = try await api.get("/v1/panel")
             d.guia = try? await api.get("/v1/panel/guia")
-            d.conversaciones = (try? await api.get("/v1/whatsapp/conversaciones", query: [.init(name: "noLeidos", value: "si"), .init(name: "limite", value: "20")])) ?? []
+            d.conversaciones = (try? await api.get("/v1/whatsapp/conversaciones", query: [.init(name: "noLeidas", value: "si"), .init(name: "limite", value: "20")])) ?? []
             d.preguntas = (try? await api.get("/v1/mercadolibre/preguntas", query: [.init(name: "estado", value: "sin_responder"), .init(name: "limite", value: "10")])) ?? []
             d.deudas = (try? await api.get("/v1/contratos/deudas")) ?? []
             struct Contador: Decodable { var noLeidos: Int?; var paraHacer: Int? }

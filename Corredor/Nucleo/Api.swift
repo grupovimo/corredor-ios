@@ -168,3 +168,40 @@ enum Guardado {
         try? FileManager.default.removeItem(at: carpeta)
     }
 }
+
+/// Un archivo subido (POST /v1/archivos?uso=foto|documento|audio|adjunto|marca).
+struct Archivo: Codable, Identifiable, Hashable {
+    var id: String
+    var nombre: String?
+    var tipo: String?
+    var bytes: Int?
+    var url: String?
+}
+
+extension Api {
+    /// Sube un archivo (multipart, campo `archivo`).
+    func subir(_ datos: Data, nombre: String, tipo: String, uso: String) async throws -> Archivo {
+        let limite = "corredor-\(UUID().uuidString)"
+        var cuerpo = Data()
+        cuerpo.append("--\(limite)\r\nContent-Disposition: form-data; name=\"archivo\"; filename=\"\(nombre)\"\r\nContent-Type: \(tipo)\r\n\r\n".data(using: .utf8)!)
+        cuerpo.append(datos)
+        cuerpo.append("\r\n--\(limite)--\r\n".data(using: .utf8)!)
+        var c = URLComponents(url: base.appendingPathComponent("/v1/archivos"), resolvingAgainstBaseURL: false)!
+        c.queryItems = [URLQueryItem(name: "uso", value: uso)]
+        var r = URLRequest(url: c.url!, timeoutInterval: 120)
+        r.httpMethod = "POST"
+        r.setValue("multipart/form-data; boundary=\(limite)", forHTTPHeaderField: "Content-Type")
+        r.setValue("application/json", forHTTPHeaderField: "Accept")
+        if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        r.httpBody = cuerpo
+        let (d, resp): (Data, URLResponse)
+        do { (d, resp) = try await URLSession.shared.data(for: r) } catch { throw ErrorApi.sinRed }
+        guard let h = resp as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
+            struct P: Decodable { var detail: String?; var title: String? }
+            let p = try? JSONDecoder().decode(P.self, from: d)
+            throw ErrorApi(estado: (resp as? HTTPURLResponse)?.statusCode ?? 0, codigo: "archivo", titulo: p?.title ?? "No se subió",
+                           detalle: p?.detail ?? "No se pudo subir el archivo.")
+        }
+        return try Api.decodificador.decode(Archivo.self, from: d)
+    }
+}

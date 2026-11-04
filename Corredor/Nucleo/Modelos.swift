@@ -124,6 +124,8 @@ struct Conversacion: Codable, Identifiable, Hashable {
     var noLeidos: Int?
     var ultimoTexto: String?
     var ultimoMensajeEn: Date?
+    var ultimoEntranteEn: Date?
+    var enVentana: Bool?
 
     var quien: String { contactoNombre ?? nombre ?? waId.map { "+\($0)" } ?? "Sin nombre" }
 }
