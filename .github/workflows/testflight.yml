@@ -1,0 +1,97 @@
+# Compila la app de iPhone de Corredor, la firma con la clave de App Store Connect y la sube a
+# TestFlight. Nada se compila en la Mac (decisión del 31/10). Se corre a mano (Actions › testflight ›
+# Run workflow) o con `gh workflow run testflight`. El número de build es el número de corrida.
+name: testflight
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: testflight
+  cancel-in-progress: false
+
+jobs:
+  subir:
+    runs-on: macos-15
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.3'
+      - run: brew install xcodegen
+      - name: Clave de App Store Connect, certificado de distribución y perfil
+        # Firma manual: la automática pide un perfil de desarrollo y el equipo no tiene dispositivos
+        # registrados. El certificado y los perfiles «App Store» (app y widgets) se crearon una vez por
+        # la API de ASC (credenciales-apple/distribucion) y viajan como secretos. Qué perfil usa cada
+        # target está en project.yml (Release).
+        env:
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          DIST_P12: ${{ secrets.DIST_P12 }}
+          DIST_P12_CLAVE: ${{ secrets.DIST_P12_CLAVE }}
+          PERFIL: ${{ secrets.PERFIL_CORREDOR }}
+          PERFIL_WIDGETS: ${{ secrets.PERFIL_WIDGETS }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/asc"
+          printf '%s' "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/asc/clave.p8"
+          printf '%s' "$DIST_P12" | base64 --decode > "$RUNNER_TEMP/asc/dist.p12"
+          LL="$RUNNER_TEMP/firma.keychain-db"
+          security create-keychain -p temporal "$LL"
+          security set-keychain-settings -lut 21600 "$LL"
+          security unlock-keychain -p temporal "$LL"
+          security import "$RUNNER_TEMP/asc/dist.p12" -P "$DIST_P12_CLAVE" -A -t cert -f pkcs12 -k "$LL"
+          security set-key-partition-list -S apple-tool:,apple: -k temporal "$LL" > /dev/null
+          security list-keychains -d user -s "$LL" $(security list-keychains -d user | tr -d '"')
+          for d in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+            mkdir -p "$d"
+            printf '%s' "$PERFIL" | base64 --decode > "$d/corredor-appstore.mobileprovision"
+            printf '%s' "$PERFIL_WIDGETS" | base64 --decode > "$d/corredor-widgets-appstore.mobileprovision"
+          done
+      - run: xcodegen generate
+      - name: Archive firmado
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          xcodebuild -project Corredor.xcodeproj -scheme Corredor -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/Corredor.xcarchive" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            DEVELOPMENT_TEAM=M6935MSNQB \
+            archive | tee archive.log | xcbeautify --renderer github-actions
+      - name: Subir a TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          cat > "$RUNNER_TEMP/exportar.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>teamID</key><string>M6935MSNQB</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict>
+              <key>ar.com.corredor.app</key><string>ar.com.corredor.app App Store</string>
+              <key>ar.com.corredor.app.Widgets</key><string>ar.com.corredor.app.Widgets App Store</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/Corredor.xcarchive" \
+            -exportPath "$RUNNER_TEMP/exportado" -exportOptionsPlist "$RUNNER_TEMP/exportar.plist" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/asc/clave.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
+            | tee exportar.log | xcbeautify --renderer github-actions
+      - if: failure()
+        run: grep -hE 'error:|Error|No profiles|provisioning' archive.log exportar.log 2>/dev/null | sort -u | head -80
+      - if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/asc"
+          security delete-keychain "$RUNNER_TEMP/firma.keychain-db" 2>/dev/null || true

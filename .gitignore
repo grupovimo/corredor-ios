@@ -1,0 +1,6 @@
+Corredor.xcodeproj/
+Config/Local.xcconfig
+.DS_Store
+build/
+DerivedData/
+*.xcuserstate

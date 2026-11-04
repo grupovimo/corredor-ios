@@ -1,0 +1,55 @@
+# Compila la app de iPhone en GitHub cada vez que cambia apps/ios: en la Mac no se compila ni se usa el
+# simulador (decisión del 31/10). Sin firmar; la firma y la subida van por testflight.yml.
+name: iOS
+
+on:
+  pull_request:
+    paths-ignore: ['docs/**', '**.md']
+  push:
+    branches: ['**']
+    paths-ignore: ['docs/**', '**.md']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compilar:
+    runs-on: macos-15
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v5
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26.3'
+      - run: brew install xcodegen
+      - run: xcodegen generate
+      - name: Compilar
+        run: |
+          set -o pipefail
+          xcodebuild build -project Corredor.xcodeproj -scheme Corredor -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
+            | tee compilar.log | xcbeautify --renderer github-actions
+      - if: failure()
+        run: grep -E 'error:' compilar.log | sort -u | head -60
+      - name: Probar
+        run: |
+          set -o pipefail
+          # En Release, como lo que llega a TestFlight (optimizado), con testability para @testable.
+          xcodebuild test -project Corredor.xcodeproj -scheme Corredor -configuration Release \
+            -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES \
+            CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- PROVISIONING_PROFILE_SPECIFIER= \
+            | tee probar.log | xcbeautify --renderer github-actions
+      - if: failure()
+        run: grep -E -B2 -A30 'Fatal error|crashed|Thread 0 Crashed|error:' probar.log | head -150
+      - if: failure()
+        name: Reportes de crash del simulador
+        run: |
+          for f in $(find ~/Library/Logs/DiagnosticReports -name 'Corredor*' -mmin -60 2>/dev/null | head -3); do
+            echo "== $f"
+            python3 -c "import json,sys; t=open(sys.argv[1]).read(); h,b=t.split(chr(10),1); d=json.loads(b); print(d.get('exception'), d.get('termination')); th=[x for x in d['threads'] if x.get('triggered')][0]; imgs=d['usedImages']; [print(i, imgs[f['imageIndex']].get('name'), f.get('symbol'), f.get('sourceFile'), f.get('sourceLine')) for i,f in enumerate(th['frames'][:40])]; print(d.get('asi'))" "$f" || head -c 6000 "$f"
+          done

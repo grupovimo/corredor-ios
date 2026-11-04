@@ -1,0 +1,7 @@
+// Configuración común. La app no tiene secretos: la clave publicable de Clerk es pública (sale de la
+// instancia clerk.grupovimo.com.ar). Para apuntar a otra API creá Local.xcconfig (no se versiona) con,
+// por ejemplo, CORREDOR_API = http:/$()/192.168.0.10:4100.
+CORREDOR_API = https:/$()/api.corredor.com.ar
+CORREDOR_WEB = https:/$()/corredor.com.ar
+CLERK_PUBLICABLE = pk_live_Y2xlcmsuZ3J1cG92aW1vLmNvbS5hciQ
+#include? "Local.xcconfig"
