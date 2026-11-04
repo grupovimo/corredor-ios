@@ -35,10 +35,12 @@ struct Seccion: View {
         case "tarifas": if let id { Tarifas(propiedad: id) }
         case "web", "plantillas", "editor": MiWeb()
         case "difusion": ListaGenerica(titulo: "Difusión", ruta: "/v1/publicaciones", icono: "megaphone", vacio: "Todavía no publicaste en portales.")
-        case "emprendimientos": ListaGenerica(titulo: "Emprendimientos", ruta: "/v1/emprendimientos", icono: "building", vacio: "Todavía no cargaste emprendimientos.")
-        case "temporada": ListaGenerica(titulo: "Temporada", ruta: "/v1/temporada/reservas", icono: "beach.umbrella", vacio: "Todavía no hay reservas de temporada.")
+        case "emprendimientos": Emprendimientos()
+        case "emprendimiento": if let id { FichaEmprendimiento(id: id) }
+        case "temporada": Temporada()
         case "reservas": ListaGenerica(titulo: "Reservas", ruta: "/v1/reservas", icono: "hand.raised", vacio: "No hay reservas abiertas.")
-        case "consorcios": ListaGenerica(titulo: "Consorcios", ruta: "/v1/consorcios", icono: "building.columns", vacio: "Todavía no administrás consorcios.")
+        case "consorcios": Consorcios()
+        case "consorcio": if let id { FichaConsorcio(id: id) }
         case "ia": ConectarIA()
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
         }
@@ -875,6 +877,9 @@ struct MiWeb: View {
     @Environment(Estado.self) private var estado
     @State private var web: String?
     @State private var marca: [String: String] = [:]
+    /// La marca entera como la guarda la API (logo, `web` del editor…): PATCH la reemplaza toda, así
+    /// que se manda completa con los textos cambiados encima.
+    @State private var completa: [String: JSONLibre] = [:]
     @State private var barrios: [BarrioWeb] = []
     @State private var guardado: Task<Void, Never>?
 
@@ -897,6 +902,17 @@ struct MiWeb: View {
                     ForEach(Self.plantillas, id: \.0) { k, n, d in VStack(alignment: .leading) { Text(n); Text(d).font(.footnote).foregroundStyle(.secondary) }.tag(k) }
                 }
                 .pickerStyle(.inline).labelsHidden()
+            }
+            Section(header: Text("Página de inicio"), footer: Text("Arrastrá para ordenar. Lo apagado no se ve en tu web.")) {
+                ForEach(Array(secciones.enumerated()), id: \.offset) { i, x in
+                    Toggle(Self.nombreSeccion(x["tipo"]?.texto), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
+                                                                         set: { on in ocultar(i, !on) }))
+                        .disabled(x["tipo"]?.texto == "portada")
+                }
+                .onMove { desde, hacia in mover(desde, hacia) }
+                Picker("Portada", selection: Binding(get: { completa["web"]?["portada"]?["variante"]?.texto ?? "foto" }, set: { variante($0) })) {
+                    Text("Foto de fondo").tag("foto"); Text("Foto arriba").tag("arriba"); Text("Partida").tag("partida")
+                }
             }
             Section("Marca") {
                 ColorPicker("Color principal", selection: color("colorPrimario", 0x16443B), supportsOpacity: false)
@@ -927,15 +943,62 @@ struct MiWeb: View {
             }
         }
         .disabled(!estado.esDuenio)
+        .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Mi web")
         .task {
             struct I: Decodable { var web: String?; var marca: [String: JSONLibre]? }
             if let i: I = try? await estado.api.get("/v1/inmobiliaria") {
                 web = i.web
+                completa = i.marca ?? [:]
                 marca = (i.marca ?? [:]).compactMapValues { $0.texto }
             }
             barrios = (try? await estado.api.get("/v1/web/barrios")) ?? []
+        }
+    }
+
+    private var secciones: [JSONLibre] {
+        if case .lista(let l)? = completa["web"]?["inicio"] { return l }
+        return [.objeto(["id": .texto("portada"), "tipo": .texto("portada")]), .objeto(["id": .texto("destacadas"), "tipo": .texto("destacadas")]),
+                .objeto(["id": .texto("barrios"), "tipo": .texto("barrios")])]
+    }
+
+    static func nombreSeccion(_ t: String?) -> String {
+        ["portada": "Portada con buscador", "destacadas": "Destacadas", "barrios": "Barrios", "emprendimiento": "Emprendimiento", "temporada": "Temporada",
+         "texto": "Texto", "testimonios": "Testimonios", "equipo": "Equipo", "tasacion": "Tasá tu propiedad", "contacto": "Contacto"][t ?? ""] ?? (t ?? "Sección")
+    }
+
+    private func conWeb(_ f: (inout [String: JSONLibre]) -> Void) {
+        var w: [String: JSONLibre] = [:]
+        if case .objeto(let o)? = completa["web"] { w = o }
+        f(&w)
+        completa["web"] = .objeto(w)
+        programar()
+    }
+
+    private func ocultar(_ i: Int, _ oculta: Bool) {
+        var l = secciones
+        guard case .objeto(var o) = l[i] else { return }
+        o["oculta"] = oculta ? .bool(true) : nil
+        l[i] = .objeto(o)
+        conWeb { $0["inicio"] = .lista(l) }
+    }
+
+    private func mover(_ desde: IndexSet, _ hacia: Int) {
+        var l = secciones
+        l.move(fromOffsets: desde, toOffset: hacia)
+        // La portada siempre primera.
+        if let i = l.firstIndex(where: { $0["tipo"]?.texto == "portada" }), i != 0 { l.insert(l.remove(at: i), at: 0) }
+        Haptico.impacto()
+        conWeb { $0["inicio"] = .lista(l) }
+    }
+
+    private func variante(_ v: String) {
+        conWeb { w in
+            var p: [String: JSONLibre] = [:]
+            if case .objeto(let o)? = w["portada"] { p = o }
+            p["variante"] = .texto(v)
+            w["portada"] = .objeto(p)
         }
     }
 
@@ -961,8 +1024,13 @@ struct MiWeb: View {
         guardado = Task {
             try? await Task.sleep(for: .milliseconds(900))
             if Task.isCancelled { return }
-            struct Cuerpo: Encodable { var marca: [String: String] }
-            do { try await estado.api.hacer("PATCH", "/v1/inmobiliaria", Cuerpo(marca: marca)) } catch { estado.avisar(error) }
+            struct Cuerpo: Encodable { var marca: [String: JSONLibre] }
+            var m = completa
+            for (k, v) in marca { m[k] = .texto(v) }
+            do {
+                try await estado.api.hacer("PATCH", "/v1/inmobiliaria", Cuerpo(marca: m))
+                completa = m
+            } catch { estado.avisar(error) }
         }
     }
 

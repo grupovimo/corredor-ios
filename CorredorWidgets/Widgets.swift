@@ -80,8 +80,10 @@ struct VistaWidgetHoy: View {
     private var visita: some View {
         if let v = e.hoy.visita {
             VStack(alignment: .leading, spacing: 3) {
-                Text(v.empieza > Date() ? "PRÓXIMA VISITA · \(v.empieza, style: .relative)".uppercased() : "VISITA EN CURSO")
-                    .font(.system(size: 11, weight: .bold)).foregroundStyle(oro).lineLimit(1)
+                Group {
+                    if v.empieza > Date() { Text("PRÓXIMA VISITA · EN ") + Text(v.empieza, style: .relative) } else { Text("VISITA EN CURSO") }
+                }
+                .font(.system(size: 11, weight: .bold)).foregroundStyle(oro).lineLimit(1)
                 Text(v.donde).font(.system(size: 17, weight: .bold)).foregroundStyle(.white).lineLimit(2)
                 Text("\(v.empieza, style: .time)\(v.con.map { " · con \($0)" } ?? "")").font(.system(size: 12)).foregroundStyle(tinta2).lineLimit(1)
                 Spacer(minLength: 4)
