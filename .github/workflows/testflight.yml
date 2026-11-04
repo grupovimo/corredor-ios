@@ -1,9 +1,14 @@
 # Compila la app de iPhone de Corredor, la firma con la clave de App Store Connect y la sube a
 # TestFlight. Nada se compila en la Mac (decisión del 31/10). Se corre a mano (Actions › testflight ›
-# Run workflow) o con `gh workflow run testflight`. El número de build es el número de corrida.
+# Run workflow), con `gh workflow run testflight`, o solo después de cada compilación verde de main. El número de build es el número de corrida.
 name: testflight
 on:
   workflow_dispatch:
+  # Cada vez que la compilación y los tests de main terminan en verde, el build sube solo a TestFlight.
+  workflow_run:
+    workflows: [iOS]
+    types: [completed]
+    branches: [main]
 
 concurrency:
   group: testflight
@@ -11,6 +16,7 @@ concurrency:
 
 jobs:
   subir:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ${{ vars.RUNNER_MAC || 'macos-15-intel' }}
     timeout-minutes: 60
     defaults:
@@ -18,6 +24,9 @@ jobs:
         working-directory: .
     steps:
       - uses: actions/checkout@v5
+        with:
+          # El commit que compiló en verde (no lo último de main).
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
