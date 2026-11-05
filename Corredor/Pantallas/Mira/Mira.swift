@@ -146,7 +146,12 @@ struct MiraRaiz: View {
                 } else {
                     VistaCamara(sesion: camara.sesion).ignoresSafeArea()
                     if let foto, fase != .apuntando, let i = cola.imagen(foto) {
-                        Image(uiImage: i).resizable().scaledToFill().ignoresSafeArea()
+                        // En un marco del tamaño de la pantalla: suelta, la foto (más ancha) estiraba todo el
+                        // ZStack y la hoja de revisión quedaba más ancha que el teléfono.
+                        Color.clear
+                            .overlay { Image(uiImage: i).resizable().scaledToFill() }
+                            .clipped()
+                            .ignoresSafeArea()
                     }
                     visor
                     arriba
@@ -309,8 +314,9 @@ struct MiraRaiz: View {
                         Button { editando = c.0 } label: {
                             HStack(spacing: 10) {
                                 Text(c.1).estilo(.texto14).foregroundStyle(C.texto2).frame(width: 86, alignment: .leading)
-                                Text(c.2).font(Estilo(tamano: 16, peso: .semibold, relativo: .body).font).foregroundStyle(C.texto).lineLimit(1)
-                                Spacer()
+                                Text(c.2).font(Estilo(tamano: 16, peso: .semibold, relativo: .body).font).foregroundStyle(C.texto)
+                                    .lineLimit(1).truncationMode(.middle)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 if c.3 {
                                     Text("Revisá").font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.avisoTinta)
                                         .padding(.horizontal, 8).frame(height: 24).background(C.avisoFondo, in: Capsule())

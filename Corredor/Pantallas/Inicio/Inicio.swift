@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Una fila de «Para hacer ahora»: ícono en su tono, qué es, de dónde viene y la acción.
 struct Pendiente2A: Identifiable {
@@ -34,6 +35,11 @@ struct InicioRaiz: View {
     @State private var datos: DatosInicio?
     @State private var error: ErrorApi?
     @State private var aprobadas: Set<String> = []
+    @State private var eligiendoQueCargar = false
+    @State private var cargando: Cargar?
+
+    /// Lo que se puede cargar desde el «+» del Inicio (lo mismo que en cada sección, juntado).
+    enum Cargar: String, Identifiable { case contacto, visita, operacion, contrato; var id: String { rawValue } }
 
     var body: some View {
         ScrollView {
@@ -41,12 +47,18 @@ struct InicioRaiz: View {
                 CabeceraPestana(
                     sobre: estado.esDuenio ? "\(estado.inmobiliaria?.nombre ?? "") · \(Formato.diaCompleto(Date()).split(separator: " ").prefix(2).joined(separator: " "))" : Formato.diaCompleto(Date()),
                     titulo: "Hoy",
-                    acciones: [
+                    acciones: (estado.escribe ? [AccionCabecera(icono: "plus.circle", etiqueta: "Cargar") { eligiendoQueCargar = true }] : []) + [
                         AccionCabecera(icono: "magnifyingglass", etiqueta: "Buscar") { estado.abrir(ABuscar()) },
                         AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) },
                     ],
                     avatar: true)
                 Accesos(cobrar: datos?.deudas.count ?? 0).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 8)
+                Group {
+                    if estado.escribe { TipView(ConsejoCargar()) }
+                    TipView(ConsejoMas())
+                }
+                .tipBackground(C.superficie)
+                .padding(.horizontal, 16).padding(.bottom, 8)
                 if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
                 Group {
                     if let datos {
@@ -64,6 +76,24 @@ struct InicioRaiz: View {
         .refreshable { await cargar() }
         .pantallaRaiz()
         .task(id: estado.version) { await cargar() }
+        .confirmationDialog("Cargar", isPresented: $eligiendoQueCargar, titleVisibility: .visible) {
+            Button("Propiedad") { estado.abrir(AAltaPropiedad()) }
+            Button("Captar un cartel con MIRA") { estado.miraAbierta = true }
+            Button("Contacto") { cargando = .contacto }
+            Button("Visita") { cargando = .visita }
+            Button("Operación") { cargando = .operacion }
+            Button("Contrato de alquiler") { cargando = .contrato }
+            Button("Cobro") { estado.abrir(ACobranzas()) }
+            Button("Cancelar", role: .cancel) {}
+        }
+        .sheet(item: $cargando) { c in
+            switch c {
+            case .contacto: EditarContacto()
+            case .visita: NuevaCita(dia: Date()).presentationDetents([.large])
+            case .operacion: NuevaOperacion()
+            case .contrato: AltaContrato()
+            }
+        }
     }
 
     // MARK: 2A Agente
@@ -91,11 +121,14 @@ struct InicioRaiz: View {
     @ViewBuilder
     private func duena(_ d: DatosInicio) -> some View {
         VStack(alignment: .leading, spacing: 22) {
+            // Las cifras llevan a su sección.
             HStack(spacing: 8) {
-                Cifra(etiqueta: "Cobrado del mes", valor: d.cobradoMes.map { Formato.plataCorta($0) } ?? "—")
-                Cifra(etiqueta: "Consultas", valor: "\(d.conversaciones.count + d.preguntas.count) sin responder")
-                Cifra(etiqueta: "Visitas", valor: "\(d.panel?.numeros?.citasHoy ?? 0) hoy")
+                Button { estado.abrir(ACobranzas()) } label: { Cifra(etiqueta: "Cobrado del mes", valor: d.cobradoMes.map { Formato.plataCorta($0) } ?? "—") }
+                Button { estado.pestana = .mensajes } label: { Cifra(etiqueta: "Consultas", valor: "\(d.conversaciones.count + d.preguntas.count) sin responder") }
+                Button { estado.abrir(AAgendaDia()) } label: { Cifra(etiqueta: "Visitas", valor: "\(d.panel?.numeros?.citasHoy ?? 0) hoy") }
             }
+            .buttonStyle(.plain)
+            PlataDelMes(d: d)
             let aprob = paraAprobar(d).filter { !aprobadas.contains($0.id) }
             VStack(alignment: .leading, spacing: 8) {
                 TituloBloque(texto: "Para aprobar")
@@ -130,14 +163,6 @@ struct InicioRaiz: View {
                 }
             }
             if !d.equipo.isEmpty { EquipoAhora(equipo: d.equipo, licencias: d.licencias, citas: d.panel?.agendaHoy ?? []) }
-            if let e = d.esperadoMes, e > 0 {
-                let cobrado = d.cobradoMes ?? 0
-                let falta = max(0, e - cobrado)
-                TarjetaAvance(titulo: "Cobranza de \(Formato.mesDe(Date()))", cifra: "\(Int((cobrado / e * 100).rounded())) %",
-                              avance: cobrado / e, color: Color(hex: 0x2F9E6F),
-                              pie: falta > 0 ? "Faltan \(Formato.plata(falta)) de \(Formato.cantidad(d.deudas.count, "inquilino", "inquilinos"))" : "Cobraste todo el mes")
-                    .onTapGesture { estado.abrir(ACobranzas()) }
-            }
             if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
         }
         .padding(.horizontal, 16)
@@ -446,6 +471,63 @@ struct Cifra: View {
     }
 }
 
+/// «La plata del mes», arriba del Inicio de la dueña: cuánto se cobró de lo esperado y lo que falta hacer
+/// con la plata (quién debe, qué rendir, los alquileres), cada cosa a un toque. Sin alquileres cargados
+/// invita a cargar el primero: así nadie se pierde que la app maneja la cobranza.
+struct PlataDelMes: View {
+    @Environment(Estado.self) private var estado
+    var d: DatosInicio
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if let e = d.esperadoMes, e > 0 {
+                let cobrado = d.cobradoMes ?? 0
+                let falta = max(0, e - cobrado)
+                Button { estado.abrir(ACobranzas()) } label: {
+                    TarjetaAvance(titulo: "La plata de \(Formato.mesDe(Date()))", cifra: "\(Int((cobrado / e * 100).rounded())) %",
+                                  avance: min(1, cobrado / e), color: Color(hex: 0x2F9E6F),
+                                  pie: falta > 0 ? "Cobraste \(Formato.plata(cobrado)) · faltan \(Formato.plata(falta))" : "Cobraste todo el mes: \(Formato.plata(cobrado))")
+                }
+                .buttonStyle(.plain)
+                HStack(spacing: 8) {
+                    chip("\(d.deudas.count)", d.deudas.count == 1 ? "debe" : "deben", d.deudas.isEmpty ? .verde : .rojo, ACobranzas())
+                    chip("\(d.panel?.numeros?.rendicionesListas ?? 0)", "para rendir", (d.panel?.numeros?.rendicionesListas ?? 0) > 0 ? .azul : .neutro, ASeccion(clave: "rendiciones"))
+                    chip("\(d.panel?.numeros?.alquileresVigentes ?? 0)", "alquileres", .neutro, AContratos())
+                }
+            } else if estado.esDuenio {
+                // Todavía sin alquileres: que se sepa que la cobranza también se lleva desde acá.
+                Button { estado.abrir(AContratos()) } label: {
+                    HStack(spacing: 12) {
+                        IconoTono(icono: "dollarsign.circle", tono: .verde, tam: 44)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Cobrá los alquileres desde acá").estilo(.filaLista).foregroundStyle(C.texto)
+                            Text(Formato.sinViudas("Cargá un contrato: te avisamos quién debe, mandás el recibo y le rendís al dueño."))
+                                .estilo(.footnote).foregroundStyle(C.texto2).multilineTextAlignment(.leading)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(C.texto3)
+                    }
+                    .padding(14).tarjeta()
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func chip(_ n: String, _ texto: String, _ tono: Tono, _ destino: AnyHashable) -> some View {
+        Button { estado.abrir(destino) } label: {
+            VStack(alignment: .leading, spacing: 0) {
+                Text(n).font(Estilo(tamano: 20, peso: .bold, relativo: .title3).font).foregroundStyle(tono == .neutro ? C.texto : tono.tinta)
+                Text(texto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .tarjeta(14)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 /// Los accesos rápidos, arriba del Inicio: la agenda (ya no es pestaña) y lo que más se usa. Todo lo
 /// demás está en la pestaña «Más».
 struct Accesos: View {
@@ -541,7 +623,7 @@ struct PrimerosPasos: View {
     var guia: Guia
     var body: some View {
         let p = guia.pasos
-        let pasos: [(Bool, String, String, AnyHashable)] = [
+        var pasos: [(Bool, String, String, AnyHashable)] = [
             (p?.propiedad ?? false, "house", "Cargá tu primera propiedad", AAltaPropiedad()),
             (p?.datos ?? false, "paintpalette", "Poné tu logo y tus colores", ASeccion(clave: "web")),
             (p?.whatsapp ?? false, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", ASeccion(clave: "integraciones")),
@@ -549,6 +631,8 @@ struct PrimerosPasos: View {
             (p?.portales ?? false, "storefront", "Publicá en Mercado Libre y portales", ASeccion(clave: "integraciones")),
             (p?.web ?? false, "globe", "Mirá tu web", ASeccion(clave: "web")),
         ]
+        // La cobranza también se lleva desde acá: que esté entre los primeros pasos de la dueña.
+        if estado.esDuenio { pasos.insert(((guia.contratos ?? 0) > 0, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AContratos()), at: 1) }
         let faltan = pasos.filter { !$0.0 }
         if !faltan.isEmpty && guia.pasosOcultos != true {
             VStack(alignment: .leading, spacing: 8) {

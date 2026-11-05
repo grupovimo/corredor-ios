@@ -146,6 +146,13 @@ struct IconoTono: View {
     }
 }
 
+/// Cuántas pantallas se mostraron: las pruebas lo usan para verificar que cada destino navegable abre su
+/// pantalla y no el placeholder de SwiftUI (el triángulo amarillo de un destino que no se encuentra).
+@MainActor
+enum PantallasMostradas {
+    static var cuenta = 0
+}
+
 /// El fondo de la app: `Fondo` con el grano en mosaico (multiplicado en claro, al 55 % en oscuro).
 struct FondoApp: View {
     @Environment(\.colorScheme) private var esquema
@@ -160,6 +167,7 @@ struct FondoApp: View {
         }
         .ignoresSafeArea()
         .accessibilityHidden(true)
+        .onAppear { PantallasMostradas.cuenta += 1 }
     }
 }
 

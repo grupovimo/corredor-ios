@@ -182,6 +182,9 @@ enum M {
         ancho <= 375 ? 16 : (ancho >= 428 ? 24 : 20)
     }
     static let tabBar: CGFloat = 49
+    /// Lo que tapa la barra de pestañas propia (56 visibles + el botón de MIRA que sobresale): cada pila de
+    /// pestaña lo suma a su zona segura de abajo, así ninguna lista, botón flotante o tarjeta queda debajo.
+    static let barraPestanas: CGFloat = 72
     /// Radios continuos: control, tarjeta, destacada y hoja.
     static let rControl: CGFloat = 12
     static let rTarjeta: CGFloat = 18

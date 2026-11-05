@@ -9,6 +9,9 @@ struct FichaPropiedad: View {
     var id: String
     @State private var p: Propiedad?
     @State private var interesados: [Interesado] = []
+    /// Su negocio: las operaciones abiertas y el contrato vigente (con lo que deben), a un toque.
+    @State private var operaciones: [Operacion] = []
+    @State private var contratos: [ContratoAPI] = []
     @State private var pubs: [PublicacionPortal] = []
     @State private var senal: Senal?
     @State private var web: String?
@@ -78,6 +81,7 @@ struct FichaPropiedad: View {
                     if let d = p.descripcion?.nonEmpty {
                         Text(d).estilo(.body16).foregroundStyle(C.texto).lineLimit(8)
                     }
+                    if !operaciones.isEmpty || !contratos.isEmpty { negocio }
                     if !interesados.isEmpty {
                         VStack(alignment: .leading, spacing: 8) {
                             TituloBloque(texto: "Interesados", cuenta: "\(interesados.count)")
@@ -267,11 +271,50 @@ struct FichaPropiedad: View {
 
     // MARK: Acciones
 
+    /// «Negocio»: su contrato vigente y sus operaciones, para no tener que buscarlos en otra pestaña.
+    private var negocio: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            TituloBloque(texto: "Negocio")
+            VStack(spacing: 0) {
+                ForEach(Array(contratos.enumerated()), id: \.element.id) { i, k in
+                    filaNegocio(icono: "doc.text", titulo: "Contrato con \(k.contactoNombre ?? "el inquilino")",
+                                detalle: [k.monto.map { Formato.plata($0, k.moneda ?? "ARS") }, k.fin.flatMap(Fecha.dia).map { "hasta \(Formato.mesDe($0)) \(String(Calendar.current.component(.year, from: $0)))" }]
+                                    .compactMap { $0 }.joined(separator: " · "), primera: i == 0) { estado.abrir(AFichaContrato(id: k.id)) }
+                }
+                ForEach(Array(operaciones.enumerated()), id: \.element.id) { i, o in
+                    filaNegocio(icono: "rectangle.split.3x1", titulo: o.contactoNombre ?? o.titulo ?? "Operación",
+                                detalle: Operacion.etapaTexto(o.etapa), primera: contratos.isEmpty && i == 0) { estado.abrir(AFichaOperacion(id: o.id)) }
+                }
+            }
+            .tarjeta()
+        }
+    }
+
+    private func filaNegocio(icono: String, titulo: String, detalle: String, primera: Bool, ir: @escaping () -> Void) -> some View {
+        Button(action: ir) {
+            HStack(spacing: 12) {
+                Image(systemName: icono).font(.system(size: 17, weight: .medium)).foregroundStyle(C.accion).frame(width: 26)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(titulo).estilo(.filaLista).foregroundStyle(C.texto).lineLimit(1)
+                    Text(detalle).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(C.texto3)
+            }
+            .padding(.horizontal, 14).frame(minHeight: 54).contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5).padding(.leading, 52) } }
+    }
+
     private func cargar() async {
         do {
             p = try await estado.api.get("/v1/propiedades/\(id)")
             error = nil
             interesados = (try? await estado.api.get("/v1/propiedades/\(id)/interesados")) ?? []
+            operaciones = ((try? await estado.api.get("/v1/operaciones", query: [.init(name: "propiedad", value: id)])) ?? [Operacion]())
+            contratos = ((try? await estado.api.get("/v1/contratos", query: [.init(name: "propiedad", value: id)])) ?? [ContratoAPI]())
+                .filter { $0.estado != "rescindido" && $0.estado != "finalizado" }
             pubs = (try? await estado.api.get("/v1/propiedades/\(id)/publicaciones")) ?? []
             let s: [Senal] = (try? await estado.api.get("/v1/propiedades/senales")) ?? []
             senal = s.first { $0.propiedadId == id }
@@ -406,6 +449,7 @@ struct Galeria: View {
         .background(Color.black.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
         .statusBarHidden()
+        .onAppear { PantallasMostradas.cuenta += 1 }
         .task {
             if let p: Propiedad = try? await estado.api.get("/v1/propiedades/\(id)") { fotos = p.fotosUrl ?? [] }
         }

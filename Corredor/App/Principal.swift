@@ -7,7 +7,6 @@ import SwiftUI
 struct Principal: View {
     @Environment(Estado.self) private var estado
     @Environment(\.scenePhase) private var escena
-    @State private var recorrido = false
 
     var body: some View {
         @Bindable var estado = estado
@@ -33,10 +32,10 @@ struct Principal: View {
             }
         }
         .animation(.spring(duration: 0.3), value: estado.aviso)
-        .overlay { if recorrido { Recorrido(visible: $recorrido).zIndex(10) } }
+        .overlay { if estado.mostrarRecorrido { Recorrido(visible: $estado.mostrarRecorrido).zIndex(10) } }
         .task {
             // La primera vez (en cualquier aparato), el recorrido.
-            if estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { recorrido = true }
+            if estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { estado.mostrarRecorrido = true }
         }
         // En vivo (App/Vivo.swift) con la app adelante; se corta al ir al fondo y vuelve al volver.
         .task(id: "\(escena == .active)-\(estado.sesion?.inmobiliariaId ?? "")") {
@@ -48,6 +47,8 @@ struct Principal: View {
         NavigationStack(path: estado.pila(p)) {
             raiz().destinos()
         }
+        // La barra de pestañas va encima (safeAreaInset del TabView no llega a las pilas de adentro).
+        .safeAreaPadding(.bottom, M.barraPestanas)
         .tag(p)
         .toolbar(.hidden, for: .tabBar)
     }

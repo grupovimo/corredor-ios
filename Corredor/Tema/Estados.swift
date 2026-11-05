@@ -158,7 +158,14 @@ struct VistaAviso: View {
             Text(aviso.texto).estilo(.subhead).foregroundStyle(Color(hex: 0xE8EFE9))
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let d = aviso.deshacer {
+            if let a = aviso.accion {
+                Button(a.0) {
+                    a.1()
+                    cerrar()
+                }
+                .font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font)
+                .foregroundStyle(C.oro)
+            } else if let d = aviso.deshacer {
                 Button("Deshacer") {
                     d()
                     cerrar()

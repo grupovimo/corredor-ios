@@ -465,7 +465,7 @@ struct EditarContacto: View {
                 try await estado.cola.enviar("PUT", "/v1/contactos/\(contacto.id)", cuerpo, etiqueta: "Cambios en \(c.nombre)")
             } else {
                 try await estado.cola.enviar("POST", "/v1/contactos", cuerpo, etiqueta: "Alta de \(c.nombre)")
-                estado.avisar("\(c.nombre) quedó en Contactos")
+                estado.sugerir("\(c.nombre) quedó en Contactos", "Agendar", AAgendaDia())
             }
             estado.version += 1
             cerrar()
@@ -646,8 +646,13 @@ struct Operaciones: View {
         Haptico.impacto()
         do {
             try await estado.cola.enviar("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: e), etiqueta: "Mover \(o.propiedadTitulo ?? "")")
-            estado.avisar("Movida a \(Operacion.etapaTexto(e).lowercased())") {
-                Task { try? await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: antes)); estado.version += 1 }
+            if e == "cierre" && o.propiedadOperacion == "alquiler" {
+                // Un alquiler que cierra lleva a su contrato.
+                estado.sugerir("\(o.propiedadTitulo ?? "La operación") llegó al cierre", "Hacer contrato", AFichaOperacion(id: o.id))
+            } else {
+                estado.avisar("Movida a \(Operacion.etapaTexto(e).lowercased())") {
+                    Task { try? await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: antes)); estado.version += 1 }
+                }
             }
             estado.version += 1
         } catch { estado.avisar(error); await cargar() }
@@ -720,6 +725,7 @@ struct NuevaOperacion: View {
 struct FichaOperacion: View {
     @Environment(Estado.self) private var estado
     var id: String
+    @State private var haciendoContrato = false
     @State private var o: Operacion?
     @State private var historial: [NotaContacto] = []
     @State private var proxima: Cita?
@@ -808,7 +814,7 @@ struct FichaOperacion: View {
                     HStack(spacing: 8) {
                         if let c = o.contactoId { Button("Contacto") { estado.abrir(AFichaContacto(id: c)) }.buttonStyle(BotonHundido()) }
                         if let p = o.propiedadId { Button("Propiedad") { estado.abrir(AFichaPropiedad(id: p)) }.buttonStyle(BotonHundido()) }
-                        if o.etapa == "cierre" && o.propiedadOperacion == "alquiler" { Button("Hacer el contrato") { estado.abrir(ASeccion(clave: "contrato-nuevo", id: o.id)) }.buttonStyle(BotonHundido()) }
+                        if o.etapa == "cierre" && o.propiedadOperacion == "alquiler" { Button("Hacer el contrato") { haciendoContrato = true }.buttonStyle(BotonHundido()) }
                     }
                     if estado.escribe, o.caidaEn == nil, let s = o.siguiente {
                         Button { Task { await mover(o, s) } } label: {
@@ -822,6 +828,7 @@ struct FichaOperacion: View {
             } else { ProgressView().padding(.top, 60) }
         }
         .pantallaApilada("Operación")
+        .sheet(isPresented: $haciendoContrato) { AltaContrato(operacion: id) }
         .task(id: estado.version) { await cargar() }
     }
 
@@ -870,8 +877,12 @@ struct FichaOperacion: View {
         do {
             try await estado.cola.enviar("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: e), etiqueta: "Mover \(o.propiedadTitulo ?? "")")
             Haptico.impacto()
-            estado.avisar("Movida a \(Operacion.etapaTexto(e).lowercased())") {
-                Task { try? await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: o.etapa)); estado.version += 1 }
+            if e == "cierre" && o.propiedadOperacion == "alquiler" {
+                estado.sugerir("Llegó al cierre: armá el contrato", "Hacer contrato") { haciendoContrato = true }
+            } else {
+                estado.avisar("Movida a \(Operacion.etapaTexto(e).lowercased())") {
+                    Task { try? await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/mover", Cuerpo(etapa: o.etapa)); estado.version += 1 }
+                }
             }
             estado.version += 1
         } catch { estado.avisar(error) }

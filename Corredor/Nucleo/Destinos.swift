@@ -95,7 +95,10 @@ struct Ruta: Equatable {
         case "avisos": self.init(.inicio, AAvisos())
         case "perfil": self.init(.inicio, APerfil())
         case "buscar": self.init(.inicio, ABuscar())
-        default: self.init(.inicio, ASeccion(clave: a, id: id))
+        // Rutas del panel con id (los avisos traen las de la web): la ficha, no la lista.
+        case "consorcios", "consorcio": self.init(.mas, ASeccion(clave: id == nil ? "consorcios" : "consorcio", id: id))
+        case "emprendimientos", "emprendimiento": self.init(.mas, ASeccion(clave: id == nil ? "emprendimientos" : "emprendimiento", id: id))
+        default: self.init(.mas, ASeccion(clave: a, id: id))
         }
     }
 

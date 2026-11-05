@@ -63,7 +63,13 @@ struct Portales: View {
                 }
                 if let pubs {
                     let l = pubs.filter { portal == "todos" || (portal == "error" ? $0.error != nil : $0.portal == portal) }
-                    if l.isEmpty { EstadoVacio(icono: "megaphone", titulo: "Nada acá", texto: "Publicás desde la ficha de cada propiedad.").padding(.top, 30) }
+                    if l.isEmpty {
+                        EstadoVacio(icono: "megaphone", titulo: "Todavía no publicaste en portales",
+                                    texto: "Conectá Mercado Libre y los portales, y publicás desde la ficha de cada propiedad sin cargar dos veces.",
+                                    accion: estado.esDuenio ? ("Conectar", { estado.abrir(ASeccion(clave: "integraciones")) }) : nil,
+                                    secundaria: ("Ver la cartera", { estado.pestana = .propiedades }))
+                            .padding(.top, 30)
+                    }
                     VStack(spacing: 0) {
                         ForEach(Array(l.enumerated()), id: \.element.id) { i, p in
                             HStack(spacing: 12) {
@@ -401,7 +407,7 @@ struct ConectarWhatsApp: View {
         do {
             try await estado.api.hacer("PUT", "/v1/whatsapp/numero", C(numeroId: numeroId, cuentaId: cuentaId.nonEmpty, token: token, appSecreto: secreto.nonEmpty))
             try? await estado.api.hacer("POST", "/v1/whatsapp/numero/verificacion")
-            estado.avisar("WhatsApp conectado")
+            estado.sugerir("WhatsApp conectado", "Respuestas", ASeccion(clave: "respuestas"))
             estado.version += 1
             cerrar()
         } catch { estado.avisar(error) }

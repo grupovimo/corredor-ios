@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 import UniformTypeIdentifiers
 
 extension View {
@@ -373,6 +374,7 @@ struct ReciboVista: View {
         .padding(16)
         .background(C.superficie)
         .navigationTitle("Recibo listo").navigationBarTitleDisplayMode(.inline)
+        .onAppear { PantallasMostradas.cuenta += 1 }
         .vistaPrevia($previo)
         .toolbar { if enHoja { Button("Listo") { cerrar() } } }
         .task {
@@ -519,6 +521,7 @@ struct Contratos: View {
 struct FichaContrato: View {
     @Environment(Estado.self) private var estado
     var id: String
+    @State private var renovando = false
     @State private var k: ContratoAPI?
     @State private var cobros: [Cobro] = []
     @State private var rendiciones: [RendicionAPI] = []
@@ -543,6 +546,7 @@ struct FichaContrato: View {
         ScrollView {
             if let k {
                 VStack(alignment: .leading, spacing: 16) {
+                    if estado.escribe { TipView(ConsejoCobrar()).tipBackground(C.superficie) }
                     VStack(alignment: .leading, spacing: 4) {
                         Text(k.propiedadTitulo ?? "Contrato").estilo(.titulo).foregroundStyle(C.texto)
                         Text("\(k.tipo == "venta" ? "Venta" : "Alquiler") · \(k.inicio.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "") al \(k.fin.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "—")")
@@ -642,7 +646,7 @@ struct FichaContrato: View {
                             .buttonStyle(BotonHundido())
                         Button("Documentos") { estado.abrir(ASeccion(clave: "documentos-contrato", id: id)) }.buttonStyle(BotonHundido())
                         if estado.escribe {
-                            Button("Renovar") { estado.abrir(ASeccion(clave: "contrato-renovar", id: id)) }.buttonStyle(BotonHundido())
+                            Button("Renovar") { renovando = true }.buttonStyle(BotonHundido())
                             if k.estado != "rescindido" { Button("Rescindir") { Task { await rescindir() } }.buttonStyle(BotonTexto(color: C.error)) }
                         }
                     }
@@ -651,6 +655,7 @@ struct FichaContrato: View {
             } else { ProgressView().padding(.top, 60) }
         }
         .pantallaApilada("Contrato")
+        .sheet(isPresented: $renovando) { AltaContrato(renovar: id) }
         .vistaPrevia($previo)
         .task(id: estado.version) { await cargar() }
         .sheet(item: $cobrando) { c in HojaCobro(fila: c) { recibo = $0 }.presentationDetents([.medium]) }
@@ -870,6 +875,11 @@ struct AltaContrato: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     var leer = false
+    /// «Renovar» (la ficha del contrato): arranca desde ese contrato, con las mismas partes y condiciones,
+    /// desde el día después del fin y con el alquiler de hoy (como la web, `?renovar=`).
+    var renovar: String? = nil
+    /// «Hacer el contrato» (una operación en cierre): la propiedad y el contacto de la operación.
+    var operacion: String? = nil
     @State private var k = ContratoAPI(id: "", tipo: "alquiler", moneda: "ARS", ajusteMeses: 6, ajusteIndice: "icl", diaVencimiento: 10)
     @State private var inicio = Date()
     @State private var meses = 36
@@ -941,6 +951,7 @@ struct AltaContrato: View {
             .sheet(isPresented: $elegirI) { ElegirContacto(tipo: "inquilino") { inq = $0 } }
             .sheet(isPresented: $elegirD) { ElegirContacto(tipo: "propietario") { duenio = $0 } }
             .onAppear { if leer { eligiendoArchivo = true } }
+            .task { await precargar() }
         }
     }
 
@@ -1024,6 +1035,29 @@ struct AltaContrato: View {
             cerrar()
             estado.abrir(AFichaContrato(id: n.id))
         } catch { estado.avisar(error) }
+    }
+
+    private func precargar() async {
+        func contacto(_ id: String?, _ nombre: String?) -> Resultado? {
+            id.map { Resultado(id: $0, tipo: "contacto", titulo: nombre ?? "Contacto", subtitulo: nil) }
+        }
+        if let renovar, let c: ContratoAPI = try? await estado.api.get("/v1/contratos/\(renovar)") {
+            k.tipo = c.tipo; k.moneda = c.moneda; k.ajusteMeses = c.ajusteMeses; k.ajusteIndice = c.ajusteIndice
+            k.ajustePorcentaje = c.ajustePorcentaje; k.comision = c.comision; k.deposito = c.deposito
+            k.diaVencimiento = c.diaVencimiento; k.garanteNombre = c.garanteNombre; k.garanteTelefono = c.garanteTelefono
+            k.honorarios = c.honorarios; k.punitorioDiario = c.punitorioDiario
+            let ajuste: FichaContrato.AjusteAPI? = try? await estado.api.get("/v1/contratos/\(renovar)/ajuste")
+            k.monto = ajuste?.montoNuevo ?? c.monto
+            if let fin = c.fin.flatMap(Fecha.dia) { inicio = Calendar.current.date(byAdding: .day, value: 1, to: fin) ?? fin }
+            if let p = c.propiedadId { prop = try? await estado.api.get("/v1/propiedades/\(p)") }
+            inq = contacto(c.contactoId, c.contactoNombre)
+            duenio = contacto(c.propietarioId, c.propietarioNombre)
+        } else if let operacion, let o: Operacion = try? await estado.api.get("/v1/operaciones/\(operacion)") {
+            if let p = o.propiedadId { prop = try? await estado.api.get("/v1/propiedades/\(p)") }
+            inq = contacto(o.contactoId, o.contactoNombre)
+            if o.moneda == "ARS" || o.moneda == "USD" { k.moneda = o.moneda }
+            if let v = o.valor, v > 0 { k.monto = v }
+        }
     }
 }
 

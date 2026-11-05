@@ -164,6 +164,65 @@ final class PantallasTests: XCTestCase {
         ventana.isHidden = true
     }
 
+    /// Toda la navegación: cada destino apilado con `estado.abrir` (como lo hace la app, en `AnyHashable`)
+    /// tiene que mostrar su pantalla y no el placeholder de SwiftUI. Así se rompió el 5/11: el destino
+    /// se apilaba como `AnyHashable` y ninguna pila lo encontraba.
+    func testNavegacionTotal() {
+        let conf = URLSessionConfiguration.ephemeral
+        conf.protocolClasses = [ApiFalsa.self]
+        let estado = Estado(api: Api(base: URL(string: "https://api.prueba")!, token: "x", http: URLSession(configuration: conf)))
+        estado.sesion = Sesion(usuario: .init(id: "u1", email: "mariana@luna.test", nombre: "Mariana", apellido: "Luna"), inmobiliariaId: "i1", rol: "duenio",
+                               inmobiliarias: [.init(inmobiliariaId: "i1", slug: "luna", nombre: "Luna Propiedades", rol: "duenio")])
+        estado.fase = .adentro
+        let escena = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let ventana = escena.map { UIWindow(windowScene: $0) } ?? UIWindow()
+        ventana.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
+        ventana.rootViewController = UIHostingController(rootView: Principal().environment(estado).environment(estado.cola))
+        ventana.makeKeyAndVisible()
+        RunLoop.main.run(until: Date().addingTimeInterval(1.5))
+
+        let claves = ["mas", "configuracion", "equipo", "integraciones", "respuestas", "proveedores", "objetivos", "inventarios", "rendiciones",
+                      "papelera", "actividad", "revision", "informe", "indices", "web", "difusion", "emprendimientos", "temporada", "reservas",
+                      "consorcios", "importar", "ia", "firma"]
+        let conId = ["vistas", "tarifas", "emprendimiento", "consorcio", "envios", "grabaciones", "reservas-propiedad", "documentos-propiedad",
+                     "documentos-contrato", "bienes", "reglamento"]
+        var destinos: [(String, AnyHashable)] = [
+            ("FichaPropiedad", AFichaPropiedad(id: "p1")), ("Galeria", AGaleria(id: "p1")), ("AltaPropiedad", AAltaPropiedad()),
+            ("Captadas", ACaptadas()), ("Chat", AChat(id: "c1")), ("PreguntaML", APreguntaML(id: "m1")), ("Agenda", AAgendaDia()),
+            ("Cita", ACita(id: "ci1")), ("Contactos", AContactos()), ("FichaContacto", AFichaContacto(id: "k1")), ("Operaciones", AOperaciones()),
+            ("FichaOperacion", AFichaOperacion(id: "o1")), ("Cobranzas", ACobranzas()), ("Contratos", AContratos()),
+            ("FichaContrato", AFichaContrato(id: "t1")), ("Recibo", ARecibo(contrato: "t1", cobro: "b1")), ("Rendicion", ARendicion(contrato: "t1", id: "r1")),
+            ("Inventario", AInventario(id: "p1")), ("Firmas", AFirmas(id: "a1")), ("Avisos", AAvisos()), ("ConfigAvisos", AConfigAvisos()),
+            ("Perfil", APerfil()), ("Buscar", ABuscar(texto: "Mendoza")),
+        ]
+        destinos += claves.map { ("Seccion-\($0)", AnyHashable(ASeccion(clave: $0))) }
+        destinos += conId.map { ("Seccion-\($0)", AnyHashable(ASeccion(clave: $0, id: "x1"))) }
+
+        var rotos: [String] = []
+        for (nombre, d) in destinos {
+            estado.pilas = [:]
+            estado.pestana = .inicio
+            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            let antes = PantallasMostradas.cuenta
+            estado.abrir(d)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+            if PantallasMostradas.cuenta == antes { rotos.append(nombre) }
+        }
+        ventana.isHidden = true
+        XCTAssertEqual(rotos, [], "Estos destinos no muestran su pantalla (¿placeholder de SwiftUI?): \(rotos)")
+    }
+
+    /// El mapa a nivel barrio con tres propiedades (no a nivel edificio, sin lugares de interés).
+    func testMapa() throws {
+        let json = """
+        [{"id": "p1", "titulo": "Mendoza 2350, 5.º A", "precio": 172000, "moneda": "USD", "lat": -34.5627, "lng": -58.4563},
+         {"id": "p2", "titulo": "Thames 2240", "precio": 611800, "moneda": "ARS", "lat": -34.5870, "lng": -58.4250},
+         {"id": "p3", "titulo": "Gorriti 5530", "precio": 340000, "moneda": "USD", "lat": -34.5850, "lng": -58.4380}]
+        """
+        let props = try Api.decodificador.decode([Propiedad].self, from: Data(json.utf8))
+        montar(MapaCartera(props: props, senales: [:]).frame(height: 600).padding(16), segundos: 4)
+    }
+
     func testInicioDuena() { montar(InicioRaiz()) }
     func testInicioAgente() { montar(InicioRaiz(), rol: "agente") }
     func testInicioSinNada() {

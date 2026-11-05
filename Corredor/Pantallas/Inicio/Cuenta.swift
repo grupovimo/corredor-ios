@@ -1,4 +1,6 @@
+import AppIntents
 import SwiftUI
+import TipKit
 import UserNotifications
 
 // MARK: - 2C Búsqueda global
@@ -36,6 +38,31 @@ struct Buscar: View {
             }
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    // Secciones y acciones («cobrar», «expensas», «dominio»): lo que la app hace, también se busca.
+                    let f = MasRaiz.normal(texto)
+                    let secciones = f.count < 2 ? [] : MasRaiz.grupos(duenio: estado.esDuenio, avisos: 0).flatMap(\.1).filter { MasRaiz.coincide($0, f) }
+                    if !secciones.isEmpty {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("EN LA APP").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font)
+                                .tracking(0.5).foregroundStyle(C.texto2).padding(.horizontal, 4)
+                            VStack(spacing: 0) {
+                                ForEach(Array(secciones.prefix(6).enumerated()), id: \.element.id) { i, it in
+                                    Button { estado.abrir(it.destino) } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: it.icono).font(.system(size: 19)).foregroundStyle(C.accion).frame(width: 24)
+                                            Text(it.texto).estilo(.filaLista).foregroundStyle(C.texto)
+                                            Spacer()
+                                            Chevron()
+                                        }
+                                        .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
+                                }
+                            }
+                            .tarjeta(16)
+                        }
+                    }
                     ForEach(Self.grupos, id: \.0) { tipo, titulo, icono in
                         let items = resultados.filter { $0.tipo == tipo }
                         if !items.isEmpty {
@@ -331,6 +358,8 @@ struct Perfil: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                TipView(ConsejoSiri()).tipBackground(C.superficie)
+                ShortcutsLink().shortcutsLinkStyle(.automaticOutline).frame(maxWidth: .infinity)
                 Button { editando = true } label: {
                     HStack(spacing: 14) {
                         Text(Formato.iniciales(estado.usuario?.completo ?? "")).font(Estilo(tamano: 22, peso: .bold, relativo: .title2).font)

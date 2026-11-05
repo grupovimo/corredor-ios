@@ -383,7 +383,11 @@ struct AltaPropiedad: View {
             } else {
                 let subio = try await estado.cola.enviar("POST", "/v1/propiedades", d.cuerpo(estado: "disponible"), etiqueta: "Alta de \(d.direccion)")
                 if let b = borradorId { try? await estado.api.hacer("DELETE", "/v1/borradores/\(b)") }
-                estado.avisar(subio ? "\(d.direccion) quedó publicada en tu web" : "En cola · se publica cuando vuelva la señal")
+                if subio {
+                    estado.sugerir("\(d.direccion) quedó publicada en tu web", "Portales", ASeccion(clave: "difusion"))
+                } else {
+                    estado.avisar("En cola · se publica cuando vuelva la señal")
+                }
             }
             estado.version += 1
             cerrar()

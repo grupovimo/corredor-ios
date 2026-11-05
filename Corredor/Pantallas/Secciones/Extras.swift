@@ -1,6 +1,8 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 import UniformTypeIdentifiers
+import VisionKit
 
 // Lo que completa el alcance del panel: documentos, bienes y reglamento de consorcios, y lotes y
 // masterplan de emprendimientos.
@@ -29,9 +31,13 @@ struct DocumentosLista: View {
     @State private var foto: PhotosPickerItem?
     @State private var previo: ArchivoPrevio?
     @State private var subiendo = false
+    @State private var escaneando = false
 
     var body: some View {
         List {
+            if estado.escribe {
+                TipView(ConsejoEscanear()).tipBackground(C.superficie).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
             if lista.isEmpty {
                 EstadoVacio(icono: "folder", titulo: "Sin documentos", texto: "El contrato firmado, el DNI, la escritura, los planos: todo a mano.",
                             accion: estado.escribe ? ("Subir un PDF", { eligiendo = true }) : nil)
@@ -57,6 +63,9 @@ struct DocumentosLista: View {
         .toolbar {
             if estado.escribe {
                 Menu {
+                    if VNDocumentCameraViewController.isSupported {
+                        Button { escaneando = true } label: { Label("Escanear con la cámara", systemImage: "doc.viewfinder") }
+                    }
                     Button { eligiendo = true } label: { Label("Un archivo (PDF)", systemImage: "doc") }
                     PhotosPicker(selection: $foto, matching: .images) { Label("Una foto", systemImage: "photo") }
                 } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar")
@@ -64,6 +73,10 @@ struct DocumentosLista: View {
         }
         .task(id: estado.version) { await cargar() }
         .vistaPrevia($previo)
+        .fullScreenCover(isPresented: $escaneando) {
+            EscanerDocumentos { pdf in Task { await subir(pdf, nombre: "Escaneo \(Formato.diaISO(Date())).pdf", tipo: "application/pdf") } }
+                .ignoresSafeArea()
+        }
         .fileImporter(isPresented: $eligiendo, allowedContentTypes: [.pdf, .image]) { r in
             if case .success(let u) = r {
                 Task {
@@ -382,5 +395,44 @@ struct MasterplanVista: View {
         do {
             try await estado.api.hacer("PUT", "/v1/emprendimientos/\(emprendimiento)/masterplan", C(imagen: nueva, lotes: marcas.map { Marca(propiedadId: $0.0, x: $0.1, y: $0.2) }))
         } catch { estado.avisar(error) }
+    }
+}
+
+/// El escáner de documentos del iPhone (VisionKit): recorta y endereza cada hoja; al terminar, las
+/// páginas salen en un solo PDF.
+struct EscanerDocumentos: UIViewControllerRepresentable {
+    var listo: (Data) -> Void
+    @Environment(\.dismiss) private var cerrar
+
+    func makeUIViewController(context: Context) -> VNDocumentCameraViewController {
+        let c = VNDocumentCameraViewController()
+        c.delegate = context.coordinator
+        return c
+    }
+
+    func updateUIViewController(_ c: VNDocumentCameraViewController, context: Context) {}
+    func makeCoordinator() -> Coordinador { Coordinador(self) }
+
+    final class Coordinador: NSObject, VNDocumentCameraViewControllerDelegate {
+        let padre: EscanerDocumentos
+        init(_ padre: EscanerDocumentos) { self.padre = padre }
+
+        func documentCameraViewController(_ c: VNDocumentCameraViewController, didFinishWith scan: VNDocumentCameraScan) {
+            let a4 = CGRect(x: 0, y: 0, width: 595, height: 842)
+            let pdf = UIGraphicsPDFRenderer(bounds: a4).pdfData { ctx in
+                for i in 0..<scan.pageCount {
+                    ctx.beginPage()
+                    let img = scan.imageOfPage(at: i)
+                    let escala = min(a4.width / img.size.width, a4.height / img.size.height)
+                    let tam = CGSize(width: img.size.width * escala, height: img.size.height * escala)
+                    img.draw(in: CGRect(x: (a4.width - tam.width) / 2, y: (a4.height - tam.height) / 2, width: tam.width, height: tam.height))
+                }
+            }
+            if scan.pageCount > 0 { padre.listo(pdf) }
+            padre.cerrar()
+        }
+
+        func documentCameraViewControllerDidCancel(_ c: VNDocumentCameraViewController) { padre.cerrar() }
+        func documentCameraViewController(_ c: VNDocumentCameraViewController, didFailWithError error: Error) { padre.cerrar() }
     }
 }

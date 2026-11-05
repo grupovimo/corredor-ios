@@ -57,6 +57,36 @@ struct CobrosDeHoy: AppIntent {
     }
 }
 
+struct QueTengoHoy: AppIntent {
+    static let title: LocalizedStringResource = "Qué tengo hoy"
+    static let description = IntentDescription("Abre tu día: visitas, consultas y cobros.")
+    static let openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        Abrir.ir(Ruta(.inicio))
+        return .result()
+    }
+}
+
+struct CobrarAlquiler: AppIntent {
+    static let title: LocalizedStringResource = "Cobrar un alquiler"
+    static let description = IntentDescription("Abre la cobranza del mes para registrar un cobro y mandar el recibo.")
+    static let openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        Abrir.ir(Ruta(.inicio, ACobranzas()))
+        return .result()
+    }
+}
+
+struct MandarFicha: AppIntent {
+    static let title: LocalizedStringResource = "Mandar una ficha"
+    static let description = IntentDescription("Abre tu cartera para mandar una propiedad por WhatsApp.")
+    static let openAppWhenRun = true
+    @MainActor func perform() async throws -> some IntentResult {
+        Abrir.ir(Ruta(.propiedades))
+        return .result()
+    }
+}
+
 /// Los atajos que aparecen solos en Atajos y Siri: «Captar con MIRA», «Nueva visita en Corredor».
 struct AtajosCorredor: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
@@ -65,6 +95,9 @@ struct AtajosCorredor: AppShortcutsProvider {
         AppShortcut(intent: NuevaVisitaIntent(), phrases: ["Nueva visita en \(.applicationName)"], shortTitle: "Nueva visita", systemImageName: "calendar.badge.plus")
         AppShortcut(intent: ConsultasSinResponder(), phrases: ["Consultas sin responder en \(.applicationName)"], shortTitle: "Sin responder", systemImageName: "bubble.left.and.bubble.right")
         AppShortcut(intent: CobrosDeHoy(), phrases: ["Cobros de hoy en \(.applicationName)"], shortTitle: "Cobros de hoy", systemImageName: "dollarsign.circle")
+        AppShortcut(intent: QueTengoHoy(), phrases: ["Qué tengo hoy en \(.applicationName)", "Mi día en \(.applicationName)"], shortTitle: "Qué tengo hoy", systemImageName: "sun.max")
+        AppShortcut(intent: CobrarAlquiler(), phrases: ["Cobrar un alquiler en \(.applicationName)"], shortTitle: "Cobrar un alquiler", systemImageName: "banknote")
+        AppShortcut(intent: MandarFicha(), phrases: ["Mandar una ficha en \(.applicationName)"], shortTitle: "Mandar una ficha", systemImageName: "paperplane")
     }
 }
 
@@ -127,6 +160,36 @@ enum Spotlight {
         }
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: ["contactos"]) { _ in
             CSSearchableIndex.default().indexSearchableItems(Array(items))
+        }
+    }
+
+    /// Las secciones de la app («Cobranzas», «Consorcios», con sus palabras: «expensas», «recibo»…): buscarlas
+    /// en el iPhone abre la sección. El identificador es la ruta que entiende `Ruta(texto:)`.
+    @MainActor
+    static func indexarSecciones(duenio: Bool) {
+        let items = MasRaiz.grupos(duenio: duenio, avisos: 0).flatMap(\.1).compactMap { it -> CSSearchableItem? in
+            guard let ruta = ruta(it.destino) else { return nil }
+            let a = CSSearchableItemAttributeSet(contentType: .content)
+            a.title = it.texto
+            a.contentDescription = "En Corredor"
+            a.keywords = MasRaiz.claves[it.texto] ?? []
+            return CSSearchableItem(uniqueIdentifier: ruta, domainIdentifier: "secciones", attributeSet: a)
+        }
+        CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: ["secciones"]) { _ in
+            CSSearchableIndex.default().indexSearchableItems(items)
+        }
+    }
+
+    private static func ruta(_ d: AnyHashable) -> String? {
+        switch d.base {
+        case let s as ASeccion: return s.clave
+        case is AContactos: return "contactos"
+        case is AOperaciones: return "operaciones"
+        case is ACobranzas: return "cobranzas"
+        case is AContratos: return "contratos"
+        case is AAgendaDia: return "agenda"
+        case is AAvisos: return "avisos"
+        default: return nil
         }
     }
 

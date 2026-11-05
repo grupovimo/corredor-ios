@@ -12,6 +12,7 @@ struct CorredorApp: App {
 
     init() {
         Apariencia.aplicar()
+        Consejos.configurar()
     }
 
     var body: some Scene {

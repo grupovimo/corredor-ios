@@ -52,7 +52,7 @@ struct AgendaRaiz: View {
                 }
                 .padding(.horizontal, 16)
             }
-            .padding(.bottom, 110)
+            .padding(.bottom, 90)
         }
         .refreshable { await cargar() }
         .background(FondoApp())

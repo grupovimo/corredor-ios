@@ -47,6 +47,8 @@ struct Aviso: Identifiable, Equatable {
     var texto: String
     var ok = true
     var deshacer: (() -> Void)?
+    /// La sugerencia del paso siguiente («Publicar», «Cargar contrato»): su texto y qué hace.
+    var accion: (String, () -> Void)?
 
     static func == (a: Aviso, b: Aviso) -> Bool { a.id == b.id }
 }
@@ -81,6 +83,8 @@ final class Estado {
     /// Insignias de la barra (mensajes sin leer, avisos).
     var sinLeer = 0
     var avisosPendientes = 0
+    /// El recorrido de la primera vez (también se vuelve a ver desde «Más»).
+    var mostrarRecorrido = false
     /// Conectado al stream de cambios (App/Vivo.swift); sin él, el chat vuelve a consultar cada tanto.
     var enVivo = false
     @ObservationIgnored var recargaVivo: Task<Void, Never>?
@@ -147,6 +151,7 @@ final class Estado {
             fase = .eligiendo
         } else {
             fase = .adentro
+            Spotlight.indexarSecciones(duenio: esDuenio)
             Task { await despuesDeEntrar() }
         }
     }
@@ -236,6 +241,7 @@ final class Estado {
         Guardado.guardar(s, clave: "sesion")
         UserDefaults.standard.set(true, forKey: "eligio-\(s.usuario.id)")
         fase = .adentro
+        Spotlight.indexarSecciones(duenio: esDuenio)
         version += 1
         Task { await despuesDeEntrar() }
     }
@@ -284,20 +290,27 @@ final class Estado {
     func ir(_ r: Ruta) {
         if r.pestana == .mira {
             miraAbierta = true
-            if let d = r.destino { pilas[.inicio, default: NavigationPath()].append(d); pestana = .inicio }
+            if let d = r.destino { Self.apilar(d, en: &pilas[.inicio, default: NavigationPath()]); pestana = .inicio }
             return
         }
         pestana = r.pestana
         if let d = r.destino {
             var p = NavigationPath()
-            p.append(d)
+            Self.apilar(d, en: &p)
             pilas[r.pestana] = p
         }
     }
 
     func abrir(_ destino: AnyHashable, en p: Pestana? = nil) {
-        let p = p ?? pestana
-        pilas[p, default: NavigationPath()].append(destino)
+        Self.apilar(destino, en: &pilas[p ?? pestana, default: NavigationPath()])
+    }
+
+    /// Apila el destino con su tipo real. Agregado como `AnyHashable`, `NavigationPath` lo guarda como
+    /// `AnyHashable` y SwiftUI no encuentra su `navigationDestination` (muestra el triángulo amarillo).
+    /// `base` se abre como `any Hashable` y `append` recibe, p. ej., un `AFichaPropiedad`.
+    static func apilar(_ d: AnyHashable, en path: inout NavigationPath) {
+        let valor: any Hashable = d.base as? any Hashable ?? d
+        path.append(valor)
     }
 
     // MARK: Avisos
@@ -309,6 +322,22 @@ final class Estado {
         let id = aviso?.id
         avisoTarea = Task {
             try? await Task.sleep(for: .seconds(deshacer == nil ? 3 : 5))
+            if !Task.isCancelled, aviso?.id == id { aviso = nil }
+        }
+    }
+
+    /// El paso siguiente, en el momento justo: después de cargar, captar, cerrar o cobrar, el aviso de
+    /// abajo propone lo que suele venir después y lleva ahí en un toque (dura 6 s).
+    func sugerir(_ texto: String, _ boton: String, _ destino: AnyHashable) {
+        sugerir(texto, boton) { [weak self] in self?.abrir(destino) }
+    }
+
+    func sugerir(_ texto: String, _ boton: String, hacer: @escaping () -> Void) {
+        aviso = Aviso(texto: texto, ok: true, accion: (boton, hacer))
+        avisoTarea?.cancel()
+        let id = aviso?.id
+        avisoTarea = Task {
+            try? await Task.sleep(for: .seconds(6))
             if !Task.isCancelled, aviso?.id == id { aviso = nil }
         }
     }
