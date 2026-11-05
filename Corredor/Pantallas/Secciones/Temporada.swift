@@ -75,7 +75,7 @@ struct Temporada: View {
                     Button { Task { await poner(r, "confirmada") } } label: { Label("Confirmar", systemImage: "checkmark") }
                     Button(role: .destructive) { Task { await poner(r, "cancelada") } } label: { Label("Cancelar", systemImage: "xmark") }
                 }
-            } label: { Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(C.accion) }
+            } label: { Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(C.accion) }.accessibilityLabel("Más acciones")
         }
         .padding(.horizontal, 14).padding(.vertical, 10)
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }

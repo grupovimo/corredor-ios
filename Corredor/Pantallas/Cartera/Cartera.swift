@@ -319,7 +319,7 @@ struct FichaContacto: View {
                 Menu {
                     Button { editando = true } label: { Label("Editar", systemImage: "pencil") }
                     if estado.esDuenio { Button(role: .destructive) { borrar() } label: { Label("Mandar a la papelera", systemImage: "trash") } }
-                } label: { Image(systemName: "ellipsis.circle") }
+                } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Más acciones")
             }
         }
         .task(id: estado.version) { await cargar() }
@@ -793,7 +793,7 @@ struct FichaOperacion: View {
                             if estado.escribe {
                                 HStack {
                                     TextField("Sumar una nota", text: $nota, axis: .vertical).estilo(.body16)
-                                    if !nota.isEmpty { Button { Task { await sumarNota() } } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 26)).foregroundStyle(C.accion) } }
+                                    if !nota.isEmpty { Button { Task { await sumarNota() } } label: { Image(systemName: "arrow.up.circle.fill").font(.system(size: 26)).foregroundStyle(C.accion) }.accessibilityLabel("Guardar la nota") }
                                 }
                             }
                             ForEach(historial) { n in

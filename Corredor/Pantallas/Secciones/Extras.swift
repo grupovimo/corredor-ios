@@ -55,7 +55,7 @@ struct DocumentosLista: View {
                 Menu {
                     Button { eligiendo = true } label: { Label("Un archivo (PDF)", systemImage: "doc") }
                     PhotosPicker(selection: $foto, matching: .images) { Label("Una foto", systemImage: "photo") }
-                } label: { Image(systemName: "plus") }
+                } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar")
             }
         }
         .task(id: estado.version) { await cargar() }
@@ -149,7 +149,7 @@ struct BienesConsorcio: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Bienes")
-        .toolbar { if estado.escribe { Button { editando = BienAPI(id: "", nombre: "", categoria: "matafuego", cantidad: 1, estado: "ok") } label: { Image(systemName: "plus") } } }
+        .toolbar { if estado.escribe { Button { editando = BienAPI(id: "", nombre: "", categoria: "matafuego", cantidad: 1, estado: "ok") } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { b in
             NavigationStack { FormBien(b: b) { x in Task { await guardar(x) } } }

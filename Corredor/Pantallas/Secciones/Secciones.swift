@@ -290,7 +290,7 @@ struct Equipo: View {
                                 }
                                 Divider()
                                 Button("Sacar del equipo", role: .destructive) { Task { await sacar(m) } }
-                            } label: { Image(systemName: "ellipsis.circle").foregroundStyle(C.accion) }
+                            } label: { Image(systemName: "ellipsis.circle").foregroundStyle(C.accion) }.accessibilityLabel("Más acciones")
                         }
                     }
                 }

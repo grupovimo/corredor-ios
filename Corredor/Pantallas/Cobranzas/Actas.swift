@@ -128,7 +128,7 @@ struct Inventario: View {
                     if estado.escribe {
                         HStack {
                             TextField("Sumar un ítem (placard, canilla…)", text: $nuevoItem).estilo(.body16)
-                            if !nuevoItem.isEmpty { Button { Task { await sumarItem(nuevoItem, en: ambiente) } } label: { Image(systemName: "plus.circle.fill").font(.system(size: 24)).foregroundStyle(C.accion) } }
+                            if !nuevoItem.isEmpty { Button { Task { await sumarItem(nuevoItem, en: ambiente) } } label: { Image(systemName: "plus.circle.fill").font(.system(size: 24)).foregroundStyle(C.accion) }.accessibilityLabel("Sumar") }
                         }
                         .padding(14).overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
                     }

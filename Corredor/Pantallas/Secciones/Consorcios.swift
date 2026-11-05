@@ -239,12 +239,12 @@ struct FichaConsorcio: View {
                     Button { nuevo = "novedad" } label: { Label("Nueva novedad", systemImage: "exclamationmark.bubble") }
                     Button { nuevo = "empleado" } label: { Label("Sumar personal", systemImage: "person.badge.plus") }
                     if estado.esDuenio { Button { editando = true } label: { Label("Editar el consorcio", systemImage: "pencil") } }
-                } label: { Image(systemName: "plus") }
+                } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar")
             }
             Menu {
                 Button { estado.abrir(ASeccion(clave: "bienes", id: id)) } label: { Label("Bienes del edificio", systemImage: "fire.extinguisher") }
                 Button { estado.abrir(ASeccion(clave: "reglamento", id: id)) } label: { Label("Reglamento", systemImage: "doc.text") }
-            } label: { Image(systemName: "ellipsis.circle") }
+            } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Más acciones")
         }
         .task(id: estado.version) { await cargar() }
         .vistaPrevia($previo)
@@ -336,7 +336,7 @@ struct FichaConsorcio: View {
                             .padding(.horizontal, 9).frame(height: 26).background(f.tono.fondo, in: Capsule())
                     }
                     if estado.escribe && !f.acciones.isEmpty {
-                        Menu { ForEach(f.acciones, id: \.0) { t, h in Button(t, action: h) } } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36).foregroundStyle(C.texto2) }
+                        Menu { ForEach(f.acciones, id: \.0) { t, h in Button(t, action: h) } } label: { Image(systemName: "ellipsis").frame(width: 36, height: 36).foregroundStyle(C.texto2) }.accessibilityLabel("Más acciones")
                     }
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
@@ -484,7 +484,7 @@ struct TarjetaPeriodo: View {
                     HStack {
                         TextField("Gasto (limpieza, luz…)", text: $gasto).estilo(.texto14)
                         TextField("Monto", value: $monto, format: .number).keyboardType(.decimalPad).frame(width: 90).estilo(.texto14)
-                        Button { Task { await sumar() } } label: { Image(systemName: "plus.circle.fill").font(.system(size: 22)).foregroundStyle(C.accion) }.disabled(gasto.isEmpty || monto == nil)
+                        Button { Task { await sumar() } } label: { Image(systemName: "plus.circle.fill").font(.system(size: 22)).foregroundStyle(C.accion) }.accessibilityLabel("Sumar").disabled(gasto.isEmpty || monto == nil)
                     }
                     HStack(spacing: 8) {
                         Button("Liquidar") { Task { await accion("liquidar", "Expensas liquidadas") } }.buttonStyle(BotonAccion())

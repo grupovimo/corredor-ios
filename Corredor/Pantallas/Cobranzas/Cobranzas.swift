@@ -500,7 +500,7 @@ struct Contratos: View {
                 Menu {
                     Button { leerPDF = false; nuevo = true } label: { Label("Cargar contrato", systemImage: "square.and.pencil") }
                     Button { leerPDF = true; nuevo = true } label: { Label("Subir el PDF y que lo lea", systemImage: "doc.viewfinder") }
-                } label: { Image(systemName: "plus") }
+                } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar")
             }
         }
         .task(id: estado.version) { await cargar() }

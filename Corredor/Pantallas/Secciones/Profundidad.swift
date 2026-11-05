@@ -84,7 +84,7 @@ struct Portales: View {
                                         } else {
                                             Button { Task { await accion(p, pausar: false) } } label: { Label(p.error != nil ? "Reintentar" : "Publicar", systemImage: "arrow.up.circle") }
                                         }
-                                    } label: { Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(C.accion) }
+                                    } label: { Image(systemName: "ellipsis.circle").font(.system(size: 22)).foregroundStyle(C.accion) }.accessibilityLabel("Más acciones")
                                 }
                             }
                             .padding(.horizontal, 14).padding(.vertical, 10)
@@ -228,7 +228,7 @@ struct TarifasTemporada: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Tarifas")
-        .toolbar { if estado.escribe { Button { editando = TarifaAPI(id: "", desde: Formato.diaISO(Date()), hasta: Formato.diaISO(Date().addingTimeInterval(30 * 86400)), precio: 0, moneda: "USD", periodo: "noche") } label: { Image(systemName: "plus") } } }
+        .toolbar { if estado.escribe { Button { editando = TarifaAPI(id: "", desde: Formato.diaISO(Date()), hasta: Formato.diaISO(Date().addingTimeInterval(30 * 86400)), precio: 0, moneda: "USD", periodo: "noche") } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { t in FormTarifa(t: t) { x in Task { await guardar(x) } } }
     }
@@ -314,7 +314,7 @@ struct CorredorEnTuIA: View {
         Form {
             Section(footer: Text("Agregá Corredor como conector en Claude o ChatGPT con este link. Lo que tu IA quiera cambiar te llega a Revisión.")) {
                 if let u = ajustes?.url {
-                    HStack { Text(u).font(.footnote.monospaced()); Spacer(); Button { UIPasteboard.general.string = u; estado.avisar("Link copiado") } label: { Image(systemName: "doc.on.doc") } }
+                    HStack { Text(u).font(.footnote.monospaced()); Spacer(); Button { UIPasteboard.general.string = u; estado.avisar("Link copiado") } label: { Image(systemName: "doc.on.doc") }.accessibilityLabel("Copiar el link") }
                 }
             }
             if estado.esDuenio, ajustes != nil {
