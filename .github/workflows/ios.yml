@@ -72,6 +72,7 @@ jobs:
           xcodebuild test -project Corredor.xcodeproj -scheme Corredor -configuration Debug -only-testing:CorredorUITests \
             -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO \
             -resultBundlePath recorridos.xcresult \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 900 -maximum-test-execution-time-allowance 1200 \
             | tee recorridos.log | xcbeautify --renderer github-actions
       - if: success() || failure()
         name: Lo que la app pidió y no está grabado
