@@ -83,6 +83,10 @@ final class Estado {
     /// Insignias de la barra (mensajes sin leer, avisos).
     var sinLeer = 0
     var avisosPendientes = 0
+    /// El abanico de acciones rápidas del botón del medio (MIRA, cargar, cobrar, editar la web…).
+    var accionesAbiertas = false
+    /// La hoja de alta que abre una acción rápida (contacto, visita, contrato).
+    var hojaRapida: HojaRapida?
     /// El recorrido de la primera vez (también se vuelve a ver desde «Más»).
     var mostrarRecorrido = false
     /// Conectado al stream de cambios (App/Vivo.swift); sin él, el chat vuelve a consultar cada tanto.

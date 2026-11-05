@@ -22,11 +22,20 @@ struct Principal: View {
                     .accessibilityHidden(!visible)
             }
         }
+        // El abanico del botón del medio, sobre el contenido y por encima de la barra.
+        .overlay { if estado.accionesAbiertas { AccionesRapidas().transition(.opacity) } }
         .safeAreaInset(edge: .bottom, spacing: 0) { BarraPestanas() }
         // Por si el lugar de la barra no llega a alguna pantalla (pasó con el TabView y con las pilas): todo
         // lo que se desplaza —en cualquier pestaña y en lo apilado— deja libre el alto de la barra al final.
         .contentMargins(.bottom, 96, for: .scrollContent)
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        .sheet(item: $estado.hojaRapida) { h in
+            switch h {
+            case .contacto: EditarContacto()
+            case .visita: NuevaCita(dia: Date()).presentationDetents([.large])
+            case .contrato: AltaContrato()
+            }
+        }
         .fullScreenCover(isPresented: $estado.miraAbierta) {
             MiraRaiz().environment(estado).environment(estado.cola)
         }
@@ -84,19 +93,21 @@ struct BarraPestanas: View {
                 Button {
                     if p == .mira {
                         Haptico.impacto()
-                        estado.miraAbierta = true
+                        withAnimation(.spring(duration: 0.35, bounce: 0.3)) { estado.accionesAbiertas.toggle() }
                     } else if estado.pestana == p {
+                        estado.accionesAbiertas = false
                         // Tocar la pestaña activa vuelve al principio.
                         estado.pilas[p] = NavigationPath()
                     } else {
                         Haptico.seleccion()
+                        estado.accionesAbiertas = false
                         estado.pestana = p
                     }
                 } label: {
                     if p == .mira {
                         VStack(spacing: 2) {
-                            BotonMira()
-                            Text("MIRA").estilo(.tab)
+                            BotonMira(abierto: estado.accionesAbiertas)
+                            Text("Crear").estilo(.tab)
                         }
                         .foregroundStyle(C.texto3)
                     } else {
@@ -123,7 +134,7 @@ struct BarraPestanas: View {
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, minHeight: 50)
-                .accessibilityLabel(p == .mira ? "MIRA: fotografiar un cartel" : nombre)
+                .accessibilityLabel(p == .mira ? (estado.accionesAbiertas ? "Cerrar las acciones rápidas" : "Acciones rápidas: captar, cargar, cobrar, editar la web") : nombre)
                 .accessibilityAddTraits(estado.pestana == p ? .isSelected : [])
             }
         }
@@ -146,6 +157,8 @@ struct BarraPestanas: View {
 /// cuatro esquinas en verde 0f3530.
 struct BotonMira: View {
     var tam: CGFloat = 58
+    /// Con el abanico abierto, el «+» gira a «×».
+    var abierto = false
     var body: some View {
         ZStack {
             Circle()
@@ -156,7 +169,8 @@ struct BotonMira: View {
                 .overlay(Circle().strokeBorder(.white.opacity(0.5), lineWidth: 1).blendMode(.overlay))
                 .padding(-4)
                 .background(Circle().fill(C.fondo).padding(-4))
-            Visor().frame(width: 24, height: 24)
+            Image(systemName: "plus").font(.system(size: 26, weight: .bold)).foregroundStyle(C.verde800)
+                .rotationEffect(.degrees(abierto ? 45 : 0))
         }
         .frame(width: tam, height: tam)
         .shadow(color: Color(hex: 0x7A5200, alfa: 0.7), radius: 11, y: 12)
@@ -225,5 +239,91 @@ extension View {
             .destinosCartera()
             .destinosCobranzas()
             .destinosSecciones()
+    }
+}
+
+/// Las hojas de alta que abre una acción rápida.
+enum HojaRapida: String, Identifiable {
+    case contacto, visita, contrato
+    var id: String { rawValue }
+}
+
+/// El abanico del botón del medio: círculos en arco con las acciones rápidas (MIRA es una más). Llega a
+/// cosas que no están a mano en las pestañas, como editar la web.
+struct AccionesRapidas: View {
+    @Environment(Estado.self) private var estado
+    @State private var visible = false
+
+    private struct Accion: Identifiable {
+        var icono: String
+        var nombre: String
+        var destacada = false
+        var hacer: () -> Void
+        var id: String { nombre }
+    }
+
+    private var acciones: [Accion] {
+        let e = estado
+        func ir(_ d: AnyHashable) -> () -> Void { { e.abrir(d) } }
+        guard e.escribe else {
+            return [Accion(icono: "magnifyingglass", nombre: "Buscar", hacer: ir(ABuscar())),
+                    Accion(icono: "calendar", nombre: "Agenda", hacer: ir(AAgendaDia())),
+                    Accion(icono: "bell", nombre: "Avisos", hacer: ir(AAvisos()))]
+        }
+        var a = [Accion(icono: "viewfinder", nombre: "Captar", destacada: true) { e.miraAbierta = true },
+                 Accion(icono: "house", nombre: "Propiedad", hacer: ir(AAltaPropiedad())),
+                 Accion(icono: "person.badge.plus", nombre: "Contacto") { e.hojaRapida = .contacto },
+                 Accion(icono: "calendar.badge.plus", nombre: "Visita") { e.hojaRapida = .visita },
+                 Accion(icono: "doc.badge.plus", nombre: "Contrato") { e.hojaRapida = .contrato },
+                 Accion(icono: "dollarsign.circle", nombre: "Cobrar", hacer: ir(ACobranzas()))]
+        if e.esDuenio { a.append(Accion(icono: "paintbrush", nombre: "Mi web", hacer: ir(ASeccion(clave: "web")))) }
+        return a
+    }
+
+    var body: some View {
+        let lista = acciones
+        GeometryReader { g in
+            ZStack {
+                Rectangle().fill(.black.opacity(0.45)).background(.ultraThinMaterial.opacity(0.6))
+                    .ignoresSafeArea()
+                    .onTapGesture { cerrar() }
+                    .accessibilityLabel("Cerrar las acciones rápidas")
+                    .accessibilityAddTraits(.isButton)
+                // En arco sobre el botón del medio: de izquierda a derecha.
+                let centro = CGPoint(x: g.size.width / 2, y: g.size.height + 6)
+                let radio = min(g.size.width / 2 - 44, 150.0)
+                ForEach(Array(lista.enumerated()), id: \.element.id) { i, a in
+                    let paso = lista.count > 1 ? 180.0 / Double(lista.count - 1) : 0
+                    let angulo = (180 - Double(i) * paso) * .pi / 180
+                    let x = centro.x + cos(angulo) * radio * (lista.count > 4 ? 1 : 0.75)
+                    let y = centro.y - sin(angulo) * radio * (lista.count > 4 ? 1 : 0.75) - 34
+                    Button {
+                        Haptico.seleccion()
+                        cerrar()
+                        a.hacer()
+                    } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: a.icono).font(.system(size: 21, weight: .semibold))
+                                .foregroundStyle(a.destacada ? C.verde800 : C.accion)
+                                .frame(width: 56, height: 56)
+                                .background(a.destacada ? AnyShapeStyle(C.oro) : AnyShapeStyle(C.superficie), in: Circle())
+                                .shadow(color: .black.opacity(0.3), radius: 10, y: 6)
+                            Text(a.nombre).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(.white)
+                                .shadow(color: .black.opacity(0.5), radius: 3)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .scaleEffect(visible ? 1 : 0.3)
+                    .opacity(visible ? 1 : 0)
+                    .position(x: visible ? x : centro.x, y: visible ? y : centro.y)
+                    .animation(.spring(duration: 0.4, bounce: 0.35).delay(Double(i) * 0.025), value: visible)
+                }
+            }
+        }
+        .onAppear { visible = true }
+    }
+
+    private func cerrar() {
+        withAnimation(.easeOut(duration: 0.2)) { estado.accionesAbiertas = false }
     }
 }

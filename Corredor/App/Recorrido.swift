@@ -11,7 +11,7 @@ struct Recorrido: View {
     private static let pasos: [(String, String, String, Pestana)] = [
         ("house", "Tu día, de un vistazo", "Lo que hay que hacer ahora, tu próxima visita y lo que encontramos por vos. Con el «+» cargás cualquier cosa.", .inicio),
         ("building.2", "Tu cartera", "Cargá una propiedad en un minuto y mandala por WhatsApp con un toque.", .propiedades),
-        ("viewfinder", "MIRA", "Fotografiá un cartel de «Vende» y lo cargamos por vos.", .mira),
+        ("plus", "El botón del medio", "Captá un cartel con MIRA, cargá una propiedad o un contacto, cobrá o editá tu web, en un toque.", .mira),
         ("bubble.left.and.bubble.right", "Todas las consultas juntas", "WhatsApp, Mercado Libre y tu web en una sola bandeja.", .mensajes),
         ("dollarsign.circle", "La plata del negocio", "Cobrá los alquileres, mandá el recibo y rendile al dueño, todo desde el celular.", .inicio),
         ("sparkles", "La IA trabaja por vos", "Te sugiere a quién mandarle qué propiedad y prepara respuestas. Vos aprobás.", .inicio),
