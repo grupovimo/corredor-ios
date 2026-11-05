@@ -23,6 +23,9 @@ struct Principal: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { BarraPestanas() }
+        // Por si el lugar de la barra no llega a alguna pantalla (pasó con el TabView y con las pilas): todo
+        // lo que se desplaza —en cualquier pestaña y en lo apilado— deja libre el alto de la barra al final.
+        .contentMargins(.bottom, 96, for: .scrollContent)
         .ignoresSafeArea(.keyboard, edges: .bottom)
         .fullScreenCover(isPresented: $estado.miraAbierta) {
             MiraRaiz().environment(estado).environment(estado.cola)

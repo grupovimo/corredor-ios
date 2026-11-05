@@ -66,6 +66,9 @@ struct InicioRaiz: View {
     }
 
     var body: some View {
+        // La franja de la hora va en un ZStack que respeta la parte de arriba (el ScrollView la ignora para
+        // que la portada llegue hasta arriba): así su fondo cubre la hora cuando la portada ya pasó.
+        ZStack(alignment: .top) {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 PortadaInicio(inmo: datos?.inmo, saludo: saludo, resumen: resumen) { eligiendoQueCargar = true }
@@ -93,14 +96,17 @@ struct InicioRaiz: View {
         }
         .refreshable { await cargar() }
         .ignoresSafeArea(edges: .top)
-        // La portada llega arriba de todo; cuando sale de la pantalla, aparece la franja de la hora
-        // para que lo que sube no se monte sobre la hora y la batería.
+        // Cuando la portada sale de la pantalla aparece la franja de la hora, para que lo que sube no se
+        // monte sobre la hora y la batería.
         .onPreferenceChange(AlturaPortada.self) { y in
-            let ver = y < -250
+            let ver = y < -200
             if ver != franja { withAnimation(.easeOut(duration: 0.15)) { franja = ver } }
         }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            if franja { Color.clear.frame(height: 0).background(.ultraThinMaterial, ignoresSafeAreaEdges: .top) }
+            if franja {
+                Color.clear.frame(height: 0)
+                    .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
+                    .transition(.opacity)
+            }
         }
         .background(FondoApp())
         .toolbar(.hidden, for: .navigationBar)
