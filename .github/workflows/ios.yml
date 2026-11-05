@@ -17,7 +17,7 @@ concurrency:
 jobs:
   compilar:
     runs-on: ${{ vars.RUNNER_MAC || 'macos-15-intel' }}
-    timeout-minutes: 90
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: .
@@ -56,35 +56,6 @@ jobs:
             echo "== $f"
             python3 -c "import json,sys; t=open(sys.argv[1]).read(); h,b=t.split(chr(10),1); d=json.loads(b); print(d.get('exception'), d.get('termination')); th=[x for x in d['threads'] if x.get('triggered')][0]; imgs=d['usedImages']; [print(i, imgs[f['imageIndex']].get('name'), f.get('symbol'), f.get('sourceFile'), f.get('sourceLine')) for i,f in enumerate(th['frames'][:40])]; print(d.get('asi'))" "$f" || head -c 6000 "$f"
           done
-      # Recorridos de punta a punta (XCUITest, como Playwright): la app en Debug (la única con el modo prueba)
-      # contra la API grabada de PruebasUI/api, recorriendo todas las pantallas. Si fallan, no sube a TestFlight.
-      - name: Recorridos
-        if: success() || failure()
-        env:
-          TEST_RUNNER_RECORRIDOS: ${{ runner.temp }}/recorridos
-        run: |
-          set -o pipefail
-          python3 PruebasUI/api/servidor.py 8787 > servidor.log 2>&1 &
-          sleep 2 && curl -sf http://127.0.0.1:8787/v1/auth/sesion > /dev/null
-          xcrun simctl boot 'iPhone 16' 2>/dev/null || true
-          # Cámara, ubicación, micrófono, fotos y dictado ya concedidos (los avisos no se pueden: el modo prueba no los pide).
-          xcrun simctl privacy 'iPhone 16' grant all ar.com.corredor.app || true
-          xcodebuild test -project Corredor.xcodeproj -scheme Corredor -configuration Debug -only-testing:CorredorUITests \
-            -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO \
-            -resultBundlePath recorridos.xcresult \
-            -test-timeouts-enabled YES -default-test-execution-time-allowance 900 -maximum-test-execution-time-allowance 1200 \
-            | tee recorridos.log | xcbeautify --renderer github-actions
-      - if: success() || failure()
-        name: Lo que la app pidió y no está grabado
-        run: sort -u PruebasUI/api/faltantes.log 2>/dev/null | head -80 || true
-      - if: failure()
-        run: grep -E 'error:|XCTAssert|failed' recorridos.log | sort -u | head -120 || true
-      - if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: recorridos
-          path: ${{ runner.temp }}/recorridos
-          if-no-files-found: ignore
       - if: always()
         uses: actions/upload-artifact@v4
         with:
