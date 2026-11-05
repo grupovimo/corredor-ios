@@ -128,7 +128,7 @@ struct BarraPestanas: View {
         .padding(.top, 6)
         .background {
             Rectangle().fill(.ultraThinMaterial)
-                .overlay(Color.tema(0xFAF8F2, 0x0E1714, alfa: 0.94, alfaOscuro: 0.92).opacity(0.7))
+                .overlay(Color.tema(0xFAF8F2, 0x111314, alfa: 0.94, alfaOscuro: 0.92).opacity(0.7))
                 .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
                 .ignoresSafeArea(edges: .bottom)
         }

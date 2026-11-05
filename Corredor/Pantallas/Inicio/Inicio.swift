@@ -27,6 +27,8 @@ struct DatosInicio {
     var esperadoMes: Double?
     /// La inmobiliaria con su marca (logo, portada, web): el Inicio es de ella, no genérico.
     var inmo: Inmobiliaria?
+    /// Las propiedades recién movidas, para «Tu cartera».
+    var props: [Propiedad] = []
 }
 
 /// 2A Inicio del agente y 2B de la dueña (handoff · «Hoy»): la próxima visita, para hacer ahora,
@@ -38,6 +40,7 @@ struct InicioRaiz: View {
     @State private var error: ErrorApi?
     @State private var aprobadas: Set<String> = []
     @State private var eligiendoQueCargar = false
+    @State private var franja = false
     @State private var cargando: Cargar?
 
     /// Lo que se puede cargar desde el «+» del Inicio (lo mismo que en cada sección, juntado).
@@ -50,19 +53,24 @@ struct InicioRaiz: View {
         return estado.usuario?.nombre.nonEmpty.map { "\(s), \($0)" } ?? s
     }
 
+    /// «Tenés 2 visitas, 3 consultas y 1 cobro para hoy.»
+    private var resumen: String {
+        guard let d = datos else { return " " }
+        let visitas = d.panel?.numeros?.citasHoy ?? 0, consultas = d.conversaciones.count + d.preguntas.count, cobros = d.deudas.count
+        let partes = [visitas > 0 ? Formato.cantidad(visitas, "visita", "visitas") : nil,
+                      consultas > 0 ? Formato.cantidad(consultas, "consulta", "consultas") : nil,
+                      cobros > 0 ? Formato.cantidad(cobros, "cobro", "cobros") : nil].compactMap { $0 }
+        guard !partes.isEmpty else { return "Hoy viene tranquilo. Buen momento para captar." }
+        let lista = partes.count == 1 ? partes[0] : partes.dropLast().joined(separator: ", ") + " y " + partes.last!
+        return "Tenés \(lista) para hoy."
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                CabeceraPestana(
-                    sobre: "\(datos?.inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "") · \(Formato.diaCompleto(Date()).split(separator: " ").prefix(2).joined(separator: " "))",
-                    titulo: saludo,
-                    acciones: (estado.escribe ? [AccionCabecera(icono: "plus.circle", etiqueta: "Cargar") { eligiendoQueCargar = true }] : []) + [
-                        AccionCabecera(icono: "magnifyingglass", etiqueta: "Buscar") { estado.abrir(ABuscar()) },
-                        AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) },
-                    ],
-                    avatar: true,
-                    logo: datos?.inmo?.logoUrl)
-                Accesos(cobrar: datos?.deudas.count ?? 0).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 8)
+                PortadaInicio(inmo: datos?.inmo, saludo: saludo, resumen: resumen) { eligiendoQueCargar = true }
+                    .padding(.bottom, 6)
+                    .background(GeometryReader { g in Color.clear.preference(key: AlturaPortada.self, value: g.frame(in: .global).minY) })
                 Group {
                     if estado.escribe { TipView(ConsejoCargar()) }
                     TipView(ConsejoMas())
@@ -84,7 +92,18 @@ struct InicioRaiz: View {
             .padding(.bottom, 32)
         }
         .refreshable { await cargar() }
-        .pantallaRaiz()
+        .ignoresSafeArea(edges: .top)
+        // La portada llega arriba de todo; cuando sale de la pantalla, aparece la franja de la hora
+        // para que lo que sube no se monte sobre la hora y la batería.
+        .onPreferenceChange(AlturaPortada.self) { y in
+            let ver = y < -250
+            if ver != franja { withAnimation(.easeOut(duration: 0.15)) { franja = ver } }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if franja { Color.clear.frame(height: 0).background(.ultraThinMaterial, ignoresSafeAreaEdges: .top) }
+        }
+        .background(FondoApp())
+        .toolbar(.hidden, for: .navigationBar)
         .task(id: estado.version) { await cargar() }
         .confirmationDialog("Cargar", isPresented: $eligiendoQueCargar, titleVisibility: .visible) {
             Button("Propiedad") { estado.abrir(AAltaPropiedad()) }
@@ -112,7 +131,6 @@ struct InicioRaiz: View {
     private func agente(_ d: DatosInicio) -> some View {
         VStack(alignment: .leading, spacing: 22) {
             if let c = proximaVisita(d) { TarjetaProximaVisita(cita: c) }
-            if let i = d.inmo { TarjetaTuWeb(inmo: i) }
             let hoy = paraHacer(d)
             if !hoy.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -121,7 +139,9 @@ struct InicioRaiz: View {
                 }
             }
             if let s = d.panel?.sugerencias?.first(where: { $0.estado != "descartada" }) { TarjetaSugerencia(s: s) }
+            if !d.props.isEmpty { CarteraVisual(props: d.props, total: d.panel?.numeros?.propiedadesDisponibles ?? 0) }
             if let o = d.panel?.objetivos?.first(where: { $0.agenteId == estado.usuario?.id || $0.agenteId == nil }) { TarjetaObjetivo(o: o) }
+            TodoCorredor()
             if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
         }
         .padding(.horizontal, 16)
@@ -132,24 +152,18 @@ struct InicioRaiz: View {
     @ViewBuilder
     private func duena(_ d: DatosInicio) -> some View {
         VStack(alignment: .leading, spacing: 22) {
-            // Las cifras llevan a su sección.
-            HStack(spacing: 8) {
-                Button { estado.abrir(ACobranzas()) } label: { Cifra(etiqueta: "Cobrado del mes", valor: d.cobradoMes.map { Formato.plataCorta($0) } ?? "—") }
-                Button { estado.pestana = .mensajes } label: { Cifra(etiqueta: "Consultas", valor: "\(d.conversaciones.count + d.preguntas.count) sin responder") }
-                Button { estado.abrir(AAgendaDia()) } label: { Cifra(etiqueta: "Visitas", valor: "\(d.panel?.numeros?.citasHoy ?? 0) hoy") }
+            if let c = proximaVisita(d) { TarjetaProximaVisita(cita: c) }
+            let hoy = paraHacer(d)
+            if !hoy.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    TituloBloque(texto: "Para hacer ahora", cuenta: "\(hoy.count)")
+                    ListaPendientes(filas: hoy)
+                }
             }
-            .buttonStyle(.plain)
-            PlataDelMes(d: d)
-            if let i = d.inmo { TarjetaTuWeb(inmo: i) }
             let aprob = paraAprobar(d).filter { !aprobadas.contains($0.id) }
-            VStack(alignment: .leading, spacing: 8) {
+            if !aprob.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
                 TituloBloque(texto: "Para aprobar")
-                if aprob.isEmpty {
-                    Label("No queda nada para aprobar.", systemImage: "checkmark.circle")
-                        .estilo(.subheadFuerte).foregroundStyle(C.okTinta)
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(C.okFondo, in: .rect(cornerRadius: M.rTarjeta, style: .continuous))
-                } else {
                     ForEach(aprob) { x in
                         VStack(alignment: .leading, spacing: 10) {
                             VStack(alignment: .leading, spacing: 2) {
@@ -167,15 +181,12 @@ struct InicioRaiz: View {
                     }
                 }
             }
-            let hoy = paraHacer(d)
-            if !hoy.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    TituloBloque(texto: "Para hacer ahora", cuenta: "\(hoy.count)")
-                    ListaPendientes(filas: hoy)
-                }
-            }
+            PlataDelMes(d: d)
+            if !d.props.isEmpty { CarteraVisual(props: d.props, total: d.panel?.numeros?.propiedadesDisponibles ?? 0) }
+            EsteMes(n: d.panel?.numeros, objetivo: d.panel?.objetivos?.first { $0.agenteId == nil })
             if !d.equipo.isEmpty { EquipoAhora(equipo: d.equipo, licencias: d.licencias, citas: d.panel?.agendaHoy ?? []) }
-            if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
+            TodoCorredor()
+            if let g = d.guia { PrimerosPasos(guia: g) }
         }
         .padding(.horizontal, 16)
     }
@@ -192,6 +203,7 @@ struct InicioRaiz: View {
             d.preguntas = (try? await api.get("/v1/mercadolibre/preguntas", query: [.init(name: "estado", value: "sin_responder"), .init(name: "limite", value: "10")])) ?? []
             d.deudas = (try? await api.get("/v1/contratos/deudas")) ?? []
             d.inmo = try? await api.get("/v1/inmobiliaria")
+            d.props = (try? await api.get("/v1/propiedades", query: [.init(name: "orden", value: "actualizada"), .init(name: "limite", value: "10")])) ?? []
             struct Contador: Decodable { var noLeidos: Int?; var paraHacer: Int? }
             if let c: Contador = try? await api.get("/v1/avisos/contador") { d.avisos = (c.noLeidos ?? 0); estado.avisosPendientes = d.avisos }
             if estado.esDuenio {
@@ -276,6 +288,7 @@ struct InicioRaiz: View {
 
 /// La tarjeta verde de la próxima visita (rayado, grano, rr de marca de agua, Cómo llegar y Estoy llegando).
 struct TarjetaProximaVisita: View {
+    @Environment(\.colorScheme) private var esquema
     @Environment(Estado.self) private var estado
     var cita: Cita
 
@@ -313,7 +326,15 @@ struct TarjetaProximaVisita: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background { FondoTarjetaVerde() }
+        // De noche, grafito con el borde oro (propuesta A): el verde lleno teñía todo el Inicio.
+        .background {
+            if esquema == .dark {
+                RoundedRectangle(cornerRadius: M.rDestacada, style: .continuous).fill(C.superficie)
+                    .overlay(RoundedRectangle(cornerRadius: M.rDestacada, style: .continuous).strokeBorder(C.oro.opacity(0.4), lineWidth: 1))
+            } else {
+                FondoTarjetaVerde()
+            }
+        }
         .clipShape(.rect(cornerRadius: M.rDestacada, style: .continuous))
         .sombraE3()
         .onTapGesture { estado.abrir(ACita(id: cita.id)) }
@@ -484,65 +505,6 @@ struct Cifra: View {
     }
 }
 
-/// «Tu web»: la portada, el logo y la frase de la inmobiliaria (su marca de Mi web), con «Ver» y
-/// «Compartir». Hace que el Inicio sea de ella; sin marca cargada, invita a ponerla.
-struct TarjetaTuWeb: View {
-    @Environment(Estado.self) private var estado
-    var inmo: Inmobiliaria
-
-    var body: some View {
-        let url = inmo.web.flatMap(URL.init(string:))
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .bottomLeading) {
-                Group {
-                    if let p = inmo.portadaUrl {
-                        Foto(url: p)
-                    } else {
-                        LinearGradient(colors: [inmo.colorPrimario ?? C.verde800, (inmo.colorPrimario ?? C.verde800).opacity(0.75)],
-                                       startPoint: .topLeading, endPoint: .bottomTrailing)
-                    }
-                }
-                .frame(height: 132)
-                .overlay(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom))
-                HStack(spacing: 10) {
-                    if let l = inmo.logoUrl {
-                        AsyncImage(url: l) { $0.resizable().scaledToFit() } placeholder: { Color.white.opacity(0.2) }
-                            .frame(width: 44, height: 44).background(.white).clipShape(.rect(cornerRadius: 11, style: .continuous))
-                    }
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(inmo.nombre ?? "Tu inmobiliaria").font(Estilo(tamano: 18, peso: .bold, relativo: .headline).font).foregroundStyle(.white)
-                        Text(inmo.frase ?? (inmo.dominio ?? url?.host ?? "Tu web")).estilo(.footnote).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
-                    }
-                }
-                .padding(12)
-            }
-            .clipped()
-            if inmo.logoUrl == nil && inmo.portadaUrl == nil && estado.esDuenio {
-                Button { estado.abrir(ASeccion(clave: "web")) } label: {
-                    Label("Poné tu logo y tu portada", systemImage: "paintpalette").font(Estilo.subheadFuerte.font)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                }
-                .foregroundStyle(C.accion)
-            } else {
-                HStack(spacing: 0) {
-                    Button { estado.abrir(ASeccion(clave: "web")) } label: {
-                        Label("Ver tu web", systemImage: "globe").font(Estilo.subheadFuerte.font).frame(maxWidth: .infinity, minHeight: 46)
-                    }
-                    Rectangle().fill(C.linea).frame(width: 0.5, height: 26)
-                    if let url {
-                        ShareLink(item: url, message: Text("Mirá nuestras propiedades")) {
-                            Label("Compartir", systemImage: "square.and.arrow.up").font(Estilo.subheadFuerte.font).frame(maxWidth: .infinity, minHeight: 46)
-                        }
-                    }
-                }
-                .foregroundStyle(C.accion)
-            }
-        }
-        .tarjeta()
-        .clipShape(.rect(cornerRadius: M.rTarjeta, style: .continuous))
-    }
-}
-
 /// «La plata del mes», arriba del Inicio de la dueña: cuánto se cobró de lo esperado y lo que falta hacer
 /// con la plata (quién debe, qué rendir, los alquileres), cada cosa a un toque. Sin alquileres cargados
 /// invita a cargar el primero: así nadie se pierde que la app maneja la cobranza.
@@ -597,40 +559,6 @@ struct PlataDelMes: View {
             .tarjeta(14)
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Los accesos rápidos, arriba del Inicio: la agenda (ya no es pestaña) y lo que más se usa. Todo lo
-/// demás está en la pestaña «Más».
-struct Accesos: View {
-    @Environment(Estado.self) private var estado
-    var cobrar = 0
-    var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            boton("calendar", "Agenda", AAgendaDia())
-            boton("person.2", "Contactos", AContactos())
-            boton("rectangle.split.3x1", "Operaciones", AOperaciones())
-            boton("dollarsign.circle", "Cobranzas", ACobranzas(), insignia: cobrar)
-            boton("doc.text", "Contratos", AContratos())
-        }
-    }
-
-    private func boton(_ icono: String, _ texto: String, _ destino: AnyHashable, insignia: Int = 0) -> some View {
-        Button { estado.abrir(destino) } label: {
-            VStack(spacing: 6) {
-                Image(systemName: icono).font(.system(size: 21, weight: .medium)).foregroundStyle(C.accion)
-                    .frame(width: 52, height: 52)
-                    .background(C.superficie, in: .rect(cornerRadius: 16, style: .continuous))
-                    .sombraE1()
-                    .overlay(alignment: .topTrailing) { if insignia > 0 { InsigniaRoja(n: insignia).offset(x: 6, y: -6) } }
-                Text(texto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2)
-                    .lineLimit(1).minimumScaleFactor(0.8)
-            }
-            .frame(maxWidth: .infinity)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(insignia > 0 ? "\(texto), \(insignia) para cobrar" : texto)
     }
 }
 
@@ -766,4 +694,195 @@ struct BotonHundido: ButtonStyle {
             .background(C.hundida, in: .rect(cornerRadius: 12, style: .continuous))
             .opacity(configuration.isPressed ? 0.8 : 1)
     }
+}
+
+// MARK: - Propuesta A («Mi inmobiliaria», 5/11): la marca primero
+
+/// La portada del Inicio: la foto de portada de su web (o el color de su marca) de punta a punta, con el
+/// logo, el nombre, los botones, el saludo y el resumen del día encima.
+struct PortadaInicio: View {
+    @Environment(Estado.self) private var estado
+    var inmo: Inmobiliaria?
+    var saludo: String
+    var resumen: String
+    var cargar: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            Group {
+                if let p = inmo?.portadaUrl {
+                    Foto(url: p)
+                } else {
+                    let c = inmo?.colorPrimario ?? C.verde700
+                    LinearGradient(colors: [c.opacity(0.95), C.verde800], startPoint: .topLeading, endPoint: .bottomTrailing)
+                }
+            }
+            .frame(height: 320)
+            .overlay(LinearGradient(colors: [.black.opacity(0.25), .clear, C.fondo.opacity(0.92), C.fondo],
+                                    startPoint: .top, endPoint: .bottom))
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(spacing: 10) {
+                    if let l = inmo?.logoUrl {
+                        AsyncImage(url: l) { $0.resizable().scaledToFit() } placeholder: { Color.white.opacity(0.3) }
+                            .frame(width: 40, height: 40).background(.white)
+                            .clipShape(.rect(cornerRadius: 11, style: .continuous))
+                    } else {
+                        Text(Formato.iniciales(inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "C"))
+                            .font(Estilo(tamano: 15, peso: .bold, relativo: .headline).font).foregroundStyle(C.verde700)
+                            .frame(width: 40, height: 40).background(Color(hex: 0xFFFDF8), in: .rect(cornerRadius: 11, style: .continuous))
+                    }
+                    Text((inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "").uppercased())
+                        .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).tracking(0.5)
+                        .foregroundStyle(.white.opacity(0.9)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    if estado.escribe { boton("plus", "Cargar", cargar) }
+                    boton("magnifyingglass", "Buscar") { estado.abrir(ABuscar()) }
+                    boton("bell", "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) }
+                }
+                Spacer(minLength: 0)
+                Text(Formato.mayuscula(Formato.diaCompleto(Date()))).estilo(.subhead).foregroundStyle(C.texto2)
+                Text(saludo).font(Estilo(tamano: 32, peso: .extrabold, tracking: -0.03, relativo: .largeTitle).font)
+                    .foregroundStyle(C.texto).lineLimit(2).minimumScaleFactor(0.8)
+                    .accessibilityAddTraits(.isHeader)
+                Text(resumen).estilo(.subhead).foregroundStyle(C.texto2).padding(.top, 4)
+            }
+            .padding(.horizontal, 16).padding(.top, 62).padding(.bottom, 14)
+            .frame(height: 320, alignment: .topLeading)
+        }
+        .frame(height: 320)
+        .clipped()
+    }
+
+    private func boton(_ icono: String, _ etiqueta: String, insignia: Int = 0, _ hacer: @escaping () -> Void) -> some View {
+        Button(action: hacer) {
+            Image(systemName: icono).font(.system(size: 18, weight: .semibold)).foregroundStyle(C.oro)
+                .frame(width: 40, height: 40).background(.black.opacity(0.35), in: Circle())
+                .overlay(alignment: .topTrailing) { if insignia > 0 { InsigniaRoja(n: insignia).offset(x: 4, y: -4) } }
+        }
+        .accessibilityLabel(etiqueta)
+    }
+}
+
+/// «Tu cartera»: las propiedades recién movidas, con foto, para mandarlas o abrirlas.
+struct CarteraVisual: View {
+    @Environment(Estado.self) private var estado
+    var props: [Propiedad]
+    var total: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                TituloBloque(texto: "Tu cartera")
+                Spacer()
+                Button(total > 0 ? "Ver las \(total)" : "Ver todas") { estado.pestana = .propiedades }
+                    .font(Estilo.footnoteFuerte.font).foregroundStyle(C.accion)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 10) {
+                    ForEach(props.prefix(10)) { p in
+                        Button { estado.abrir(AFichaPropiedad(id: p.id)) } label: {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Foto(url: p.miniatura).frame(width: 156, height: 112).clipShape(.rect(cornerRadius: 16, style: .continuous))
+                                Text(p.precioTexto).font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font).foregroundStyle(C.texto).padding(.top, 4)
+                                Text(p.nombre).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(1)
+                            }
+                            .frame(width: 156, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.horizontal, -16)
+        }
+    }
+}
+
+/// «Este mes»: lo que se movió, con el objetivo si hay uno.
+struct EsteMes: View {
+    @Environment(Estado.self) private var estado
+    var n: Panel.Numeros?
+    var objetivo: Objetivo?
+
+    var body: some View {
+        Button { estado.abrir(ASeccion(clave: "informe")) } label: {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Este mes").estilo(.subheadFuerte).foregroundStyle(C.texto2)
+                    Spacer()
+                    Text("Ver informe").font(Estilo.footnoteFuerte.font).foregroundStyle(C.accion)
+                }
+                LazyVGrid(columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)], spacing: 14) {
+                    cifra("\(n?.contactosNuevosMes ?? 0)", "consultas nuevas")
+                    cifra("\(n?.cerradasMes ?? 0)", variacion(n?.cerradasMes, n?.cerradasMesAnterior))
+                    cifra("\(n?.operacionesAbiertas ?? 0)", "operaciones abiertas")
+                    cifra("\(n?.propiedadesNuevasMes ?? 0)", "propiedades nuevas")
+                }
+                if let o = objetivo, let meta = o.meta, meta > 0 {
+                    let av = o.avance ?? 0
+                    Text("Objetivo: \(Formato.numero(Int(meta))) · vas \(Formato.numero(Int(av))) (\(Int((av / meta * 100).rounded())) %)").estilo(.footnote).foregroundStyle(C.texto2)
+                    GeometryReader { g in
+                        Capsule().fill(C.pista).overlay(alignment: .leading) { Capsule().fill(C.oro).frame(width: g.size.width * min(1, av / meta)) }
+                    }
+                    .frame(height: 8)
+                }
+            }
+            .padding(16).tarjeta()
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func variacion(_ a: Int?, _ b: Int?) -> String {
+        guard let a, let b, b > 0 else { return "cerradas" }
+        let d = a - b
+        return d == 0 ? "cerradas · igual que el mes pasado" : "cerradas · \(d > 0 ? "+" : "")\(d) vs. el mes pasado"
+    }
+
+    private func cifra(_ v: String, _ t: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(v).font(Estilo(tamano: 24, peso: .extrabold, relativo: .title2).font).foregroundStyle(C.texto)
+            Text(t).estilo(.footnote).foregroundStyle(C.texto3).lineLimit(2)
+        }
+    }
+}
+
+/// «Todo Corredor»: las áreas principales a un toque (el resto, en «Más»).
+struct TodoCorredor: View {
+    @Environment(Estado.self) private var estado
+    private var areas: [(String, String, AnyHashable)] {
+        var a: [(String, String, AnyHashable)] = [("calendar", "Agenda", AAgendaDia()), ("person.2", "Contactos", AContactos()),
+                                                  ("rectangle.split.3x1", "Operaciones", AOperaciones()), ("dollarsign.circle", "Cobranzas", ACobranzas()),
+                                                  ("doc.text", "Contratos", AContratos())]
+        if estado.esDuenio {
+            a += [("building.columns", "Consorcios", ASeccion(clave: "consorcios")), ("globe", "Mi web", ASeccion(clave: "web")), ("chart.bar", "Informe", ASeccion(clave: "informe"))]
+        } else {
+            a += [("checklist", "Actas", ASeccion(clave: "inventarios")), ("flag", "Objetivos", ASeccion(clave: "objetivos")), ("square.grid.2x2", "Más", ASeccion(clave: "mas"))]
+        }
+        return a
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            TituloBloque(texto: "Todo Corredor")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 14) {
+                ForEach(areas, id: \.1) { icono, nombre, destino in
+                    Button { estado.abrir(destino) } label: {
+                        VStack(spacing: 6) {
+                            Image(systemName: icono).font(.system(size: 21, weight: .medium)).foregroundStyle(C.accion)
+                                .frame(width: 58, height: 58).background(C.superficie, in: .rect(cornerRadius: 17, style: .continuous))
+                                .sombraE1()
+                            Text(nombre).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1).minimumScaleFactor(0.8)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+}
+
+/// Dónde está la portada del Inicio (para mostrar la franja de la hora cuando ya pasó).
+struct AlturaPortada: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = nextValue() }
 }

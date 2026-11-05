@@ -176,7 +176,7 @@ struct VistaAviso: View {
         }
         .padding(.horizontal, 16)
         .frame(minHeight: 52)
-        .background(Color.tema(0x0F3530, 0x26332E), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(Color.tema(0x0F3530, 0x2E3336), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: C.verde800.opacity(0.4), radius: 12, y: 10)
         .accessibilityElement(children: .contain)
     }
