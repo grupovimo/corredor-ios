@@ -113,7 +113,7 @@ struct Cobranzas: View {
                                         }
                                         .padding(.horizontal, 14).padding(.vertical, 12).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }
@@ -124,6 +124,7 @@ struct Cobranzas: View {
                         Button("Contratos") { estado.abrir(AContratos()) }.buttonStyle(BotonHundido())
                         Button("Rendiciones") { estado.abrir(ASeccion(clave: "rendiciones")) }.buttonStyle(BotonHundido())
                     }
+                    GraficoCobranzaMeses()
                 } else if let error {
                     EstadoError(que: "las cobranzas", error: error) { Task { await cargar() } }
                 } else { EsqueletoFilas(filas: 5) }
@@ -196,7 +197,7 @@ struct Cobranzas: View {
                         Text("Cobrar").font(Estilo(tamano: 14, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.sobreAccion)
                             .padding(.horizontal, 12).frame(height: 34).background(C.accion, in: Capsule())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
             }
             .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 10)
@@ -485,7 +486,7 @@ struct Contratos: View {
                                 }
                                 .padding(.horizontal, 14).padding(.vertical, 10).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                         }
                     }
@@ -603,7 +604,7 @@ struct FichaContrato: View {
                                     }
                                     .estilo(.body16).padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(Presionable())
                                 .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                             }
                             if cobros.isEmpty { Text("Todavía no hay cobros.").estilo(.texto14).foregroundStyle(C.texto3).padding(14).frame(maxWidth: .infinity, alignment: .leading) }
@@ -632,7 +633,7 @@ struct FichaContrato: View {
                                         }
                                         .estilo(.body16).padding(.horizontal, 14).frame(minHeight: 54).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                                 if rendiciones.isEmpty { Text("Se arman solas con lo cobrado.").estilo(.texto14).foregroundStyle(C.texto3).padding(14).frame(maxWidth: .infinity, alignment: .leading) }
@@ -674,7 +675,7 @@ struct FichaContrato: View {
             }
             .estilo(.subhead).padding(.horizontal, 14).padding(.vertical, 12).contentShape(Rectangle())
         }
-        .buttonStyle(.plain).disabled(hacer == nil)
+        .buttonStyle(Presionable()).disabled(hacer == nil)
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
     }
 

@@ -143,7 +143,7 @@ struct Contactos: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
             if c.telefono != nil {
                 Button { Afuera.llamar(c.telefono) } label: {
                     Image(systemName: "phone.fill").font(.system(size: 17)).foregroundStyle(C.accion).frame(width: 44, height: 44).background(C.hundida, in: Circle())
@@ -247,7 +247,7 @@ struct FichaContacto: View {
                                             }
                                             .frame(width: 200).tarjeta()
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(Presionable())
                                     }
                                 }
                                 .padding(.horizontal, 16).padding(.bottom, 10)
@@ -271,7 +271,7 @@ struct FichaContacto: View {
                                         }
                                         .padding(.horizontal, 14).frame(minHeight: 54).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }
@@ -340,7 +340,7 @@ struct FichaContacto: View {
             }
             .foregroundStyle(C.accion).frame(maxWidth: .infinity, minHeight: 64).tarjeta(14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 
     static func icono(_ t: String?) -> String {
@@ -594,7 +594,7 @@ struct Operaciones: View {
                 }
                 .padding(12).contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
             if estado.escribe {
                 HStack(spacing: 0) {
                     if o.caidaEn != nil {
@@ -755,7 +755,7 @@ struct FichaOperacion: View {
                             }
                             .padding(14).background(C.avisoFondo, in: .rect(cornerRadius: 18, style: .continuous))
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(Presionable())
                     }
                     VStack(spacing: 0) {
                         dato("Precio", o.valor.map { Formato.plata($0, o.moneda ?? "USD") } ?? "—", primera: true)
@@ -786,7 +786,7 @@ struct FichaOperacion: View {
                                         }
                                         .padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain).disabled(!estado.escribe)
+                                    .buttonStyle(Presionable()).disabled(!estado.escribe)
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }

@@ -129,7 +129,7 @@ struct MasRaiz: View {
                         VStack(spacing: 0) {
                             ForEach(Array(items.enumerated()), id: \.element.id) { i, it in
                                 Button { estado.abrir(it.destino) } label: { fila(it) }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5).padding(.leading, 54) } }
                             }
                         }
@@ -257,7 +257,7 @@ struct MasRaiz: View {
             .contentShape(Rectangle())
             .tarjeta()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .accessibilityLabel("Tu perfil")
     }
 

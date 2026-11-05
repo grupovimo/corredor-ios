@@ -212,7 +212,7 @@ struct Emprendimientos: View {
                             }
                             .padding(10).tarjeta()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(Presionable())
                     }
                 } else { EsqueletoFilas(filas: 3, miniatura: 72) }
             }
@@ -272,7 +272,7 @@ struct FichaEmprendimiento: View {
                                 }
                                 .padding(.horizontal, 14).padding(.vertical, 10).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                         }
                     }

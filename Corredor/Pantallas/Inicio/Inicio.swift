@@ -83,7 +83,8 @@ struct InicioRaiz: View {
                 if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
                 Group {
                     if let datos {
-                        if estado.esDuenio { duena(datos) } else { agente(datos) }
+                        Group { if estado.esDuenio { duena(datos) } else { agente(datos) } }
+                            .transition(.opacity.combined(with: .offset(y: 16)))
                     } else if let error {
                         EstadoError(que: "tu día", error: error) { Task { await cargar() } }.padding(.top, 40)
                     } else {
@@ -91,6 +92,7 @@ struct InicioRaiz: View {
                     }
                 }
                 .padding(.top, 6)
+                .animation(.easeOut(duration: 0.35), value: datos != nil)
             }
             .padding(.bottom, 32)
         }
@@ -409,7 +411,7 @@ struct ListaPendientes: View {
                             .background(i == 0 ? C.accion : C.hundida, in: Capsule())
                             .frame(minHeight: 44)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
                 .padding(.leading, 14).padding(.trailing, 8).padding(.vertical, 10)
                 .frame(minHeight: 66)
@@ -440,7 +442,7 @@ struct TarjetaSugerencia: View {
                     .foregroundStyle(C.sobreAccion).padding(.horizontal, 16).frame(height: 44)
                     .background(C.accion, in: .rect(cornerRadius: 12, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -469,6 +471,8 @@ struct TarjetaAvance: View {
     var titulo: String
     var cifra: String
     var avance: Double
+    /// La barra crece desde cero al aparecer.
+    @State private var visto = false
     var color: Color = C.accion
     var degrade: [Color]? = nil
     var pie: String
@@ -478,12 +482,13 @@ struct TarjetaAvance: View {
                 Text(titulo).font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font).foregroundStyle(C.texto)
                 Spacer()
                 Text(cifra).estilo(.subheadFuerte).foregroundStyle(C.texto)
+                    .contentTransition(.numericText()).animation(.snappy, value: cifra)
             }
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(C.hundida)
                     Capsule().fill(degrade.map { AnyShapeStyle(LinearGradient(colors: $0, startPoint: .leading, endPoint: .trailing)) } ?? AnyShapeStyle(color))
-                        .frame(width: g.size.width * min(1, max(0, avance)))
+                        .frame(width: g.size.width * (visto ? min(1, max(0, avance)) : 0))
                 }
             }
             .frame(height: 10)
@@ -492,6 +497,7 @@ struct TarjetaAvance: View {
         .padding(16)
         .tarjeta()
         .accessibilityElement(children: .combine)
+        .onAppear { withAnimation(.spring(duration: 0.9, bounce: 0.1).delay(0.15)) { visto = true } }
     }
 }
 
@@ -503,6 +509,7 @@ struct Cifra: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(etiqueta).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2)
             Text(valor).font(Estilo(tamano: 16, peso: .bold, tracking: -0.01, relativo: .headline).font).foregroundStyle(C.texto)
+                .contentTransition(.numericText()).animation(.snappy, value: valor)
                 .lineLimit(2).minimumScaleFactor(0.8)
         }
         .padding(12)
@@ -528,7 +535,7 @@ struct PlataDelMes: View {
                                   avance: min(1, cobrado / e), color: Color(hex: 0x2F9E6F),
                                   pie: falta > 0 ? "Cobraste \(Formato.plata(cobrado)) · faltan \(Formato.plata(falta))" : "Cobraste todo el mes: \(Formato.plata(cobrado))")
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 HStack(spacing: 8) {
                     chip("\(d.deudas.count)", d.deudas.count == 1 ? "debe" : "deben", d.deudas.isEmpty ? .verde : .rojo, ACobranzas())
                     chip("\(d.panel?.numeros?.rendicionesListas ?? 0)", "para rendir", (d.panel?.numeros?.rendicionesListas ?? 0) > 0 ? .azul : .neutro, ASeccion(clave: "rendiciones"))
@@ -549,7 +556,7 @@ struct PlataDelMes: View {
                     }
                     .padding(14).tarjeta()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
             }
         }
     }
@@ -558,13 +565,14 @@ struct PlataDelMes: View {
         Button { estado.abrir(destino) } label: {
             VStack(alignment: .leading, spacing: 0) {
                 Text(n).font(Estilo(tamano: 20, peso: .bold, relativo: .title3).font).foregroundStyle(tono == .neutro ? C.texto : tono.tinta)
+                    .contentTransition(.numericText()).animation(.snappy, value: n)
                 Text(texto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1)
             }
             .padding(.horizontal, 12).padding(.vertical, 10)
             .frame(maxWidth: .infinity, alignment: .leading)
             .tarjeta(14)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 }
 
@@ -794,7 +802,7 @@ struct CarteraVisual: View {
                             }
                             .frame(width: 156, alignment: .leading)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(Presionable())
                     }
                 }
                 .padding(.horizontal, 16)
@@ -835,7 +843,7 @@ struct EsteMes: View {
             }
             .padding(16).tarjeta()
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 
     private func variacion(_ a: Int?, _ b: Int?) -> String {
@@ -847,6 +855,7 @@ struct EsteMes: View {
     private func cifra(_ v: String, _ t: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(v).font(Estilo(tamano: 24, peso: .extrabold, relativo: .title2).font).foregroundStyle(C.texto)
+                .contentTransition(.numericText()).animation(.snappy, value: v)
             Text(t).estilo(.footnote).foregroundStyle(C.texto3).lineLimit(2)
         }
     }
@@ -880,7 +889,7 @@ struct TodoCorredor: View {
                             Text(nombre).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1).minimumScaleFactor(0.8)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
             }
         }

@@ -76,7 +76,7 @@ struct FilaDeslizable<Contenido: View>: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(a.color)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 
     private var abiertoDerecha: CGFloat { -anchoAccion * CGFloat(derecha.count) }

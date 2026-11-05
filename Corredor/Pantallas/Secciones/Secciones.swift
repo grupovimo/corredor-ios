@@ -496,7 +496,7 @@ struct Proveedores: View {
                         VStack(alignment: .leading) { Text(p.nombre).estilo(.filaLista).foregroundStyle(C.texto); Text([p.rubro?.capitalized, p.trabajos.map { Formato.cantidad($0, "trabajo", "trabajos") }].compactMap { $0 }.joined(separator: " · ")).estilo(.footnote).foregroundStyle(C.texto2) }
                     }
                     Spacer()
-                    if p.telefono != nil { Button { Afuera.whatsapp(p.telefono) } label: { Image("LogoWhatsApp").resizable().frame(width: 22, height: 22) }.buttonStyle(.plain) }
+                    if p.telefono != nil { Button { Afuera.whatsapp(p.telefono) } label: { Image("LogoWhatsApp").resizable().frame(width: 22, height: 22) }.buttonStyle(Presionable()) }
                 }
                 .swipeActions { if estado.esDuenio { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/proveedores/\(p.id)"); await cargar() } } } }
             }
@@ -717,34 +717,17 @@ struct Informe: View {
                         Cifra(etiqueta: "Contactos", valor: Self.num(i["totalContactos"]))
                         Cifra(etiqueta: "Cerradas", valor: Self.num(i["cerradas"]))
                     }
-                    if case .lista(let o)? = i["origenes"] {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TituloBloque(texto: "De dónde llegan")
-                            VStack(spacing: 0) {
-                                ForEach(Array(o.enumerated()), id: \.offset) { n, x in
-                                    HStack { Text(x["origen"]?.texto ?? "—"); Spacer(); Text(Self.num(x["cantidad"])).fontWeight(.semibold) }
-                                        .estilo(.subhead).padding(.horizontal, 14).frame(minHeight: 44)
-                                        .overlay(alignment: .top) { if n > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
-                                }
-                            }
-                            .tarjeta()
-                        }
+                    if case .lista(let o)? = i["origenes"], !o.isEmpty {
+                        GraficoOrigenes(origenes: o.map { ($0["origen"]?.texto ?? "Otro", Self.valor($0["cantidad"])) })
                     }
-                    if case .lista(let m)? = i["masVistas"] {
-                        VStack(alignment: .leading, spacing: 8) {
-                            TituloBloque(texto: "Las más vistas")
-                            VStack(spacing: 0) {
-                                ForEach(Array(m.prefix(8).enumerated()), id: \.offset) { n, x in
-                                    Button { if let p = x["propiedadId"]?.texto { estado.abrir(AFichaPropiedad(id: p)) } } label: {
-                                        HStack { Text(x["titulo"]?.texto ?? "—").foregroundStyle(C.texto); Spacer(); Text(Self.num(x["vistas"])).fontWeight(.semibold).foregroundStyle(C.texto) }
-                                            .estilo(.subhead).padding(.horizontal, 14).frame(minHeight: 44).contentShape(Rectangle())
-                                    }
-                                    .buttonStyle(.plain)
-                                    .overlay(alignment: .top) { if n > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
-                                }
-                            }
-                            .tarjeta()
-                        }
+                    if case .lista(let e)? = i["embudo"], !e.isEmpty {
+                        GraficoBarras(titulo: "Embudo de operaciones", detalle: "Cuántas hay en cada etapa",
+                                      filas: e.map { (Operacion.etapaTexto($0["etapa"]?.texto ?? ""), Self.valor($0["cantidad"])) }, color: Color(hex: 0x2F9E6F))
+                    }
+                    GraficoVisitasSemanas()
+                    if case .lista(let m)? = i["masVistas"], !m.isEmpty {
+                        GraficoBarras(titulo: "Las más vistas", detalle: "Visitas a la ficha en tu web y los portales",
+                                      filas: m.prefix(6).map { (String(($0["titulo"]?.texto ?? "—").prefix(22)), Self.valor($0["vistas"])) })
                     }
                 }
                 Button {
@@ -765,7 +748,7 @@ struct Informe: View {
                                 HStack { Label(n, systemImage: "tablecells"); Spacer(); Image(systemName: "square.and.arrow.down") }
                                     .estilo(.body16).foregroundStyle(C.texto).padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
                         }
                     }
@@ -782,6 +765,11 @@ struct Informe: View {
     static func num(_ v: JSONLibre?) -> String {
         if case .numero(let n)? = v { return Formato.numero(Int(n)) }
         return "—"
+    }
+
+    static func valor(_ v: JSONLibre?) -> Double {
+        if case .numero(let n)? = v { return n }
+        return 0
     }
 
     private func exportar(_ r: String) async {

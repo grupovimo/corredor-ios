@@ -113,7 +113,7 @@ struct BotonRedondo: View {
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .accessibilityLabel(etiqueta)
     }
 }
@@ -207,7 +207,7 @@ struct AccionRapida: View {
             .frame(maxWidth: .infinity, minHeight: alto)
             .background(C.crema2, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 }
 
@@ -257,7 +257,7 @@ struct Segmentado<Valor: Hashable>: View {
                         }
                         .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .accessibilityAddTraits(activo ? .isSelected : [])
             }
         }

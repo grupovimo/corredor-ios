@@ -131,7 +131,7 @@ struct PropiedadesRaiz: View {
                 .background(C.superficie)
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
             // Encima de la fila (no dentro de su botón, donde el toque se lo quedaría la fila).
             .overlay(alignment: .bottomTrailing) { BotonMandar { compartir = p }.padding(10) }
         }
@@ -208,7 +208,7 @@ struct ChipFiltro: View {
                 .background(activo ? C.accion : C.superficie, in: Capsule())
                 .shadow(color: activo ? .clear : C.sombra.opacity(0.08), radius: 1, y: 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .accessibilityAddTraits(activo ? .isSelected : [])
     }
 }
@@ -319,7 +319,7 @@ struct MapaCartera: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
             BotonMandar { compartir(p) }
         }
         .padding(10)
@@ -348,7 +348,7 @@ struct BotonMandar: View {
                 .background(Color(hex: 0x25D366).opacity(0.14), in: Circle())
                 .contentShape(Circle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .accessibilityLabel("Mandar la ficha")
     }
 }

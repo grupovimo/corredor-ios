@@ -57,7 +57,7 @@ struct FichaPropiedad: View {
                             }
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .accessibilityLabel("Ver las fotos")
 
                 VStack(alignment: .leading, spacing: 18) {
@@ -102,7 +102,7 @@ struct FichaPropiedad: View {
                                         }
                                         .padding(.horizontal, 14).padding(.vertical, 10).frame(minHeight: 56).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }
@@ -265,7 +265,7 @@ struct FichaPropiedad: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
     }
 
@@ -303,7 +303,7 @@ struct FichaPropiedad: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 54).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5).padding(.leading, 52) } }
     }
 
@@ -507,7 +507,7 @@ struct HojaCompartir: View {
                                 }
                                 .frame(width: 72)
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                         }
                     }
                 }

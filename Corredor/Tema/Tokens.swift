@@ -201,6 +201,21 @@ extension View {
     /// Una tarjeta del handoff: superficie, radio 18 continuo y e2.
     func tarjeta(_ radio: CGFloat = M.rTarjeta) -> some View {
         background(C.superficie, in: .rect(cornerRadius: radio, style: .continuous)).sombraE2()
+            // Al entrar y salir por los bordes al hacer scroll, las tarjetas se asoman (apenas más chicas y
+            // transparentes): la lista se siente viva sin distraer.
+            .scrollTransition(.animated(.spring(duration: 0.35))) { c, fase in
+                c.opacity(fase.isIdentity ? 1 : 0.55).scaleEffect(fase.isIdentity ? 1 : 0.96)
+            }
+    }
+}
+
+/// Un botón sin estilo que se hunde apenas al tocarlo (el `.plain` de toda la app).
+struct Presionable: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.85 : 1)
+            .animation(.spring(duration: 0.25, bounce: 0.4), value: configuration.isPressed)
     }
 }
 

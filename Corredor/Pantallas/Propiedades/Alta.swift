@@ -238,7 +238,7 @@ struct AltaPropiedad: View {
     }
 
     private func botonFoto(_ icono: String, _ texto: String, _ hacer: @escaping () -> Void) -> some View {
-        Button(action: hacer) { etiquetaFoto(icono, texto) }.buttonStyle(.plain)
+        Button(action: hacer) { etiquetaFoto(icono, texto) }.buttonStyle(Presionable())
     }
 
     private func etiquetaFoto(_ icono: String, _ texto: String) -> some View {
@@ -317,7 +317,7 @@ struct AltaPropiedad: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
     }
 

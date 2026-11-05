@@ -43,7 +43,7 @@ struct AgendaRaiz: View {
                     }
                     if let citas {
                         let visibles = citas.filter { !soloMias || !estado.esDuenio || $0.agenteId == nil || $0.agenteId == estado.usuario?.id }
-                        if vista == 0 { vistaDia(visibles) } else { vistaSemana(visibles) }
+                        if vista == 0 { vistaDia(visibles) } else { vistaSemana(visibles); GraficoVisitasSemanas() }
                     } else if let error {
                         EstadoError(que: "la agenda", error: error) { Task { await cargar() } }
                     } else {
@@ -93,7 +93,7 @@ struct AgendaRaiz: View {
                     }
                     .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .accessibilityLabel("\(Formato.diaCompleto(d)), \(Formato.cantidad(n, "cita", "citas"))")
             }
         }
@@ -163,7 +163,7 @@ struct AgendaRaiz: View {
                 .sombraE2()
                 .opacity(c.estado == "cancelada" ? 0.5 : 1)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
         }
     }
 
@@ -191,7 +191,7 @@ struct AgendaRaiz: View {
                                 .overlay(alignment: .bottom) { Rectangle().fill(C.linea).frame(height: 0.5) }
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                         }
                     }
                     .tarjeta(16)
@@ -351,7 +351,7 @@ struct NuevaCita: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
     }
 
@@ -514,7 +514,7 @@ struct FichaCita: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
     }
 

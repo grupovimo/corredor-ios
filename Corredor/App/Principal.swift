@@ -22,6 +22,8 @@ struct Principal: View {
                     .accessibilityHidden(!visible)
             }
         }
+        // Al cambiar de pestaña, un fundido corto en vez de un salto.
+        .animation(.easeInOut(duration: 0.18), value: estado.pestana)
         // El abanico del botón del medio, sobre el contenido y por encima de la barra.
         .overlay { if estado.accionesAbiertas { AccionesRapidas().transition(.opacity) } }
         .safeAreaInset(edge: .bottom, spacing: 0) { BarraPestanas() }
@@ -132,7 +134,7 @@ struct BarraPestanas: View {
                         .foregroundStyle(activa ? C.accion : C.texto3)
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .frame(maxWidth: .infinity, minHeight: 50)
                 .accessibilityLabel(p == .mira ? (estado.accionesAbiertas ? "Cerrar las acciones rápidas" : "Acciones rápidas: captar, cargar, cobrar, editar la web") : nombre)
                 .accessibilityAddTraits(estado.pestana == p ? .isSelected : [])
@@ -312,7 +314,7 @@ struct AccionesRapidas: View {
                                 .shadow(color: .black.opacity(0.5), radius: 3)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                     .scaleEffect(visible ? 1 : 0.3)
                     .opacity(visible ? 1 : 0)
                     .position(x: visible ? x : centro.x, y: visible ? y : centro.y)

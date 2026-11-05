@@ -98,7 +98,7 @@ struct CabeceraPestana: View {
                     .frame(height: 38)
                     .background(C.hundida, in: .rect(cornerRadius: 11, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .padding(.top, 10)
             }
         }

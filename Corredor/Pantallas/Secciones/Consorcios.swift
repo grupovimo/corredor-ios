@@ -124,7 +124,7 @@ struct Consorcios: View {
                             }
                             .padding(12).tarjeta()
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(Presionable())
                     }
                 } else { EsqueletoFilas(filas: 4, miniatura: 56) }
             }
@@ -474,7 +474,7 @@ struct TarjetaPeriodo: View {
                 }
                 .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(Presionable())
             if abierto {
                 ForEach(detalle?.gastos ?? []) { g in
                     HStack { Text(g.descripcion ?? g.proveedor ?? "Gasto").estilo(.texto14); Spacer(); Text(Formato.plata(g.monto ?? 0)).estilo(.texto14) }

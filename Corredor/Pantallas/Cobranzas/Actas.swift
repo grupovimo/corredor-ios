@@ -73,7 +73,7 @@ struct Inventario: View {
                                 .padding(.horizontal, 14).frame(height: 36)
                                 .background(a == ambiente ? C.accion : C.superficie, in: Capsule())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                         }
                         if estado.escribe {
                             Button { sumandoAmbiente = true } label: { Image(systemName: "plus").frame(width: 36, height: 36).background(C.hundida, in: Circle()) }
@@ -115,7 +115,7 @@ struct Inventario: View {
                                             .frame(maxWidth: .infinity, minHeight: 38)
                                             .background(on ? (k == "malo" ? C.errorFondo : k == "regular" ? C.avisoFondo : C.okFondo) : C.hundida, in: .rect(cornerRadius: 10))
                                     }
-                                    .buttonStyle(.plain).disabled(!estado.escribe)
+                                    .buttonStyle(Presionable()).disabled(!estado.escribe)
                                 }
                             }
                             TextField("Nota (opcional)", text: Binding(get: { it.notas ?? "" }, set: { n in if let x = items.firstIndex(of: it) { items[x].notas = n } }))
@@ -157,7 +157,7 @@ struct Inventario: View {
                                     }
                                     .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
                                 }
-                                .buttonStyle(.plain)
+                                .buttonStyle(Presionable())
                                 .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                             }
                         }
@@ -282,7 +282,7 @@ struct Firmas: View {
                                 .background(Color.tema(0xFAF8F3, 0x1A2420), in: .rect(cornerRadius: 12))
                                 .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(C.linea2, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             Button("Mandarle un link para que firme desde su teléfono") { Task { await link(k) } }
                                 .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.accion)
                         }

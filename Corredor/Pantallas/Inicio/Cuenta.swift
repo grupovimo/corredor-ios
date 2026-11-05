@@ -56,7 +56,7 @@ struct Buscar: View {
                                         }
                                         .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(.plain)
+                                    .buttonStyle(Presionable())
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }
@@ -83,7 +83,7 @@ struct Buscar: View {
                                             }
                                             .padding(.horizontal, 14).padding(.vertical, 10).frame(minHeight: 56).contentShape(Rectangle())
                                         }
-                                        .buttonStyle(.plain)
+                                        .buttonStyle(Presionable())
                                         .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                     }
                                 }
@@ -373,7 +373,7 @@ struct Perfil: View {
                     }
                     .padding(14).tarjeta()
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text("INMOBILIARIAS").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.5).foregroundStyle(C.texto2).padding(.horizontal, 4)
@@ -400,7 +400,7 @@ struct Perfil: View {
                                 }
                                 .padding(.horizontal, 14).padding(.vertical, 10).frame(minHeight: 58).contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                         }
                     }
@@ -478,7 +478,7 @@ struct Perfil: View {
             }
             .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
     }
 }
 

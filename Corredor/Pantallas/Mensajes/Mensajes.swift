@@ -133,7 +133,7 @@ struct MensajesRaiz: View {
             }
             .padding(.horizontal, 14).padding(.vertical, 12).contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
         .contextMenu {
             if x.canal == "web", x.sinDueno, estado.escribe, let c = x.contactoId {
@@ -286,7 +286,7 @@ struct Chat: View {
                     }
                     .padding(8).tarjeta(14)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
                 .padding(.horizontal, 12).padding(.top, 10)
             }
             ScrollViewReader { lector in
@@ -314,7 +314,7 @@ struct Chat: View {
                         }
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(Presionable())
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
@@ -454,7 +454,7 @@ struct Chat: View {
                         }
                         .padding(.horizontal, 14).frame(height: 44).background(C.superficie, in: .rect(cornerRadius: 12, style: .continuous))
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
                 if plantillas.isEmpty { Text("Todavía no tenés plantillas aprobadas en Meta.").estilo(.footnote).foregroundStyle(C.texto2) }
             }
@@ -663,7 +663,7 @@ struct RespuestaML: View {
                         }
                         .padding(10).tarjeta()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
                 if let p {
                     VStack(alignment: .leading, spacing: 6) {

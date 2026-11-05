@@ -325,7 +325,7 @@ struct MiraRaiz: View {
                             }
                             .padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(Presionable())
                         .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                     }
                 }
@@ -581,7 +581,7 @@ struct Captadas: View {
                         }
                         .padding(10).tarjeta()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                 }
                 if cola.fotos.isEmpty && delServidor.isEmpty {
                     EstadoVacio(icono: "viewfinder", titulo: "Todavía no captaste carteles",
@@ -607,7 +607,7 @@ struct Captadas: View {
                         }
                         .padding(10).tarjeta()
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(Presionable())
                     .contextMenu { Button(role: .destructive) { cola.sacar(f) } label: { Label("Sacar de la lista", systemImage: "trash") } }
                 }
                 Button { estado.miraAbierta = true; cerrar() } label: {

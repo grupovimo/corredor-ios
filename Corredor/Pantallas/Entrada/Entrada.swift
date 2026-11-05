@@ -218,7 +218,7 @@ struct ElegirInmobiliaria: View {
                                 .frame(minHeight: 68)
                                 .contentShape(Rectangle())
                             }
-                            .buttonStyle(.plain)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                         }
                     }
