@@ -1,0 +1,29 @@
+# Todos los testers de TestFlight, en todas las apps de la cuenta (Corredor, Tu Local Web, Tengo Libre,
+# Caigo…), con la última build y nada más: la suma a todos los grupos, la manda a revisión beta y vence
+# las anteriores cuando ya la puede instalar todo el mundo (infra/apple/ultima.py). Vive acá porque el
+# repo es público (Actions gratis) y ya tiene la clave de App Store Connect, que sirve para todo el equipo.
+name: testflight-ultima
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_run:
+    workflows: [testflight]
+    types: [completed]
+
+concurrency:
+  group: testflight-ultima
+  cancel-in-progress: false
+
+jobs:
+  ultima:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+      - env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: uv run -q --with 'pyjwt[crypto]' --with requests python infra/apple/ultima.py
