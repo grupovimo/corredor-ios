@@ -158,7 +158,7 @@ struct Actividad: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Actividad")
         .refreshable { await cargar() }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
     }
 
     private func cargar() async { lista = (try? await estado.api.get("/v1/actividad", query: [.init(name: "limite", value: "300")])) ?? lista ?? [] }
@@ -229,7 +229,7 @@ struct TarifasTemporada: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Tarifas")
         .toolbar { if estado.escribe { Button { editando = TarifaAPI(id: "", desde: Formato.diaISO(Date()), hasta: Formato.diaISO(Date().addingTimeInterval(30 * 86400)), precio: 0, moneda: "USD", periodo: "noche") } label: { Image(systemName: "plus") } } }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { t in FormTarifa(t: t) { x in Task { await guardar(x) } } }
     }
 
@@ -343,7 +343,7 @@ struct CorredorEnTuIA: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Corredor en tu IA")
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
     }
 
     private func bind(_ k: WritableKeyPath<Ajustes, Bool?>) -> Binding<Bool> {
@@ -440,7 +440,7 @@ struct FirmaYSesiones: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Firma y sesiones")
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
     }
 
     private func cargar() async {

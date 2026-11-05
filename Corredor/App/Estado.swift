@@ -81,6 +81,9 @@ final class Estado {
     /// Insignias de la barra (mensajes sin leer, avisos).
     var sinLeer = 0
     var avisosPendientes = 0
+    /// Conectado al stream de cambios (App/Vivo.swift); sin él, el chat vuelve a consultar cada tanto.
+    var enVivo = false
+    @ObservationIgnored var recargaVivo: Task<Void, Never>?
     let cola: Cola
     private(set) var tokenPush: String?
     private var avisoTarea: Task<Void, Never>?

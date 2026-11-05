@@ -496,7 +496,7 @@ struct RespuestasGuardadas: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Respuestas guardadas")
         .toolbar { if estado.escribe { Button { nueva = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nueva") } }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { r in EditorTexto(titulo: r.titulo, texto: r.texto) { t, x in Task { await guardar(r.id, t, x) } } }
         .sheet(isPresented: $nueva) { EditorTexto(titulo: "", texto: "") { t, x in Task { await guardar(nil, t, x) } } }
     }
@@ -561,7 +561,7 @@ struct Proveedores: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Proveedores")
         .toolbar { if estado.escribe { Button { editando = Prov(id: "", nombre: "") } label: { Image(systemName: "plus") }.accessibilityLabel("Nuevo") } }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { p in
             NavigationStack {
                 FormProveedor(p: p) { x in Task { await guardar(x) } }
@@ -694,7 +694,7 @@ struct ListaActas: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Actas de entrega")
         .toolbar { if estado.escribe { Button { elegir = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nueva recorrida") } }
-        .task { actas = (try? await estado.api.get("/v1/actas")) ?? [] }
+        .task(id: estado.version) { actas = (try? await estado.api.get("/v1/actas")) ?? [] }
         .sheet(isPresented: $elegir) { ElegirPropiedad { estado.abrir(AInventario(id: $0.id)) } }
     }
 }
@@ -858,7 +858,7 @@ struct Indices: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Índices")
-        .task { lista = (try? await estado.api.get("/v1/indices")) ?? [] }
+        .task(id: estado.version) { lista = (try? await estado.api.get("/v1/indices")) ?? [] }
     }
 }
 

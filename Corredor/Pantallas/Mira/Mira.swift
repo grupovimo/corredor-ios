@@ -614,7 +614,7 @@ struct Captadas: View {
         }
         .pantallaApilada("Captadas")
         .refreshable { await cola.leerPendientes(estado.api); await traer() }
-        .task { await cola.leerPendientes(estado.api); await traer() }
+        .task(id: estado.version) { await cola.leerPendientes(estado.api); await traer() }
     }
 
     private func abrir(_ f: FotoMira) {

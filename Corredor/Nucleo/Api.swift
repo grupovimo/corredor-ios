@@ -27,7 +27,7 @@ final class Api: @unchecked Sendable {
     var token: String?
     /// Se llama cuando la API dice que la sesión ya no vale (401 sin_sesion): la app vuelve al ingreso.
     var alPerderSesion: (@MainActor () -> Void)?
-    private let http: URLSession
+    let http: URLSession
 
     init(base: URL, token: String? = nil, http: URLSession = .shared) {
         self.base = base

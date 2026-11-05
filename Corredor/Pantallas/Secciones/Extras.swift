@@ -58,7 +58,7 @@ struct DocumentosLista: View {
                 } label: { Image(systemName: "plus") }
             }
         }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .vistaPrevia($previo)
         .fileImporter(isPresented: $eligiendo, allowedContentTypes: [.pdf, .image]) { r in
             if case .success(let u) = r {
@@ -150,7 +150,7 @@ struct BienesConsorcio: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Bienes")
         .toolbar { if estado.escribe { Button { editando = BienAPI(id: "", nombre: "", categoria: "matafuego", cantidad: 1, estado: "ok") } label: { Image(systemName: "plus") } } }
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { b in
             NavigationStack { FormBien(b: b) { x in Task { await guardar(x) } } }
         }
@@ -235,7 +235,7 @@ struct ReglamentoConsorcio: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Reglamento")
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
     }
 
     static func num(_ n: Double?) -> String { n.map { String(format: "%.4f", $0).replacingOccurrences(of: ".", with: ",") } ?? "—" }

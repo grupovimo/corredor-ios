@@ -329,9 +329,10 @@ struct Chat: View {
         }
         .task(id: estado.version) { await cargar() }
         .task {
+            // Respaldo: en vivo los mensajes llegan por el stream; si está caído, se consulta cada 8 s.
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(8))
-                await cargarMensajes()
+                if !estado.enVivo { await cargarMensajes() }
             }
         }
         .onChange(of: foto) { _, i in

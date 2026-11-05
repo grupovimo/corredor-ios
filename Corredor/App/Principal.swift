@@ -6,6 +6,7 @@ import SwiftUI
 /// Inicio. La barra es la del handoff (fondo `bar` con desenfoque, ícono 27, texto 10/600).
 struct Principal: View {
     @Environment(Estado.self) private var estado
+    @Environment(\.scenePhase) private var escena
     @State private var recorrido = false
 
     var body: some View {
@@ -36,6 +37,10 @@ struct Principal: View {
         .task {
             // La primera vez (en cualquier aparato), el recorrido.
             if estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { recorrido = true }
+        }
+        // En vivo (App/Vivo.swift) con la app adelante; se corta al ir al fondo y vuelve al volver.
+        .task(id: "\(escena == .active)-\(estado.sesion?.inmobiliariaId ?? "")") {
+            if escena == .active { await estado.escucharEnVivo() }
         }
     }
 

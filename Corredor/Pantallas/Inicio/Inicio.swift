@@ -43,7 +43,7 @@ struct InicioRaiz: View {
                     titulo: "Hoy",
                     acciones: [
                         AccionCabecera(icono: "magnifyingglass", etiqueta: "Buscar") { estado.abrir(ABuscar()) },
-                        AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: datos?.avisos) { estado.abrir(AAvisos()) },
+                        AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) },
                     ],
                     avatar: true)
                 if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
@@ -156,7 +156,7 @@ struct InicioRaiz: View {
             d.preguntas = (try? await api.get("/v1/mercadolibre/preguntas", query: [.init(name: "estado", value: "sin_responder"), .init(name: "limite", value: "10")])) ?? []
             d.deudas = (try? await api.get("/v1/contratos/deudas")) ?? []
             struct Contador: Decodable { var noLeidos: Int?; var paraHacer: Int? }
-            if let c: Contador = try? await api.get("/v1/avisos/contador") { d.avisos = (c.noLeidos ?? 0) }
+            if let c: Contador = try? await api.get("/v1/avisos/contador") { d.avisos = (c.noLeidos ?? 0); estado.avisosPendientes = d.avisos }
             if estado.esDuenio {
                 d.equipo = (try? await api.get("/v1/equipo")) ?? []
                 let hoy = Formato.diaISO(Date())

@@ -311,7 +311,7 @@ struct Firmas: View {
         }
         .pantallaApilada("Firmas")
         .vistaPrevia($previo)
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
         .sheet(item: Binding(get: { firmando.map { CampoAlta(id: $0) } }, set: { firmando = $0?.id })) { p in
             HojaFirma(parte: p.id) { nombre, trazo in Task { await firmar(p.id, nombre, trazo) } }.presentationDetents([.medium])
         }
@@ -537,7 +537,7 @@ struct FichasMandadas: View {
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .navigationTitle("Fichas mandadas")
-        .task { await cargar() }
+        .task(id: estado.version) { await cargar() }
     }
 
     private func cargar() async { lista = (try? await estado.api.get("/v1/propiedades/\(propiedad)/envios")) ?? [] }
