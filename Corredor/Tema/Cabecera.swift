@@ -166,7 +166,15 @@ struct FondoApp: View {
 extension View {
     /// Una pantalla raíz de pestaña: fondo con grano y sin barra de navegación (la cabecera es propia).
     func pantallaRaiz() -> some View {
-        background(FondoApp()).toolbar(.hidden, for: .navigationBar)
+        background(FondoApp())
+            .toolbar(.hidden, for: .navigationBar)
+            // La franja de la hora: lo que sube al hacer scroll pasa por detrás, desenfocado (sin esto el
+            // contenido se montaba sobre la hora y la batería).
+            .safeAreaInset(edge: .top, spacing: 0) {
+                Color.clear.frame(height: 0)
+                    .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
+                    .background(C.fondo.opacity(0.7), ignoresSafeAreaEdges: .top)
+            }
     }
 
     /// Una pantalla apilada: fondo con grano y título chico en la barra nativa.

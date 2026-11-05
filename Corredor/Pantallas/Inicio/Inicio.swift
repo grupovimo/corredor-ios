@@ -46,6 +46,7 @@ struct InicioRaiz: View {
                         AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) },
                     ],
                     avatar: true)
+                Accesos(cobrar: datos?.deudas.count ?? 0).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 8)
                 if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
                 Group {
                     if let datos {
@@ -81,7 +82,6 @@ struct InicioRaiz: View {
             if let s = d.panel?.sugerencias?.first(where: { $0.estado != "descartada" }) { TarjetaSugerencia(s: s) }
             if let o = d.panel?.objetivos?.first(where: { $0.agenteId == estado.usuario?.id || $0.agenteId == nil }) { TarjetaObjetivo(o: o) }
             if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
-            Accesos(cobrar: d.deudas.count)
         }
         .padding(.horizontal, 16)
     }
@@ -139,7 +139,6 @@ struct InicioRaiz: View {
                     .onTapGesture { estado.abrir(ACobranzas()) }
             }
             if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
-            Accesos(cobrar: d.deudas.count, alto: 64)
         }
         .padding(.horizontal, 16)
     }
@@ -447,38 +446,37 @@ struct Cifra: View {
     }
 }
 
-/// Los accesos: Contactos, Operaciones, Cobranzas (con lo que falta cobrar) y Actas.
+/// Los accesos rápidos, arriba del Inicio: la agenda (ya no es pestaña) y lo que más se usa. Todo lo
+/// demás está en la pestaña «Más».
 struct Accesos: View {
     @Environment(Estado.self) private var estado
     var cobrar = 0
-    var alto: CGFloat = 72
     var body: some View {
-        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
+        HStack(alignment: .top, spacing: 0) {
+            boton("calendar", "Agenda", AAgendaDia())
             boton("person.2", "Contactos", AContactos())
             boton("rectangle.split.3x1", "Operaciones", AOperaciones())
             boton("dollarsign.circle", "Cobranzas", ACobranzas(), insignia: cobrar)
-            boton("checklist", "Actas", ASeccion(clave: "inventarios"))
             boton("doc.text", "Contratos", AContratos())
-            boton("square.grid.2x2", "Todo", ASeccion(clave: "mas"))
         }
     }
 
     private func boton(_ icono: String, _ texto: String, _ destino: AnyHashable, insignia: Int = 0) -> some View {
         Button { estado.abrir(destino) } label: {
-            HStack(spacing: 10) {
-                Image(systemName: icono).font(.system(size: 20, weight: .medium)).foregroundStyle(C.accion)
-                Text(texto).estilo(.filaLista).foregroundStyle(C.texto)
-                Spacer(minLength: 0)
-                if insignia > 0 {
-                    Text("\(insignia)").font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font)
-                        .foregroundStyle(C.errorTinta).frame(minWidth: 22, minHeight: 22).background(C.errorFondo, in: Circle())
-                }
+            VStack(spacing: 6) {
+                Image(systemName: icono).font(.system(size: 21, weight: .medium)).foregroundStyle(C.accion)
+                    .frame(width: 52, height: 52)
+                    .background(C.superficie, in: .rect(cornerRadius: 16, style: .continuous))
+                    .sombraE1()
+                    .overlay(alignment: .topTrailing) { if insignia > 0 { InsigniaRoja(n: insignia).offset(x: 6, y: -6) } }
+                Text(texto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2)
+                    .lineLimit(1).minimumScaleFactor(0.8)
             }
-            .padding(.horizontal, 14)
-            .frame(maxWidth: .infinity, minHeight: alto)
-            .tarjeta(16)
+            .frame(maxWidth: .infinity)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(insignia > 0 ? "\(texto), \(insignia) para cobrar" : texto)
     }
 }
 

@@ -52,9 +52,10 @@ struct ABuscar: Hashable { var texto = "" }
 /// informe, emprendimientos, temporada…): una sección por `clave`, con un `id` opcional.
 struct ASeccion: Hashable { var clave: String; var id: String? = nil }
 
-/// Las cinco pestañas (handoff · Navegación).
+/// Las cinco pestañas. La quinta es «Más» (todo lo demás, por áreas); la agenda se abre desde el
+/// Inicio y desde «Más» (decisión del 5/11: con todo el panel en la app, no entraba en el handoff).
 enum Pestana: String, CaseIterable, Hashable {
-    case inicio, propiedades, mira, mensajes, agenda
+    case inicio, propiedades, mira, mensajes, mas
 }
 
 /// Adónde lleva un push, un widget, Spotlight, un atajo o un link `corredor://`: la pestaña y lo que
@@ -84,7 +85,8 @@ struct Ruta: Equatable {
         case "mira": self.init(.mira, id == "captadas" ? AnyHashable(ACaptadas()) : nil)
         case "chat", "mensajes", "whatsapp": self.init(.mensajes, id.map { AnyHashable(AChat(id: $0)) })
         case "ml", "mercadolibre": self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })
-        case "agenda": self.init(.agenda, id.map { AnyHashable(ACita(id: $0)) })
+        case "agenda": self.init(.inicio, id.map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
+        case "mas": self.init(.mas)
         case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos()))
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
         case "cobranzas": self.init(.inicio, ACobranzas())

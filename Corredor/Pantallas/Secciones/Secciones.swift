@@ -16,7 +16,7 @@ struct Seccion: View {
 
     var body: some View {
         switch clave {
-        case "mas": Todo()
+        case "mas": MasRaiz()
         case "configuracion", "inmobiliaria": ConfigInmobiliaria()
         case "equipo": Equipo()
         case "integraciones", "whatsapp", "mercadolibre": Integraciones()
@@ -57,63 +57,6 @@ struct Seccion: View {
 }
 
 // MARK: - Todo
-
-/// «Todo»: todas las secciones del panel, agrupadas, para llegar a cualquier cosa desde el celular.
-struct Todo: View {
-    @Environment(Estado.self) private var estado
-
-    private var grupos: [(String, [(String, String, AnyHashable)])] {
-        var g: [(String, [(String, String, AnyHashable)])] = [
-            ("Cartera", [("building.2", "Propiedades", ASeccion(clave: "_propiedades")), ("person.2", "Contactos", AContactos()),
-                         ("rectangle.split.3x1", "Operaciones", AOperaciones()), ("hand.raised", "Reservas", ASeccion(clave: "reservas")),
-                         ("building", "Emprendimientos", ASeccion(clave: "emprendimientos")), ("beach.umbrella", "Temporada", ASeccion(clave: "temporada"))]),
-            ("Alquileres", [("dollarsign.circle", "Cobranzas", ACobranzas()), ("doc.text", "Contratos", AContratos()),
-                            ("doc.plaintext", "Rendiciones", ASeccion(clave: "rendiciones")), ("checklist", "Actas de entrega", ASeccion(clave: "inventarios")),
-                            ("chart.line.uptrend.xyaxis", "Índices", ASeccion(clave: "indices")), ("building.columns", "Consorcios", ASeccion(clave: "consorcios"))]),
-            ("Difusión", [("globe", "Mi web", ASeccion(clave: "web")), ("megaphone", "Portales", ASeccion(clave: "difusion")),
-                          ("square.and.arrow.down", "Importar la cartera", ASeccion(clave: "importar")),
-                          ("quote.bubble", "Respuestas guardadas", ASeccion(clave: "respuestas"))]),
-            ("Equipo", [("flag", "Objetivos", ASeccion(clave: "objetivos")), ("chart.bar", "Informe", ASeccion(clave: "informe")),
-                        ("checkmark.shield", "Revisión de la IA", ASeccion(clave: "revision")), ("clock.arrow.circlepath", "Actividad", ASeccion(clave: "actividad"))]),
-        ]
-        var ajustes: [(String, String, AnyHashable)] = [("storefront", "Inmobiliaria", ASeccion(clave: "configuracion")), ("person.3", "Equipo", ASeccion(clave: "equipo")),
-                                                        ("puzzlepiece.extension", "Integraciones", ASeccion(clave: "integraciones")), ("wrench.and.screwdriver", "Proveedores", ASeccion(clave: "proveedores")),
-                                                        ("sparkles", "Corredor en tu IA", ASeccion(clave: "ia")), ("trash", "Papelera", ASeccion(clave: "papelera"))]
-        if !estado.esDuenio { ajustes.removeAll { ["Integraciones", "Corredor en tu IA"].contains($0.1) } }
-        g.append(("Configuración", ajustes))
-        return g
-    }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                ForEach(grupos, id: \.0) { titulo, items in
-                    VStack(alignment: .leading, spacing: 8) {
-                        TituloBloque(texto: titulo)
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)], spacing: 10) {
-                            ForEach(items, id: \.1) { icono, texto, destino in
-                                Button {
-                                    if (destino as? ASeccion)?.clave == "_propiedades" { estado.pestana = .propiedades } else { estado.abrir(destino) }
-                                } label: {
-                                    HStack(spacing: 10) {
-                                        Image(systemName: icono).font(.system(size: 20, weight: .medium)).foregroundStyle(C.accion).frame(width: 24)
-                                        Text(texto).estilo(.filaLista).foregroundStyle(C.texto).multilineTextAlignment(.leading)
-                                        Spacer(minLength: 0)
-                                    }
-                                    .padding(.horizontal, 14).frame(maxWidth: .infinity, minHeight: 64).tarjeta(16)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 16).padding(.vertical, 8)
-        }
-        .pantallaApilada("Todo")
-        .navigationBarTitleDisplayMode(.large)
-    }
-}
 
 // MARK: - Lista genérica
 

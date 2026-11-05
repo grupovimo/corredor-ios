@@ -183,7 +183,9 @@ final class PantallasTests: XCTestCase {
     func testMensajes() { montar(MensajesRaiz()) }
     func testChat() { montar(Chat(id: "w1")) }
     func testML() { montar(RespuestaML(id: "q1")) }
-    func testAgenda() { montar(AgendaRaiz()) }
+    func testAgenda() { montar(AgendaRaiz(apilada: true)) }
+    func testMas() { montar(MasRaiz()) }
+    func testMasAgente() { montar(MasRaiz(), rol: "agente") }
     func testCita() { montar(FichaCita(id: "a1")) }
     func testNuevaCita() { montar(NuevaCita()) }
     func testContactos() { montar(Contactos()) }

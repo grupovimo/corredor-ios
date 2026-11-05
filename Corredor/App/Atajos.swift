@@ -32,7 +32,7 @@ struct NuevaVisitaIntent: AppIntent {
     static let description = IntentDescription("Agenda una visita.")
     static let openAppWhenRun = true
     @MainActor func perform() async throws -> some IntentResult {
-        Abrir.ir(Ruta(.agenda, AAgendaDia()))
+        Abrir.ir(Ruta(.inicio, AAgendaDia()))
         return .result()
     }
 }
@@ -83,7 +83,7 @@ enum MenuIcono {
     static func abrir(_ tipo: String) {
         switch tipo {
         case "mira": Abrir.ir(Ruta(.mira))
-        case "agenda": Abrir.ir(Ruta(.agenda, AAgendaDia()))
+        case "agenda": Abrir.ir(Ruta(.inicio, AAgendaDia()))
         case "buscar": Abrir.ir(Ruta(.inicio, ABuscar()))
         default: Abrir.ir(Ruta(.mensajes))
         }

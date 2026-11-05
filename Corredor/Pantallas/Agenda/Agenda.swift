@@ -31,10 +31,10 @@ struct AgendaRaiz: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if !apilada {
-                    CabeceraPestana(sobre: Formato.mayuscula(Formato.diaCompleto(dia)), titulo: "Agenda",
-                                    acciones: [AccionCabecera(icono: "calendar.badge.clock", etiqueta: "Hoy") { withAnimation { dia = Date() } }])
-                }
+                // Siempre con su cabecera (fecha, título y «Hoy»): desde el 5/11 se abre apilada desde el
+                // Inicio y desde «Más»; la barra de arriba queda sólo para volver.
+                CabeceraPestana(sobre: Formato.mayuscula(Formato.diaCompleto(dia)), titulo: "Agenda",
+                                acciones: [AccionCabecera(icono: "calendar.badge.clock", etiqueta: "Hoy") { withAnimation { dia = Date() } }])
                 VStack(alignment: .leading, spacing: 14) {
                     Segmentado(opciones: [(0, "Día"), (1, "Semana")], elegido: $vista)
                     semana
@@ -57,7 +57,8 @@ struct AgendaRaiz: View {
         .refreshable { await cargar() }
         .background(FondoApp())
         .toolbar(apilada ? .visible : .hidden, for: .navigationBar)
-        .navigationTitle(apilada ? "Agenda" : "")
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .overlay(alignment: .bottomTrailing) {
             if estado.escribe {
                 Button { nueva = true } label: {

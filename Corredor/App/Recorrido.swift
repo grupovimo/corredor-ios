@@ -12,7 +12,7 @@ struct Recorrido: View {
         ("building.2", "Tu cartera", "Cargá una propiedad en un minuto y mandala por WhatsApp deslizando la fila.", .propiedades),
         ("viewfinder", "MIRA", "Fotografiá un cartel de «Vende» y lo cargamos por vos.", .mira),
         ("bubble.left.and.bubble.right", "Todas las consultas juntas", "WhatsApp, Mercado Libre y tu web en una sola bandeja.", .mensajes),
-        ("calendar", "Tu agenda", "Agendá visitas y le avisamos al cliente. Antes de salir, «Cómo llegar».", .agenda),
+        ("square.grid.2x2", "Todo lo demás, en «Más»", "Agenda, contactos, cobranzas, contratos, consorcios, tu web y la configuración, ordenados por área.", .mas),
     ]
 
     var body: some View {

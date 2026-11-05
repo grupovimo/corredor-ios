@@ -16,7 +16,7 @@ struct Principal: View {
             pestana(.propiedades) { PropiedadesRaiz() }
             Color.clear.tag(Pestana.mira).toolbar(.hidden, for: .tabBar)
             pestana(.mensajes) { MensajesRaiz() }
-            pestana(.agenda) { AgendaRaiz() }
+            pestana(.mas) { MasRaiz() }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { BarraPestanas() }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -62,7 +62,7 @@ struct BarraPestanas: View {
         (.propiedades, "Propiedades", "building.2", "building.2.fill"),
         (.mira, "MIRA", "", ""),
         (.mensajes, "Mensajes", "bubble.left.and.bubble.right", "bubble.left.and.bubble.right.fill"),
-        (.agenda, "Agenda", "calendar", "calendar"),
+        (.mas, "Más", "square.grid.2x2", "square.grid.2x2.fill"),
     ]
 
     var body: some View {
