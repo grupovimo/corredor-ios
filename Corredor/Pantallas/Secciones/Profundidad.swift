@@ -136,7 +136,11 @@ struct Actividad: View {
 
     var body: some View {
         List {
-            if let lista {
+            if let lista, lista.isEmpty {
+                EstadoVacio(icono: "clock.arrow.circlepath", titulo: "Todavía no hay movimientos",
+                            texto: "Acá vas a ver quién cargó, cambió o borró algo, y cuándo.")
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            } else if let lista {
                 let personas = Array(Set(lista.compactMap(\.actorNombre))).sorted()
                 if personas.count > 1 {
                     Picker("Quién", selection: $quien) { Text("Todos").tag(""); ForEach(personas, id: \.self) { Text($0).tag($0) } }
@@ -156,7 +160,7 @@ struct Actividad: View {
             } else { ProgressView() }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Actividad")
+        .pantallaApilada("Actividad")
         .refreshable { await cargar() }
         .task(id: estado.version) { await cargar() }
     }
@@ -227,7 +231,7 @@ struct TarifasTemporada: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Tarifas")
+        .pantallaApilada("Tarifas")
         .toolbar { if estado.escribe { Button { editando = TarifaAPI(id: "", desde: Formato.diaISO(Date()), hasta: Formato.diaISO(Date().addingTimeInterval(30 * 86400)), precio: 0, moneda: "USD", periodo: "noche") } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { t in FormTarifa(t: t) { x in Task { await guardar(x) } } }
@@ -342,7 +346,7 @@ struct CorredorEnTuIA: View {
             Section { Button("Revisión de la IA") { estado.abrir(ASeccion(clave: "revision")) } }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Corredor en tu IA")
+        .pantallaApilada("Corredor en tu IA")
         .task(id: estado.version) { await cargar() }
     }
 
@@ -439,7 +443,7 @@ struct FirmaYSesiones: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Firma y sesiones")
+        .pantallaApilada("Firma y sesiones")
         .task(id: estado.version) { await cargar() }
     }
 

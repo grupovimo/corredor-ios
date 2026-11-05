@@ -214,7 +214,9 @@ struct InicioRaiz: View {
         var f: [Pendiente2A] = []
         for s in (d.panel?.sugerencias ?? []).filter({ $0.estado != "descartada" && $0.estado != "aplicada" }).prefix(3) {
             f.append(Pendiente2A(id: s.id, icono: "checkmark", tono: .verde, titulo: s.destacado ?? s.accion ?? "Para aprobar", detalle: s.motivo ?? "",
-                                 accion: "Aprobar", ir: s.operacionId.map { AnyHashable(AFichaOperacion(id: $0)) }) {
+                                 accion: "Aprobar", ir: s.operacionId.map { AnyHashable(AFichaOperacion(id: $0)) }
+                                     ?? s.propiedadId.map { AnyHashable(AFichaPropiedad(id: $0)) }
+                                     ?? s.contactoId.map { AnyHashable(AFichaContacto(id: $0)) }) {
                 // Deshacer en vez de confirmar: se aplica a los 5 s si no se arrepiente.
                 aprobadas.insert(s.id)
                 let tarea = Task {

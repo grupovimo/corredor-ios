@@ -521,7 +521,10 @@ struct FichasMandadas: View {
 
     var body: some View {
         List {
-            if lista.isEmpty { Text("Todavía no se la mandaste a nadie.").foregroundStyle(C.texto2) }
+            if lista.isEmpty {
+                EstadoVacio(icono: "paperplane", titulo: "Todavía no se la mandaste a nadie", texto: "Cuando mandes la ficha por WhatsApp o por mail, queda acá.")
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
             ForEach(lista) { e in
                 Button { if let c = e.contactoId { estado.abrir(AFichaContacto(id: c)) } } label: {
                     HStack {
@@ -536,7 +539,7 @@ struct FichasMandadas: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Fichas mandadas")
+        .pantallaApilada("Fichas mandadas")
         .task(id: estado.version) { await cargar() }
     }
 

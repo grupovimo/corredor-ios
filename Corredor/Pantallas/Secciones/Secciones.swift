@@ -234,7 +234,7 @@ struct ConfigInmobiliaria: View {
         }
         .disabled(!estado.esDuenio)
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Inmobiliaria")
+        .pantallaApilada("Inmobiliaria")
         .toolbar { if estado.esDuenio { Button("Guardar") { Task { await guardar() } }.disabled(guardando) } }
         .task {
             struct I: Decodable { var nombre: String?; var cbu: String?; var zonaHoraria: String?; var legales: [String: String?]? }
@@ -319,7 +319,7 @@ struct Equipo: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Equipo")
+        .pantallaApilada("Equipo")
         .toolbar { if estado.esDuenio { Button { invitando = true } label: { Image(systemName: "person.badge.plus") }.accessibilityLabel("Invitar") } }
         .task(id: estado.version) { await cargar() }
         .alert("Invitar a alguien", isPresented: $invitando) {
@@ -450,7 +450,7 @@ struct Integraciones: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Integraciones")
+        .pantallaApilada("Integraciones")
         .task(id: estado.version) { await cargar() }
         .sheet(isPresented: $conectarWA) { ConectarWhatsApp() }
     }
@@ -494,7 +494,7 @@ struct RespuestasGuardadas: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Respuestas guardadas")
+        .pantallaApilada("Respuestas guardadas")
         .toolbar { if estado.escribe { Button { nueva = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nueva") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { r in EditorTexto(titulo: r.titulo, texto: r.texto) { t, x in Task { await guardar(r.id, t, x) } } }
@@ -559,7 +559,7 @@ struct Proveedores: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Proveedores")
+        .pantallaApilada("Proveedores")
         .toolbar { if estado.escribe { Button { editando = Prov(id: "", nombre: "") } label: { Image(systemName: "plus") }.accessibilityLabel("Nuevo") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { p in
@@ -692,7 +692,7 @@ struct ListaActas: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Actas de entrega")
+        .pantallaApilada("Actas de entrega")
         .toolbar { if estado.escribe { Button { elegir = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nueva recorrida") } }
         .task(id: estado.version) { actas = (try? await estado.api.get("/v1/actas")) ?? [] }
         .sheet(isPresented: $elegir) { ElegirPropiedad { estado.abrir(AInventario(id: $0.id)) } }
@@ -721,7 +721,7 @@ struct RendicionesListas: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Rendiciones")
+        .pantallaApilada("Rendiciones")
         .task(id: estado.version) { lista = (try? await estado.api.get("/v1/rendiciones/listas")) ?? [] }
     }
 }
@@ -857,7 +857,7 @@ struct Indices: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Índices")
+        .pantallaApilada("Índices")
         .task(id: estado.version) { lista = (try? await estado.api.get("/v1/indices")) ?? [] }
     }
 }
@@ -988,7 +988,7 @@ struct MiWeb: View {
         .disabled(!estado.esDuenio)
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Mi web")
+        .pantallaApilada("Mi web")
         .task {
             struct I: Decodable { var web: String?; var marca: [String: JSONLibre]? }
             if let i: I = try? await estado.api.get("/v1/inmobiliaria") {

@@ -135,7 +135,7 @@ struct FichaPropiedad: View {
         HStack {
             circulo("chevron.left", "Volver") { cerrar() }
             Spacer()
-            circulo(p?.destacada == true ? "star.fill" : "star", "Destacada") { destacar() }
+            circulo(p?.destacada == true ? "heart.fill" : "heart", "Destacada") { destacar() }
             circulo("square.and.arrow.up", "Compartir") { compartir = true }
         }
         .padding(.horizontal, 16)

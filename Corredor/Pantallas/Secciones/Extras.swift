@@ -32,7 +32,11 @@ struct DocumentosLista: View {
 
     var body: some View {
         List {
-            if lista.isEmpty { Text("El contrato firmado, el DNI, la escritura, los planos…").foregroundStyle(C.texto2) }
+            if lista.isEmpty {
+                EstadoVacio(icono: "folder", titulo: "Sin documentos", texto: "El contrato firmado, el DNI, la escritura, los planos: todo a mano.",
+                            accion: estado.escribe ? ("Subir un PDF", { eligiendo = true }) : nil)
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
             ForEach(lista) { d in
                 Button { Task { await abrir(d) } } label: {
                     HStack(spacing: 12) {
@@ -49,7 +53,7 @@ struct DocumentosLista: View {
             if subiendo { ProgressView() }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Documentos")
+        .pantallaApilada("Documentos")
         .toolbar {
             if estado.escribe {
                 Menu {
@@ -130,7 +134,11 @@ struct BienesConsorcio: View {
 
     var body: some View {
         List {
-            if lista.isEmpty { Text("Matafuegos, ascensores, bombas: con su próximo service, te avisamos antes.").foregroundStyle(C.texto2) }
+            if lista.isEmpty {
+                EstadoVacio(icono: "fire.extinguisher", titulo: "Sin bienes cargados", texto: "Matafuegos, ascensores, bombas: con su próximo service, te avisamos antes.",
+                            accion: estado.escribe ? ("Sumar un bien", { editando = BienAPI(id: "", nombre: "", categoria: "matafuego", cantidad: 1, estado: "ok") }) : nil)
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
             ForEach(lista) { b in
                 Button { editando = b } label: {
                     HStack {
@@ -148,7 +156,7 @@ struct BienesConsorcio: View {
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Bienes")
+        .pantallaApilada("Bienes")
         .toolbar { if estado.escribe { Button { editando = BienAPI(id: "", nombre: "", categoria: "matafuego", cantidad: 1, estado: "ok") } label: { Image(systemName: "plus") }.accessibilityLabel("Sumar") } }
         .task(id: estado.version) { await cargar() }
         .sheet(item: $editando) { b in
@@ -234,7 +242,7 @@ struct ReglamentoConsorcio: View {
             } else { ProgressView() }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
-        .navigationTitle("Reglamento")
+        .pantallaApilada("Reglamento")
         .task(id: estado.version) { await cargar() }
     }
 
