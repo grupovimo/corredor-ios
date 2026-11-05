@@ -10,13 +10,14 @@ on:
     types: [completed]
     branches: [main]
 
-concurrency:
-  group: testflight
-  cancel-in-progress: false
-
 jobs:
   subir:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    # En el trabajo (no en el workflow): una corrida salteada (workflow_run de una compilación cancelada)
+    # entraba en la fila igual y desplazaba a la subida que estaba esperando.
+    concurrency:
+      group: testflight
+      cancel-in-progress: false
     runs-on: ${{ vars.RUNNER_MAC || 'macos-15-intel' }}
     timeout-minutes: 60
     defaults:
