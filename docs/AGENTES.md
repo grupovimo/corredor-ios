@@ -22,6 +22,10 @@ consorcios, editor e informes «quedan en la web»: eso **no** vale, también va
   cargar (`EsqueletoFilas`), su error con reintento (`EstadoError`) y sin permiso para el lector.
 - **Accesibilidad:** Dynamic Type hasta AX5 (las filas pasan a vertical con `ViewThatFits` o
   `dynamicTypeSize`), etiqueta en cada botón de ícono, 44 pt mínimo, nada sólo por color.
+- **En vivo:** la app escucha `GET /v1/eventos` (SSE, `App/Vivo.swift`) con la app adelante; cada cambio
+  sube `estado.version`. Toda pantalla que muestra datos carga con `.task(id: estado.version)`, no con
+  `.task {}` (salvo formularios y editores, para no pisar lo que se está escribiendo). Si la tabla no
+  avisa, sumala al trigger `app.avisar_cambio` en una migración de la API (ver 00167).
 - **Nada de `async let`** en cargas de pantalla: cerró la app en Release en Tu Local Web. Awaits uno
   detrás del otro o `TaskGroup`.
 - **Nunca se compila en la Mac** (ni xcodebuild ni simulador). Se compila en GitHub: hacé push de tu
