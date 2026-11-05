@@ -17,6 +17,7 @@ struct Seccion: View {
     var body: some View {
         switch clave {
         case "mas": MasRaiz()
+        case "plan", "suscripcion": PantallaPlan()
         case "configuracion", "inmobiliaria": ConfigInmobiliaria()
         case "equipo": Equipo()
         case "integraciones", "whatsapp", "mercadolibre": Integraciones()

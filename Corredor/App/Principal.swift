@@ -56,6 +56,8 @@ struct Principal: View {
             // La primera vez (en cualquier aparato), el recorrido.
             if !ModoPrueba.activo, estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { estado.mostrarRecorrido = true }
         }
+        // La suscripción (avisos de prueba y sólo lectura), al día con el tiempo real.
+        .task(id: estado.version) { await estado.cargarSuscripcion() }
         // En vivo (App/Vivo.swift) con la app adelante; se corta al ir al fondo y vuelve al volver.
         .task(id: "\(escena == .active)-\(estado.sesion?.inmobiliariaId ?? "")") {
             if escena == .active { await estado.escucharEnVivo() }

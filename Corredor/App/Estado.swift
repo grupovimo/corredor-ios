@@ -113,6 +113,14 @@ final class Estado {
     var inmobiliaria: Sesion.Membresia? { sesion?.inmobiliarias.first { $0.inmobiliariaId == sesion?.inmobiliariaId } }
     var rol: String { sesion?.rol ?? "lector" }
     var esDuenio: Bool { rol == "duenio" }
+
+    /// La suscripción de la inmobiliaria (prueba, plan, sólo lectura). Se recarga con el tiempo real.
+    var suscripcion: Suscripcion?
+
+    func cargarSuscripcion() async {
+        guard sesion?.inmobiliariaId != nil else { return }
+        if let s: Suscripcion = try? await api.get("/v1/suscripcion") { suscripcion = s }
+    }
     /// Agente o dueño: puede cargar y cambiar cosas (el lector sólo mira).
     var escribe: Bool { rol != "lector" }
 
@@ -162,6 +170,10 @@ final class Estado {
 
     private func despuesDeEntrar() async {
         if let t = invitacionPendiente { await aceptarInvitacion(t) }
+        // Las compras del App Store que llegan solas (renovaciones, otro dispositivo) van a la API.
+        Tienda.compartida.api = api
+        Tienda.compartida.escuchar()
+        await cargarSuscripcion()
         if !ModoPrueba.activo { await pedirPermisoPush() }
         cola.subir()
     }
@@ -348,6 +360,12 @@ final class Estado {
 
     /// El error de un pedido, dicho en palabras.
     func avisar(_ e: Error) {
+        // 402: la prueba terminó, el plan no trae eso o no hay lugar en el equipo: lleva a «Tu plan».
+        if let e = e as? ErrorApi, e.estado == 402 {
+            sugerir(e.detalle.isEmpty ? e.titulo : e.detalle, "Ver planes", ASeccion(clave: "plan"))
+            Task { await cargarSuscripcion() }
+            return
+        }
         if let e = e as? ErrorApi { avisar(e.detalle.isEmpty ? e.titulo : e.detalle, ok: false) } else { avisar("Algo salió mal. Probá de nuevo.", ok: false) }
     }
 

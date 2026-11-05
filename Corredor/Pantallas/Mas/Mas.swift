@@ -55,6 +55,7 @@ struct MasRaiz: View {
         "Informe": ["informe", "estadisticas", "metricas", "reporte"],
         "Agenda": ["visita", "cita", "calendario"],
         "Inmobiliaria": ["cbu", "cuit", "matricula", "datos"],
+        "Tu plan": ["plan", "suscripcion", "pagar", "precio", "prueba", "factura", "abono"],
     ]
 
     static func normal(_ t: String) -> String {
@@ -91,7 +92,8 @@ struct MasRaiz: View {
                         Item(icono: "checkmark.shield", texto: "Revisión de la IA", destino: ASeccion(clave: "revision")),
                         Item(icono: "clock.arrow.circlepath", texto: "Actividad", destino: ASeccion(clave: "actividad"))]),
         ]
-        var ajustes = [Item(icono: "storefront", texto: "Inmobiliaria", destino: ASeccion(clave: "configuracion")),
+        var ajustes = [Item(icono: "crown", texto: "Tu plan", destino: ASeccion(clave: "plan")),
+                       Item(icono: "storefront", texto: "Inmobiliaria", destino: ASeccion(clave: "configuracion")),
                        Item(icono: "person.3", texto: "Equipo y permisos", destino: ASeccion(clave: "equipo")),
                        Item(icono: "puzzlepiece.extension", texto: "Integraciones", destino: ASeccion(clave: "integraciones")),
                        Item(icono: "wrench.and.screwdriver", texto: "Proveedores", destino: ASeccion(clave: "proveedores")),
@@ -117,6 +119,7 @@ struct MasRaiz: View {
                 }
                 .padding(.horizontal, 12).frame(height: 40)
                 .background(C.hundida, in: .rect(cornerRadius: 12))
+                if filtro.isEmpty { AvisoPlan() }
                 if filtro.isEmpty, !potenciar.isEmpty { potencia }
                 let gs = grupos
                 if gs.isEmpty {
@@ -208,6 +211,9 @@ struct MasRaiz: View {
         if pasos?.web == false { e["Mi web"] = ("Sin estrenar", .oro) }
         if pasos?.portales == false { e["Portales"] = ("Sin publicar", .oro) }
         if pasos?.equipo == false { e["Equipo y permisos"] = ("Sólo vos", .neutro) }
+        if let sus = estado.suscripcion {
+            e["Tu plan"] = (sus.nombreEstado, sus.estado == "vencida" ? .rojo : sus.pideAtencion ? .oro : .verde)
+        }
         estados = e
 
         var x: [Potencia] = []

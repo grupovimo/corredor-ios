@@ -81,6 +81,7 @@ struct InicioRaiz: View {
                 .tipBackground(C.superficie)
                 .padding(.horizontal, 16).padding(.bottom, 8)
                 if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
+                AvisoPlan().padding(.horizontal, 16).padding(.bottom, 12)
                 Group {
                     if let datos {
                         Group { if estado.esDuenio { duena(datos) } else { agente(datos) } }

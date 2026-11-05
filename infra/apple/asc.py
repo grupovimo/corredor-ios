@@ -98,5 +98,95 @@ def builds(app_id):
         a = b['attributes']
         print(b['id'], a['version'], a['processingState'], a['uploadedDate'])
 
+# Suscripciones de Corredor (planes por inmobiliaria). Sólo en la Argentina (la tienda cobra en USD),
+# con 14 días gratis la primera vez. Idempotente: lo que ya existe se deja.
+PLANES = [  # producto, nombre, período, nivel (1 = el más alto), USD, descripción
+    ('ar.com.corredor.app.equipo.anio', 'Equipo anual', 'ONE_YEAR', 1, '949.99', 'Personas sin tope, consorcios, temporada e informes.'),
+    ('ar.com.corredor.app.equipo.mes', 'Equipo mensual', 'ONE_MONTH', 1, '94.99', 'Personas sin tope, consorcios, temporada e informes.'),
+    ('ar.com.corredor.app.profesional.anio', 'Profesional anual', 'ONE_YEAR', 2, '449.99', 'Hasta 5 personas, alquileres, portales e IA.'),
+    ('ar.com.corredor.app.profesional.mes', 'Profesional mensual', 'ONE_MONTH', 2, '44.99', 'Hasta 5 personas, alquileres, portales e IA.'),
+    ('ar.com.corredor.app.inicial.anio', 'Inicial anual', 'ONE_YEAR', 3, '189.99', 'Para 1 persona: cartera, agenda, web y WhatsApp.'),
+    ('ar.com.corredor.app.inicial.mes', 'Inicial mensual', 'ONE_MONTH', 3, '18.99', 'Para 1 persona: cartera, agenda, web y WhatsApp.'),
+]
+
+def rel(tipo, id):
+    return {'data': {'type': tipo, 'id': id}}
+
+def suscripciones(app_id, avisos_url='https://api.corredor.com.ar/publico/apple/avisos'):
+    app = api('GET', f'/v1/apps/{app_id}')['data']['attributes']
+    locale = app.get('primaryLocale') or 'es-MX'
+    print('idioma principal', locale)
+    grupos = api('GET', f'/v1/apps/{app_id}/subscriptionGroups?limit=50')['data']
+    g = next((x for x in grupos if x['attributes']['referenceName'] == 'Corredor'), None)
+    if not g:
+        g = api('POST', '/v1/subscriptionGroups', {'data': {'type': 'subscriptionGroups', 'attributes': {'referenceName': 'Corredor'},
+            'relationships': {'app': rel('apps', app_id)}}})['data']
+        api('POST', '/v1/subscriptionGroupLocalizations', {'data': {'type': 'subscriptionGroupLocalizations',
+            'attributes': {'name': 'Planes de Corredor', 'locale': locale}, 'relationships': {'subscriptionGroup': rel('subscriptionGroups', g['id'])}}})
+        print('grupo creado', g['id'])
+    existentes = {x['attributes']['productId']: x for x in api('GET', f"/v1/subscriptionGroups/{g['id']}/subscriptions?limit=50")['data']}
+    for pid, nombre, periodo, nivel, usd, desc in PLANES:
+        sub = existentes.get(pid)
+        if not sub:
+            sub = api('POST', '/v1/subscriptions', {'data': {'type': 'subscriptions', 'attributes': {
+                'name': nombre, 'productId': pid, 'subscriptionPeriod': periodo, 'groupLevel': nivel, 'familySharable': False,
+                'reviewNote': 'Plan de Corredor para una inmobiliaria. Se compra en la app, en Más › Tu plan.'},
+                'relationships': {'group': rel('subscriptionGroups', g['id'])}}})['data']
+            print('creada', pid)
+        sid = sub['id']
+        if not api('GET', f'/v1/subscriptions/{sid}/subscriptionLocalizations')['data']:
+            api('POST', '/v1/subscriptionLocalizations', {'data': {'type': 'subscriptionLocalizations',
+                'attributes': {'name': 'Corredor ' + nombre, 'locale': locale, 'description': desc},
+                'relationships': {'subscription': rel('subscriptions', sid)}}})
+        r = requests.get(f'https://api.appstoreconnect.apple.com/v1/subscriptions/{sid}/subscriptionAvailability',
+                         headers={'Authorization': 'Bearer ' + token()}, timeout=60)
+        if r.status_code == 404 or not r.json().get('data'):
+            api('POST', '/v1/subscriptionAvailabilities', {'data': {'type': 'subscriptionAvailabilities',
+                'attributes': {'availableInNewTerritories': False},
+                'relationships': {'subscription': rel('subscriptions', sid), 'availableTerritories': {'data': [{'type': 'territories', 'id': 'ARG'}]}}}})
+        if not api('GET', f'/v1/subscriptions/{sid}/prices?limit=5')['data']:
+            puntos = api('GET', f'/v1/subscriptions/{sid}/pricePoints?filter[territory]=ARG&limit=8000')['data']
+            punto = min(puntos, key=lambda x: abs(float(x['attributes']['customerPrice']) - float(usd)))
+            api('POST', '/v1/subscriptionPrices', {'data': {'type': 'subscriptionPrices', 'attributes': {'preserveCurrentPrice': False},
+                'relationships': {'subscription': rel('subscriptions', sid), 'subscriptionPricePoint': rel('subscriptionPricePoints', punto['id']),
+                                  'territory': rel('territories', 'ARG')}}})
+            print(pid, 'precio', punto['attributes']['customerPrice'])
+        if not api('GET', f'/v1/subscriptions/{sid}/introductoryOffers?limit=5')['data']:
+            api('POST', '/v1/subscriptionIntroductoryOffers', {'data': {'type': 'subscriptionIntroductoryOffers',
+                'attributes': {'duration': 'TWO_WEEKS', 'offerMode': 'FREE_TRIAL', 'numberOfPeriods': 1},
+                'relationships': {'subscription': rel('subscriptions', sid), 'territory': rel('territories', 'ARG')}}})
+            print(pid, '14 días gratis')
+        print(pid, api('GET', f'/v1/subscriptions/{sid}')['data']['attributes']['state'])
+    # Los avisos del App Store (Server Notifications V2), producción y sandbox.
+    api('PATCH', f'/v1/apps/{app_id}', {'data': {'type': 'apps', 'id': app_id, 'attributes': {
+        'subscriptionStatusUrl': avisos_url, 'subscriptionStatusUrlVersion': 'V2',
+        'subscriptionStatusUrlForSandbox': avisos_url, 'subscriptionStatusUrlVersionForSandbox': 'V2'}}})
+    print('avisos', avisos_url)
+
+def captura_revision(app_id, archivo):
+    """La captura para la revisión de cada suscripción (la piden para pasar de MISSING_METADATA)."""
+    import hashlib
+    datos = open(archivo, 'rb').read()
+    g = next(x for x in api('GET', f'/v1/apps/{app_id}/subscriptionGroups?limit=50')['data'] if x['attributes']['referenceName'] == 'Corredor')
+    for sub in api('GET', f"/v1/subscriptionGroups/{g['id']}/subscriptions?limit=50")['data']:
+        sid = sub['id']
+        r = requests.get(f'https://api.appstoreconnect.apple.com/v1/subscriptions/{sid}/appStoreReviewScreenshot',
+                         headers={'Authorization': 'Bearer ' + token()}, timeout=60)
+        if r.status_code == 200 and r.json().get('data'):
+            print(sub['attributes']['productId'], 'ya tiene captura'); continue
+        c = api('POST', '/v1/subscriptionAppStoreReviewScreenshots', {'data': {'type': 'subscriptionAppStoreReviewScreenshots',
+            'attributes': {'fileName': os.path.basename(archivo), 'fileSize': len(datos)},
+            'relationships': {'subscription': rel('subscriptions', sid)}}})['data']
+        for op in c['attributes']['uploadOperations']:
+            parte = datos[op['offset']:op['offset'] + op['length']]
+            requests.request(op['method'], op['url'], data=parte,
+                             headers={h['name']: h['value'] for h in op['requestHeaders']}, timeout=120).raise_for_status()
+        api('PATCH', f"/v1/subscriptionAppStoreReviewScreenshots/{c['id']}", {'data': {'type': 'subscriptionAppStoreReviewScreenshots',
+            'id': c['id'], 'attributes': {'uploaded': True, 'sourceFileChecksum': hashlib.md5(datos).hexdigest()}}})
+        print(sub['attributes']['productId'], 'captura subida')
+    time.sleep(5)
+    for sub in api('GET', f"/v1/subscriptionGroups/{g['id']}/subscriptions?limit=50")['data']:
+        print(sub['attributes']['productId'], sub['attributes']['state'])
+
 if __name__ == '__main__':
     globals()[sys.argv[1]](*sys.argv[2:])
