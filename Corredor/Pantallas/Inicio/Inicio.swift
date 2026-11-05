@@ -621,7 +621,8 @@ struct EquipoAhora: View {
 struct PrimerosPasos: View {
     @Environment(Estado.self) private var estado
     var guia: Guia
-    var body: some View {
+    /// Los pasos de la guía de la API, más el de la cobranza para la dueña (también se lleva desde acá).
+    private var pasos: [(Bool, String, String, AnyHashable)] {
         let p = guia.pasos
         var pasos: [(Bool, String, String, AnyHashable)] = [
             (p?.propiedad ?? false, "house", "Cargá tu primera propiedad", AAltaPropiedad()),
@@ -631,8 +632,12 @@ struct PrimerosPasos: View {
             (p?.portales ?? false, "storefront", "Publicá en Mercado Libre y portales", ASeccion(clave: "integraciones")),
             (p?.web ?? false, "globe", "Mirá tu web", ASeccion(clave: "web")),
         ]
-        // La cobranza también se lleva desde acá: que esté entre los primeros pasos de la dueña.
         if estado.esDuenio { pasos.insert(((guia.contratos ?? 0) > 0, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AContratos()), at: 1) }
+        return pasos
+    }
+
+    var body: some View {
+        let pasos = pasos
         let faltan = pasos.filter { !$0.0 }
         if !faltan.isEmpty && guia.pasosOcultos != true {
             VStack(alignment: .leading, spacing: 8) {
