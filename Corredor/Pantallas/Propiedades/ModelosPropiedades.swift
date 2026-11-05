@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 /// Una propiedad (GET /v1/propiedades, /v1/propiedades/{id}).
 struct Propiedad: Codable, Identifiable, Hashable {
@@ -138,4 +139,21 @@ struct Inmobiliaria: Codable, Hashable {
     var dominio: String?
     var cbu: String?
     var zonaHoraria: String?
+    /// La marca de su web (Mi web): logo, portada, colores y frase. La app la usa para sentirse propia.
+    var marca: JSONLibre?
+
+    private func texto(_ k: String) -> String? {
+        if case .objeto(let o)? = marca, case .texto(let t)? = o[k], !t.isEmpty { return t }
+        return nil
+    }
+    var logoUrl: URL? { texto("logoUrl").flatMap(URL.init(string:)) }
+    var portadaUrl: URL? { texto("portadaUrl").flatMap(URL.init(string:)) }
+    var frase: String? { texto("frase") }
+    /// El color principal de su marca («#1E5749»), si lo eligió.
+    var colorPrimario: Color? {
+        guard var h = texto("colorPrimario") else { return nil }
+        if h.hasPrefix("#") { h.removeFirst() }
+        guard h.count == 6, let n = UInt32(h, radix: 16) else { return nil }
+        return Color(hex: n)
+    }
 }

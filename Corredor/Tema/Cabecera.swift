@@ -19,6 +19,8 @@ struct CabeceraPestana: View {
     var avatar = false
     var busca: String? = nil
     var alBuscar: (() -> Void)? = nil
+    /// El logo de la inmobiliaria (su marca de Mi web), a la izquierda del renglón de arriba.
+    var logo: URL? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -51,8 +53,19 @@ struct CabeceraPestana: View {
             }
             .frame(height: 44)
             if let sobre {
-                Text(sobre.uppercased()).font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font)
-                    .tracking(13 * 0.04).foregroundStyle(C.texto2)
+                HStack(spacing: 10) {
+                    if let logo {
+                        AsyncImage(url: logo) { $0.resizable().scaledToFit() } placeholder: { C.hundida }
+                            .frame(width: 34, height: 34)
+                            .background(C.superficie)
+                            .clipShape(.rect(cornerRadius: 9, style: .continuous))
+                            .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous).strokeBorder(C.linea))
+                            .accessibilityHidden(true)
+                    }
+                    Text(sobre.uppercased()).font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font)
+                        .tracking(13 * 0.04).foregroundStyle(C.texto2).lineLimit(1)
+                }
+                .padding(.bottom, logo == nil ? 0 : 4)
             }
             Text(titulo).estilo(.tituloGrande).foregroundStyle(C.texto)
                 .accessibilityAddTraits(.isHeader)

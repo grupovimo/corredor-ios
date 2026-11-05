@@ -10,12 +10,17 @@ struct Principal: View {
 
     var body: some View {
         @Bindable var estado = estado
-        TabView(selection: $estado.pestana) {
-            pestana(.inicio) { InicioRaiz() }
-            pestana(.propiedades) { PropiedadesRaiz() }
-            Color.clear.tag(Pestana.mira).toolbar(.hidden, for: .tabBar)
-            pestana(.mensajes) { MensajesRaiz() }
-            pestana(.mas) { MasRaiz() }
+        // Las cuatro pilas, una encima de otra (sólo se ve la elegida y cada una guarda su estado). No es un
+        // TabView: el de iOS no le pasa a sus pantallas el lugar que ocupa la barra propia y lo último
+        // de cada lista quedaba tapado. Así, safeAreaInset llega a todas, también a las apiladas.
+        ZStack {
+            ForEach([Pestana.inicio, .propiedades, .mensajes, .mas], id: \.self) { p in
+                let visible = estado.pestana == p
+                pestana(p)
+                    .opacity(visible ? 1 : 0)
+                    .allowsHitTesting(visible)
+                    .accessibilityHidden(!visible)
+            }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { BarraPestanas() }
         .ignoresSafeArea(.keyboard, edges: .bottom)
@@ -43,14 +48,18 @@ struct Principal: View {
         }
     }
 
-    private func pestana<V: View>(_ p: Pestana, @ViewBuilder _ raiz: () -> V) -> some View {
+    private func pestana(_ p: Pestana) -> some View {
         NavigationStack(path: estado.pila(p)) {
-            raiz().destinos()
+            Group {
+                switch p {
+                case .inicio: InicioRaiz()
+                case .propiedades: PropiedadesRaiz()
+                case .mensajes: MensajesRaiz()
+                default: MasRaiz()
+                }
+            }
+            .destinos()
         }
-        // La barra de pestañas va encima (safeAreaInset del TabView no llega a las pilas de adentro).
-        .safeAreaPadding(.bottom, M.barraPestanas)
-        .tag(p)
-        .toolbar(.hidden, for: .tabBar)
     }
 }
 

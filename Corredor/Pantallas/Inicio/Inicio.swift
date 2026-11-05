@@ -25,6 +25,8 @@ struct DatosInicio {
     var avisos = 0
     var cobradoMes: Double?
     var esperadoMes: Double?
+    /// La inmobiliaria con su marca (logo, portada, web): el Inicio es de ella, no genérico.
+    var inmo: Inmobiliaria?
 }
 
 /// 2A Inicio del agente y 2B de la dueña (handoff · «Hoy»): la próxima visita, para hacer ahora,
@@ -41,17 +43,25 @@ struct InicioRaiz: View {
     /// Lo que se puede cargar desde el «+» del Inicio (lo mismo que en cada sección, juntado).
     enum Cargar: String, Identifiable { case contacto, visita, operacion, contrato; var id: String { rawValue } }
 
+    /// «Buen día, Nahuel»: según la hora, con el nombre de quien la usa.
+    private var saludo: String {
+        let h = Calendar.current.component(.hour, from: Date())
+        let s = h < 6 ? "Buenas noches" : h < 13 ? "Buen día" : h < 20 ? "Buenas tardes" : "Buenas noches"
+        return estado.usuario?.nombre.nonEmpty.map { "\(s), \($0)" } ?? s
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 CabeceraPestana(
-                    sobre: estado.esDuenio ? "\(estado.inmobiliaria?.nombre ?? "") · \(Formato.diaCompleto(Date()).split(separator: " ").prefix(2).joined(separator: " "))" : Formato.diaCompleto(Date()),
-                    titulo: "Hoy",
+                    sobre: "\(datos?.inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "") · \(Formato.diaCompleto(Date()).split(separator: " ").prefix(2).joined(separator: " "))",
+                    titulo: saludo,
                     acciones: (estado.escribe ? [AccionCabecera(icono: "plus.circle", etiqueta: "Cargar") { eligiendoQueCargar = true }] : []) + [
                         AccionCabecera(icono: "magnifyingglass", etiqueta: "Buscar") { estado.abrir(ABuscar()) },
                         AccionCabecera(icono: "bell", etiqueta: "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) },
                     ],
-                    avatar: true)
+                    avatar: true,
+                    logo: datos?.inmo?.logoUrl)
                 Accesos(cobrar: datos?.deudas.count ?? 0).padding(.horizontal, 12).padding(.top, 14).padding(.bottom, 8)
                 Group {
                     if estado.escribe { TipView(ConsejoCargar()) }
@@ -102,6 +112,7 @@ struct InicioRaiz: View {
     private func agente(_ d: DatosInicio) -> some View {
         VStack(alignment: .leading, spacing: 22) {
             if let c = proximaVisita(d) { TarjetaProximaVisita(cita: c) }
+            if let i = d.inmo { TarjetaTuWeb(inmo: i) }
             let hoy = paraHacer(d)
             if !hoy.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -129,6 +140,7 @@ struct InicioRaiz: View {
             }
             .buttonStyle(.plain)
             PlataDelMes(d: d)
+            if let i = d.inmo { TarjetaTuWeb(inmo: i) }
             let aprob = paraAprobar(d).filter { !aprobadas.contains($0.id) }
             VStack(alignment: .leading, spacing: 8) {
                 TituloBloque(texto: "Para aprobar")
@@ -179,6 +191,7 @@ struct InicioRaiz: View {
             d.conversaciones = (try? await api.get("/v1/whatsapp/conversaciones", query: [.init(name: "noLeidas", value: "si"), .init(name: "limite", value: "20")])) ?? []
             d.preguntas = (try? await api.get("/v1/mercadolibre/preguntas", query: [.init(name: "estado", value: "sin_responder"), .init(name: "limite", value: "10")])) ?? []
             d.deudas = (try? await api.get("/v1/contratos/deudas")) ?? []
+            d.inmo = try? await api.get("/v1/inmobiliaria")
             struct Contador: Decodable { var noLeidos: Int?; var paraHacer: Int? }
             if let c: Contador = try? await api.get("/v1/avisos/contador") { d.avisos = (c.noLeidos ?? 0); estado.avisosPendientes = d.avisos }
             if estado.esDuenio {
@@ -468,6 +481,65 @@ struct Cifra: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .tarjeta(16)
+    }
+}
+
+/// «Tu web»: la portada, el logo y la frase de la inmobiliaria (su marca de Mi web), con «Ver» y
+/// «Compartir». Hace que el Inicio sea de ella; sin marca cargada, invita a ponerla.
+struct TarjetaTuWeb: View {
+    @Environment(Estado.self) private var estado
+    var inmo: Inmobiliaria
+
+    var body: some View {
+        let url = inmo.web.flatMap(URL.init(string:))
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                Group {
+                    if let p = inmo.portadaUrl {
+                        Foto(url: p)
+                    } else {
+                        LinearGradient(colors: [inmo.colorPrimario ?? C.verde800, (inmo.colorPrimario ?? C.verde800).opacity(0.75)],
+                                       startPoint: .topLeading, endPoint: .bottomTrailing)
+                    }
+                }
+                .frame(height: 132)
+                .overlay(LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .center, endPoint: .bottom))
+                HStack(spacing: 10) {
+                    if let l = inmo.logoUrl {
+                        AsyncImage(url: l) { $0.resizable().scaledToFit() } placeholder: { Color.white.opacity(0.2) }
+                            .frame(width: 44, height: 44).background(.white).clipShape(.rect(cornerRadius: 11, style: .continuous))
+                    }
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(inmo.nombre ?? "Tu inmobiliaria").font(Estilo(tamano: 18, peso: .bold, relativo: .headline).font).foregroundStyle(.white)
+                        Text(inmo.frase ?? (inmo.dominio ?? url?.host ?? "Tu web")).estilo(.footnote).foregroundStyle(.white.opacity(0.85)).lineLimit(1)
+                    }
+                }
+                .padding(12)
+            }
+            .clipped()
+            if inmo.logoUrl == nil && inmo.portadaUrl == nil && estado.esDuenio {
+                Button { estado.abrir(ASeccion(clave: "web")) } label: {
+                    Label("Poné tu logo y tu portada", systemImage: "paintpalette").font(Estilo.subheadFuerte.font)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                }
+                .foregroundStyle(C.accion)
+            } else {
+                HStack(spacing: 0) {
+                    Button { estado.abrir(ASeccion(clave: "web")) } label: {
+                        Label("Ver tu web", systemImage: "globe").font(Estilo.subheadFuerte.font).frame(maxWidth: .infinity, minHeight: 46)
+                    }
+                    Rectangle().fill(C.linea).frame(width: 0.5, height: 26)
+                    if let url {
+                        ShareLink(item: url, message: Text("Mirá nuestras propiedades")) {
+                            Label("Compartir", systemImage: "square.and.arrow.up").font(Estilo.subheadFuerte.font).frame(maxWidth: .infinity, minHeight: 46)
+                        }
+                    }
+                }
+                .foregroundStyle(C.accion)
+            }
+        }
+        .tarjeta()
+        .clipShape(.rect(cornerRadius: M.rTarjeta, style: .continuous))
     }
 }
 
