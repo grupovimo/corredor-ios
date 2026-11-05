@@ -7,7 +7,7 @@ final class CorredorTests: XCTestCase {
         XCTAssertEqual(Ruta(texto: "chat/c1")?.pestana, .mensajes)
         XCTAssertEqual(Ruta(texto: "https://corredor.com.ar/contactos/x")?.destino, AnyHashable(AFichaContacto(id: "x")))
         XCTAssertEqual(Ruta(texto: "corredor://mira")?.pestana, .mira)
-        XCTAssertEqual(Ruta(texto: "/consorcios/e1")?.destino, AnyHashable(ASeccion(clave: "consorcios", id: "e1")))
+        XCTAssertEqual(Ruta(texto: "/consorcios/e1")?.destino, AnyHashable(ASeccion(clave: "consorcio", id: "e1")))
     }
 
     func testClerkFapiDeLaClavePublicable() {
