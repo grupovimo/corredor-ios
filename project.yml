@@ -153,11 +153,23 @@ targets:
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
+  # Recorridos de punta a punta (XCUITest) contra la API grabada: PruebasUI/ y el paso «Recorridos» del CI.
+  CorredorUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [CorredorUITests]
+    dependencies:
+      - target: Corredor
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Corredor
 schemes:
   Corredor:
     build:
       targets:
         Corredor: all
         CorredorTests: [test]
+        CorredorUITests: [test]
     test:
-      targets: [CorredorTests]
+      targets: [CorredorTests, CorredorUITests]

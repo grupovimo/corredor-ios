@@ -637,8 +637,22 @@ struct ListaActas: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .pantallaApilada("Actas de entrega")
         .toolbar { if estado.escribe { Button { elegir = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nueva recorrida") } }
-        .task(id: estado.version) { actas = (try? await estado.api.get("/v1/actas")) ?? [] }
+        .task(id: estado.version) { await cargar() }
         .sheet(isPresented: $elegir) { ElegirPropiedad { estado.abrir(AInventario(id: $0.id)) } }
+    }
+
+    /// Como la web (/inventarios): `GET /v1/actas` exige un contrato, así que se recorren las propiedades
+    /// en alquiler y temporada y se juntan sus actas, de la más nueva a la más vieja.
+    private func cargar() async {
+        let props: [Propiedad] = (try? await estado.api.get("/v1/propiedades", query: [.init(name: "operacion", value: "alquiler,temporario"),
+                                                                                      .init(name: "orden", value: "actualizada"),
+                                                                                      .init(name: "limite", value: "60")])) ?? []
+        var todas: [Acta] = []
+        for p in props {
+            let l: [Acta] = (try? await estado.api.get("/v1/propiedades/\(p.id)/actas")) ?? []
+            todas += l.map { var a = $0; if a.propiedadId == nil { a.propiedadId = p.id }; if a.propiedadTitulo == nil { a.propiedadTitulo = p.nombre }; return a }
+        }
+        actas = todas.sorted { ($0.fecha ?? "") > ($1.fecha ?? "") }
     }
 }
 

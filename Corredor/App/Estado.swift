@@ -98,7 +98,7 @@ final class Estado {
     }
 
     init(api: Api? = nil) {
-        let a = api ?? Api(base: Api.urlConfigurada(), token: Llavero.leer("token"))
+        let a = api ?? Api(base: Api.urlConfigurada(), token: ModoPrueba.token ?? Llavero.leer("token"))
         self.api = a
         cola = Cola(api: a)
         a.alPerderSesion = { [weak self] in self?.sesionPerdida() }
@@ -158,7 +158,7 @@ final class Estado {
 
     private func despuesDeEntrar() async {
         if let t = invitacionPendiente { await aceptarInvitacion(t) }
-        await pedirPermisoPush()
+        if !ModoPrueba.activo { await pedirPermisoPush() }
         cola.subir()
     }
 

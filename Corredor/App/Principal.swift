@@ -35,7 +35,7 @@ struct Principal: View {
         .overlay { if estado.mostrarRecorrido { Recorrido(visible: $estado.mostrarRecorrido).zIndex(10) } }
         .task {
             // La primera vez (en cualquier aparato), el recorrido.
-            if estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { estado.mostrarRecorrido = true }
+            if !ModoPrueba.activo, estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { estado.mostrarRecorrido = true }
         }
         // En vivo (App/Vivo.swift) con la app adelante; se corta al ir al fondo y vuelve al volver.
         .task(id: "\(escena == .active)-\(estado.sesion?.inmobiliariaId ?? "")") {

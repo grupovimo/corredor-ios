@@ -7,6 +7,7 @@ import TipKit
 
 enum Consejos {
     static func configurar() {
+        if ModoPrueba.activo { Tips.hideAllTipsForTesting() }
         try? Tips.configure([.displayFrequency(.daily), .datastoreLocation(.applicationDefault)])
     }
 

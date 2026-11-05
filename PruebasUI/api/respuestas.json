@@ -1,0 +1,3729 @@
+{
+  "grabado": "2026-11-05T02:47:36Z",
+  "ids": {
+    "alquilada": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+    "cita": "3c80bed1-49ad-4e83-819b-683ace0cb26f",
+    "consorcio": "63cc840b-7b90-4231-a228-1ab8809da274",
+    "contacto": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+    "contrato": "de288d93-c045-4784-9100-4d19a2584eea",
+    "emprendimiento": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+    "operacion": "d047f961-d290-4e3d-8e68-ca82407e76af",
+    "propiedad": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+    "temporada": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca"
+  },
+  "respuestas": [
+    {
+      "cuerpo": [],
+      "ruta": "/v1/actas?contrato=de288d93-c045-4784-9100-4d19a2584eea"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": 23,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "respuesta_guardada",
+          "entidadId": "ea13752d-e4d6-477c-8e50-8836f9a25773",
+          "antes": null,
+          "despues": {
+            "texto": "Atendemos de lunes a viernes de 10 a 18.",
+            "titulo": "Horarios"
+          },
+          "creadoEn": "2026-11-04T23:47:36.959506-03:00",
+          "entidadTitulo": null
+        },
+        {
+          "id": 22,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "objetivo",
+          "entidadId": "faf9c3b6-6052-476d-b8fc-5cab05012028",
+          "antes": null,
+          "despues": {
+            "meta": 5,
+            "desde": "2026-11-01",
+            "hasta": "2026-11-30",
+            "metrica": "operaciones_cerradas",
+            "agenteId": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.945865-03:00",
+          "entidadTitulo": null
+        },
+        {
+          "id": 21,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "reserva_temporada",
+          "entidadId": "ccdec3ac-b58f-40c4-989e-830f31452d4e",
+          "antes": null,
+          "despues": {
+            "id": "ccdec3ac-b58f-40c4-989e-830f31452d4e",
+            "sena": null,
+            "monto": 900000,
+            "notas": null,
+            "saldo": 900000,
+            "estado": "confirmada",
+            "moneda": "ARS",
+            "motivo": "huesped",
+            "noches": 7,
+            "salida": "2026-12-01",
+            "checkin": {
+              "dni": [],
+              "saldo": false,
+              "deposito": false,
+              "inventario": false
+            },
+            "entrada": "2026-11-24",
+            "creadoEn": "2026-11-04T23:47:36.931821-03:00",
+            "llavesEn": null,
+            "creadaPor": "user_ana",
+            "huespedes": 4,
+            "contactoId": null,
+            "propiedadId": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+            "actualizadoEn": "2026-11-04T23:47:36.931821-03:00",
+            "huespedNombre": "Familia Ríos",
+            "contactoNombre": null,
+            "huespedTelefono": null,
+            "propiedadNumero": 4,
+            "propiedadTitulo": "Av. del Mar 1140"
+          },
+          "creadoEn": "2026-11-04T23:47:36.931821-03:00",
+          "entidadTitulo": null
+        },
+        {
+          "id": 20,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear_lotes",
+          "entidad": "emprendimiento",
+          "entidadId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "antes": null,
+          "despues": {
+            "serie": {
+              "desde": 1,
+              "fondo": null,
+              "hasta": 6,
+              "frente": null,
+              "moneda": "USD",
+              "precio": 38000,
+              "manzana": "A",
+              "usoSuelo": null,
+              "superficie": 450
+            },
+            "creados": 6
+          },
+          "creadoEn": "2026-11-04T23:47:36.912965-03:00",
+          "entidadTitulo": "Bosque Azul"
+        },
+        {
+          "id": 19,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "emprendimiento",
+          "entidadId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "antes": null,
+          "despues": {
+            "id": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+            "lat": null,
+            "lng": null,
+            "slug": "bosque-azul",
+            "tipo": "loteo",
+            "fotos": [],
+            "video": null,
+            "avance": 0,
+            "barrio": null,
+            "estado": "preventa",
+            "moneda": "USD",
+            "nombre": "Bosque Azul",
+            "entrega": null,
+            "agenteId": null,
+            "creadoEn": "2026-11-04T23:47:36.899907-03:00",
+            "fotosUrl": [],
+            "unidades": {
+              "total": 0,
+              "vendidas": 0,
+              "reservadas": 0,
+              "disponibles": 0
+            },
+            "destacado": false,
+            "direccion": null,
+            "publicado": true,
+            "masterplan": {},
+            "comodidades": [],
+            "descripcion": null,
+            "precioDesde": null,
+            "financiacion": null,
+            "actualizadoEn": "2026-11-04T23:47:36.899907-03:00",
+            "masterplanUrl": null,
+            "desarrolladora": null,
+            "infraestructura": [],
+            "superficieTotal": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.899907-03:00",
+          "entidadTitulo": "Bosque Azul"
+        },
+        {
+          "id": 18,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "consorcio",
+          "entidadId": "63cc840b-7b90-4231-a228-1ab8809da274",
+          "antes": null,
+          "despues": {
+            "id": "63cc840b-7b90-4231-a228-1ab8809da274",
+            "cbu": null,
+            "cuit": null,
+            "notas": null,
+            "fotoId": null,
+            "nombre": "Cabildo 2620",
+            "fotoUrl": null,
+            "agenteId": null,
+            "creadoEn": "2026-11-04T23:47:36.843472-03:00",
+            "metricas": {
+              "deudores": 0,
+              "unidades": 0,
+              "saldoAdeudado": 0.00,
+              "trabajosVencidos": 0,
+              "novedadesAbiertas": 0,
+              "servicesPorVencer": 0,
+              "trabajosPendientes": 0
+            },
+            "direccion": "Cabildo 2620",
+            "fondoTipo": "ninguno",
+            "fondoValor": 0.00,
+            "modoExpensas": "prorrateo",
+            "reglamentoEn": null,
+            "actualizadoEn": "2026-11-04T23:47:36.843472-03:00",
+            "diaVencimiento": null,
+            "interesMensual": 0,
+            "diaSegundoVencimiento": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.843472-03:00",
+          "entidadTitulo": "Cabildo 2620"
+        },
+        {
+          "id": 17,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "rendicion",
+          "entidadId": "184e2d13-36de-45ad-89ce-c593e7210ecd",
+          "antes": null,
+          "despues": {
+            "id": "184e2d13-36de-45ad-89ce-c593e7210ecd",
+            "neto": 540000,
+            "notas": null,
+            "estado": "pendiente",
+            "gastos": 0,
+            "moneda": "ARS",
+            "numero": null,
+            "cobrado": 540000,
+            "periodo": "2026-10-01",
+            "comision": 0,
+            "creadoEn": "2026-11-04T23:47:36.828036-03:00",
+            "emitidaEn": null,
+            "compartida": false,
+            "contratoId": "de288d93-c045-4784-9100-4d19a2584eea",
+            "actualizadoEn": "2026-11-04T23:47:36.828036-03:00",
+            "comisionPorcentaje": 0
+          },
+          "creadoEn": "2026-11-04T23:47:36.828036-03:00",
+          "entidadTitulo": null
+        },
+        {
+          "id": 16,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "cobrar",
+          "entidad": "contrato",
+          "entidadId": "de288d93-c045-4784-9100-4d19a2584eea",
+          "antes": null,
+          "despues": {
+            "id": "f831eef9-e3a2-4566-ae21-e17d7f95605a",
+            "medio": null,
+            "monto": 540000,
+            "notas": null,
+            "moneda": "ARS",
+            "numero": 2,
+            "periodo": "2026-10-01",
+            "pagadoEl": "2026-11-04",
+            "conceptos": [],
+            "compartido": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.816851-03:00",
+          "entidadTitulo": "Thames 2240"
+        },
+        {
+          "id": 15,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "cobrar",
+          "entidad": "contrato",
+          "entidadId": "de288d93-c045-4784-9100-4d19a2584eea",
+          "antes": null,
+          "despues": {
+            "id": "e66904a7-3664-4051-b757-6b41b764f4ae",
+            "medio": null,
+            "monto": 540000,
+            "notas": null,
+            "moneda": "ARS",
+            "numero": 1,
+            "periodo": "2026-09-01",
+            "pagadoEl": "2026-11-04",
+            "conceptos": [],
+            "compartido": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.798986-03:00",
+          "entidadTitulo": "Thames 2240"
+        },
+        {
+          "id": 14,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "contrato",
+          "entidadId": "de288d93-c045-4784-9100-4d19a2584eea",
+          "antes": null,
+          "despues": {
+            "id": "de288d93-c045-4784-9100-4d19a2584eea",
+            "fin": null,
+            "tipo": "alquiler",
+            "monto": 540000,
+            "notas": null,
+            "estado": "vigente",
+            "inicio": "2026-08-01",
+            "moneda": "ARS",
+            "agenteId": null,
+            "comision": 0,
+            "creadoEn": "2026-11-04T23:47:36.781422-03:00",
+            "deposito": null,
+            "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+            "honorarios": null,
+            "ajusteMeses": 6,
+            "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+            "ajusteIndice": "icl",
+            "garanteNotas": null,
+            "actualizadoEn": "2026-11-04T23:47:36.781422-03:00",
+            "garanteNombre": null,
+            "propietarioId": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+            "contactoNombre": "Lucía Méndez",
+            "diaVencimiento": 10,
+            "garanteTelefono": null,
+            "propiedadTitulo": "Thames 2240",
+            "punitorioDiario": null,
+            "ajustePorcentaje": null,
+            "propietarioNombre": "Sofía Paz"
+          },
+          "creadoEn": "2026-11-04T23:47:36.781422-03:00",
+          "entidadTitulo": "Thames 2240"
+        },
+        {
+          "id": 13,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "cita",
+          "entidadId": "54478ec1-dcf2-458b-80f9-0919550c8bd2",
+          "antes": null,
+          "despues": {
+            "id": "54478ec1-dcf2-458b-80f9-0919550c8bd2",
+            "tipo": "tasacion",
+            "lugar": "Gorriti 5530",
+            "notas": null,
+            "estado": "pendiente",
+            "titulo": "Tasación Gorriti",
+            "agenteId": null,
+            "creadaEn": "2026-11-04T23:47:36.770355-03:00",
+            "recordar": false,
+            "empiezaEn": "2026-11-06T01:47:36.585875-03:00",
+            "contactoId": null,
+            "duracionMin": null,
+            "operacionId": null,
+            "propiedadId": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+            "recordadoEn": null,
+            "agenteNombre": null,
+            "actualizadoEn": "2026-11-04T23:47:36.770355-03:00",
+            "contactoNombre": null,
+            "propiedadTitulo": "Gorriti 5530"
+          },
+          "creadoEn": "2026-11-04T23:47:36.770355-03:00",
+          "entidadTitulo": "Tasación Gorriti"
+        },
+        {
+          "id": 12,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "cita",
+          "entidadId": "3c80bed1-49ad-4e83-819b-683ace0cb26f",
+          "antes": null,
+          "despues": {
+            "id": "3c80bed1-49ad-4e83-819b-683ace0cb26f",
+            "tipo": "visita",
+            "lugar": "Mendoza 2350",
+            "notas": null,
+            "estado": "pendiente",
+            "titulo": "Visita Mendoza 2350",
+            "agenteId": null,
+            "creadaEn": "2026-11-04T23:47:36.75296-03:00",
+            "recordar": false,
+            "empiezaEn": "2026-11-05T01:47:36.585875-03:00",
+            "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+            "duracionMin": 45,
+            "operacionId": null,
+            "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+            "recordadoEn": null,
+            "agenteNombre": null,
+            "actualizadoEn": "2026-11-04T23:47:36.75296-03:00",
+            "contactoNombre": "Valeria Gómez",
+            "propiedadTitulo": "Mendoza 2350, 5.º A"
+          },
+          "creadoEn": "2026-11-04T23:47:36.75296-03:00",
+          "entidadTitulo": "Visita Mendoza 2350"
+        },
+        {
+          "id": 11,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "operacion",
+          "entidadId": "531f8f06-aa87-42be-a61d-a8faae8063f9",
+          "antes": null,
+          "despues": {
+            "id": "531f8f06-aa87-42be-a61d-a8faae8063f9",
+            "sena": null,
+            "etapa": "nuevo",
+            "orden": 1,
+            "valor": 540000,
+            "moneda": "ARS",
+            "titulo": "Alquiler Thames",
+            "caidaEn": null,
+            "reserva": null,
+            "adjuntos": [],
+            "agenteId": null,
+            "creadaEn": "2026-11-04T23:47:36.738431-03:00",
+            "checklist": {},
+            "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+            "senaMoneda": null,
+            "senaRecibo": null,
+            "ultimaCita": null,
+            "caidaMotivo": null,
+            "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+            "proximaCita": null,
+            "senaVenceEl": null,
+            "agenteNombre": null,
+            "actualizadoEn": "2026-11-04T23:47:36.738431-03:00",
+            "propietarioId": null,
+            "comisionAgente": null,
+            "contactoNombre": "Lucía Méndez",
+            "propiedadBarrio": "Palermo",
+            "propiedadFotoId": null,
+            "propiedadMoneda": "ARS",
+            "propiedadPrecio": 540000,
+            "propiedadTitulo": "Thames 2240",
+            "contactoTelefono": "1155556666",
+            "propietarioNombre": null,
+            "honorariosVendedor": null,
+            "propiedadOperacion": "alquiler",
+            "honorariosComprador": null,
+            "propietarioTelefono": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.738431-03:00",
+          "entidadTitulo": "Alquiler Thames"
+        },
+        {
+          "id": 10,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "mover",
+          "entidad": "operacion",
+          "entidadId": "d047f961-d290-4e3d-8e68-ca82407e76af",
+          "antes": {
+            "etapa": "nuevo"
+          },
+          "despues": {
+            "etapa": "visita"
+          },
+          "creadoEn": "2026-11-04T23:47:36.719973-03:00",
+          "entidadTitulo": "Venta Mendoza 2350"
+        },
+        {
+          "id": 9,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "operacion",
+          "entidadId": "d047f961-d290-4e3d-8e68-ca82407e76af",
+          "antes": null,
+          "despues": {
+            "id": "d047f961-d290-4e3d-8e68-ca82407e76af",
+            "sena": null,
+            "etapa": "nuevo",
+            "orden": 1,
+            "valor": 172000,
+            "moneda": "USD",
+            "titulo": "Venta Mendoza 2350",
+            "caidaEn": null,
+            "reserva": null,
+            "adjuntos": [],
+            "agenteId": null,
+            "creadaEn": "2026-11-04T23:47:36.69743-03:00",
+            "checklist": {},
+            "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+            "senaMoneda": null,
+            "senaRecibo": null,
+            "ultimaCita": null,
+            "caidaMotivo": null,
+            "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+            "proximaCita": null,
+            "senaVenceEl": null,
+            "agenteNombre": null,
+            "actualizadoEn": "2026-11-04T23:47:36.69743-03:00",
+            "propietarioId": null,
+            "comisionAgente": null,
+            "contactoNombre": "Valeria Gómez",
+            "propiedadBarrio": "Belgrano",
+            "propiedadFotoId": null,
+            "propiedadMoneda": "USD",
+            "propiedadPrecio": 172000,
+            "propiedadTitulo": "Mendoza 2350, 5.º A",
+            "contactoTelefono": "1144712290",
+            "propietarioNombre": null,
+            "honorariosVendedor": null,
+            "propiedadOperacion": "venta",
+            "honorariosComprador": null,
+            "propietarioTelefono": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.69743-03:00",
+          "entidadTitulo": "Venta Mendoza 2350"
+        },
+        {
+          "id": 8,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "contacto",
+          "entidadId": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+          "antes": null,
+          "despues": {
+            "id": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+            "tipo": "propietario",
+            "email": null,
+            "notas": null,
+            "nombre": "Sofía Paz",
+            "origen": null,
+            "agenteId": null,
+            "creadoEn": "2026-11-04T23:47:36.677577-03:00",
+            "telefono": "1166667777",
+            "buscaTipo": null,
+            "etiquetas": [],
+            "buscaDesde": null,
+            "buscaHasta": null,
+            "buscaMoneda": null,
+            "buscaBarrios": [],
+            "actualizadoEn": "2026-11-04T23:47:36.677577-03:00",
+            "buscaDetalles": [],
+            "buscaAmbientes": null,
+            "buscaOperacion": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.677577-03:00",
+          "entidadTitulo": "Sofía Paz"
+        },
+        {
+          "id": 7,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "contacto",
+          "entidadId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+          "antes": null,
+          "despues": {
+            "id": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+            "tipo": "inquilino",
+            "email": null,
+            "notas": null,
+            "nombre": "Lucía Méndez",
+            "origen": null,
+            "agenteId": null,
+            "creadoEn": "2026-11-04T23:47:36.667945-03:00",
+            "telefono": "1155556666",
+            "buscaTipo": null,
+            "etiquetas": [],
+            "buscaDesde": null,
+            "buscaHasta": null,
+            "buscaMoneda": null,
+            "buscaBarrios": [],
+            "actualizadoEn": "2026-11-04T23:47:36.667945-03:00",
+            "buscaDetalles": [],
+            "buscaAmbientes": null,
+            "buscaOperacion": null
+          },
+          "creadoEn": "2026-11-04T23:47:36.667945-03:00",
+          "entidadTitulo": "Lucía Méndez"
+        },
+        {
+          "id": 6,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "contacto",
+          "entidadId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+          "antes": null,
+          "despues": {
+            "id": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+            "tipo": "comprador",
+            "email": null,
+            "notas": null,
+            "nombre": "Valeria Gómez",
+            "origen": null,
+            "agenteId": null,
+            "creadoEn": "2026-11-04T23:47:36.656144-03:00",
+            "telefono": "1144712290",
+            "buscaTipo": null,
+            "etiquetas": [],
+            "buscaDesde": 150000,
+            "buscaHasta": 180000,
+            "buscaMoneda": "USD",
+            "buscaBarrios": [
+              "Palermo",
+              "Belgrano"
+            ],
+            "actualizadoEn": "2026-11-04T23:47:36.656144-03:00",
+            "buscaDetalles": [],
+            "buscaAmbientes": 3,
+            "buscaOperacion": "venta"
+          },
+          "creadoEn": "2026-11-04T23:47:36.656144-03:00",
+          "entidadTitulo": "Valeria Gómez"
+        },
+        {
+          "id": 5,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "propiedad",
+          "entidadId": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+          "antes": null,
+          "despues": {
+            "id": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+            "lat": -37.108,
+            "lng": -56.861,
+            "slug": null,
+            "tipo": "casa",
+            "banos": null,
+            "ficha": {},
+            "fotos": [],
+            "video": null,
+            "barrio": "Pinamar",
+            "ciudad": null,
+            "estado": "disponible",
+            "moneda": "USD",
+            "numero": 4,
+            "precio": 180,
+            "titulo": "Av. del Mar 1140",
+            "periodo": null,
+            "agenteId": null,
+            "cocheras": null,
+            "creadaEn": "2026-11-04T23:47:36.646504-03:00",
+            "cubierta": null,
+            "expensas": null,
+            "fotosUrl": [],
+            "ambientes": 5,
+            "destacada": false,
+            "direccion": "Av. del Mar 1140",
+            "operacion": "temporario",
+            "publicada": true,
+            "servicios": [],
+            "antiguedad": null,
+            "superficie": null,
+            "aptoCredito": null,
+            "comodidades": [],
+            "descripcion": null,
+            "dormitorios": null,
+            "precioOculto": false,
+            "actualizadoEn": "2026-11-04T23:47:36.646504-03:00",
+            "propietarioId": null,
+            "caracteristicas": [],
+            "emprendimientoId": null,
+            "tambienTemporario": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.646504-03:00",
+          "entidadTitulo": "Av. del Mar 1140"
+        },
+        {
+          "id": 4,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "propiedad",
+          "entidadId": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+          "antes": null,
+          "despues": {
+            "id": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+            "lat": -34.585,
+            "lng": -58.438,
+            "slug": null,
+            "tipo": "ph",
+            "banos": null,
+            "ficha": {},
+            "fotos": [],
+            "video": null,
+            "barrio": "Palermo",
+            "ciudad": null,
+            "estado": "disponible",
+            "moneda": "USD",
+            "numero": 3,
+            "precio": 340000,
+            "titulo": "Gorriti 5530",
+            "periodo": null,
+            "agenteId": null,
+            "cocheras": null,
+            "creadaEn": "2026-11-04T23:47:36.636694-03:00",
+            "cubierta": null,
+            "expensas": null,
+            "fotosUrl": [],
+            "ambientes": 4,
+            "destacada": false,
+            "direccion": "Gorriti 5530",
+            "operacion": "venta",
+            "publicada": true,
+            "servicios": [],
+            "antiguedad": null,
+            "superficie": null,
+            "aptoCredito": null,
+            "comodidades": [],
+            "descripcion": null,
+            "dormitorios": null,
+            "precioOculto": false,
+            "actualizadoEn": "2026-11-04T23:47:36.636694-03:00",
+            "propietarioId": null,
+            "caracteristicas": [],
+            "emprendimientoId": null,
+            "tambienTemporario": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.636694-03:00",
+          "entidadTitulo": "Gorriti 5530"
+        },
+        {
+          "id": 3,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "propiedad",
+          "entidadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+          "antes": null,
+          "despues": {
+            "id": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+            "lat": -34.587,
+            "lng": -58.425,
+            "slug": null,
+            "tipo": "departamento",
+            "banos": null,
+            "ficha": {},
+            "fotos": [],
+            "video": null,
+            "barrio": "Palermo",
+            "ciudad": null,
+            "estado": "disponible",
+            "moneda": "ARS",
+            "numero": 2,
+            "precio": 540000,
+            "titulo": "Thames 2240",
+            "periodo": null,
+            "agenteId": null,
+            "cocheras": null,
+            "creadaEn": "2026-11-04T23:47:36.627147-03:00",
+            "cubierta": null,
+            "expensas": null,
+            "fotosUrl": [],
+            "ambientes": 2,
+            "destacada": false,
+            "direccion": "Thames 2240",
+            "operacion": "alquiler",
+            "publicada": true,
+            "servicios": [],
+            "antiguedad": null,
+            "superficie": null,
+            "aptoCredito": null,
+            "comodidades": [],
+            "descripcion": null,
+            "dormitorios": null,
+            "precioOculto": false,
+            "actualizadoEn": "2026-11-04T23:47:36.627147-03:00",
+            "propietarioId": null,
+            "caracteristicas": [],
+            "emprendimientoId": null,
+            "tambienTemporario": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.627147-03:00",
+          "entidadTitulo": "Thames 2240"
+        },
+        {
+          "id": 2,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "crear",
+          "entidad": "propiedad",
+          "entidadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+          "antes": null,
+          "despues": {
+            "id": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+            "lat": -34.5627,
+            "lng": -58.4563,
+            "slug": null,
+            "tipo": "departamento",
+            "banos": 1,
+            "ficha": {},
+            "fotos": [],
+            "video": null,
+            "barrio": "Belgrano",
+            "ciudad": null,
+            "estado": "disponible",
+            "moneda": "USD",
+            "numero": 1,
+            "precio": 172000,
+            "titulo": "Mendoza 2350, 5.º A",
+            "periodo": null,
+            "agenteId": null,
+            "cocheras": null,
+            "creadaEn": "2026-11-04T23:47:36.608459-03:00",
+            "cubierta": null,
+            "expensas": null,
+            "fotosUrl": [],
+            "ambientes": 3,
+            "destacada": false,
+            "direccion": "Mendoza 2350",
+            "operacion": "venta",
+            "publicada": true,
+            "servicios": [],
+            "antiguedad": null,
+            "superficie": 74,
+            "aptoCredito": null,
+            "comodidades": [],
+            "descripcion": "Luminoso, al frente, con balcón.",
+            "dormitorios": null,
+            "precioOculto": false,
+            "actualizadoEn": "2026-11-04T23:47:36.608459-03:00",
+            "propietarioId": null,
+            "caracteristicas": [],
+            "emprendimientoId": null,
+            "tambienTemporario": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.608459-03:00",
+          "entidadTitulo": "Mendoza 2350, 5.º A"
+        },
+        {
+          "id": 1,
+          "actorTipo": "persona",
+          "actorId": "user_ana",
+          "actorNombre": "Mariana Luna",
+          "accion": "editar",
+          "entidad": "inmobiliaria",
+          "entidadId": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+          "antes": {
+            "id": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+            "cbu": null,
+            "web": "https://luna.corredor.test",
+            "slug": "luna",
+            "marca": {},
+            "avisos": {},
+            "nombre": "Inmobiliaria luna",
+            "dominio": null,
+            "legales": {
+              "cuit": null,
+              "colegio": null,
+              "matricula": null,
+              "razonSocial": null,
+              "corredorResponsable": null
+            },
+            "claveFeed": "970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+            "zonaHoraria": "America/Argentina/Buenos_Aires",
+            "dominioVerificado": false
+          },
+          "despues": {
+            "id": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+            "cbu": null,
+            "web": "https://luna.corredor.test",
+            "slug": "luna",
+            "marca": {},
+            "avisos": {},
+            "nombre": "Luna Propiedades",
+            "dominio": null,
+            "legales": {
+              "cuit": null,
+              "colegio": null,
+              "matricula": null,
+              "razonSocial": null,
+              "corredorResponsable": null
+            },
+            "claveFeed": "970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+            "zonaHoraria": "America/Argentina/Buenos_Aires",
+            "dominioVerificado": false
+          },
+          "creadoEn": "2026-11-04T23:47:36.597615-03:00",
+          "entidadTitulo": null
+        }
+      ],
+      "ruta": "/v1/actividad"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "3c80bed1-49ad-4e83-819b-683ace0cb26f",
+          "tipo": "visita",
+          "estado": "pendiente",
+          "titulo": "Visita Mendoza 2350",
+          "empiezaEn": "2026-11-05T01:47:36.585875-03:00",
+          "duracionMin": 45,
+          "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+          "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+          "operacionId": null,
+          "lugar": "Mendoza 2350",
+          "notas": null,
+          "recordar": false,
+          "agenteId": null,
+          "recordadoEn": null,
+          "contactoNombre": "Valeria Gómez",
+          "propiedadTitulo": "Mendoza 2350, 5.º A",
+          "agenteNombre": null,
+          "creadaEn": "2026-11-04T23:47:36.75296-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.75296-03:00"
+        },
+        {
+          "id": "54478ec1-dcf2-458b-80f9-0919550c8bd2",
+          "tipo": "tasacion",
+          "estado": "pendiente",
+          "titulo": "Tasación Gorriti",
+          "empiezaEn": "2026-11-06T01:47:36.585875-03:00",
+          "duracionMin": null,
+          "propiedadId": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+          "contactoId": null,
+          "operacionId": null,
+          "lugar": "Gorriti 5530",
+          "notas": null,
+          "recordar": false,
+          "agenteId": null,
+          "recordadoEn": null,
+          "contactoNombre": null,
+          "propiedadTitulo": "Gorriti 5530",
+          "agenteNombre": null,
+          "creadaEn": "2026-11-04T23:47:36.770355-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.770355-03:00"
+        }
+      ],
+      "ruta": "/v1/agenda"
+    },
+    {
+      "cuerpo": {
+        "id": "3c80bed1-49ad-4e83-819b-683ace0cb26f",
+        "tipo": "visita",
+        "estado": "pendiente",
+        "titulo": "Visita Mendoza 2350",
+        "empiezaEn": "2026-11-05T01:47:36.585875-03:00",
+        "duracionMin": 45,
+        "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+        "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+        "operacionId": null,
+        "lugar": "Mendoza 2350",
+        "notas": null,
+        "recordar": false,
+        "agenteId": null,
+        "recordadoEn": null,
+        "contactoNombre": "Valeria Gómez",
+        "propiedadTitulo": "Mendoza 2350, 5.º A",
+        "agenteNombre": null,
+        "creadaEn": "2026-11-04T23:47:36.75296-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.75296-03:00"
+      },
+      "ruta": "/v1/agenda/3c80bed1-49ad-4e83-819b-683ace0cb26f"
+    },
+    {
+      "cuerpo": {
+        "id": "54478ec1-dcf2-458b-80f9-0919550c8bd2",
+        "tipo": "tasacion",
+        "estado": "pendiente",
+        "titulo": "Tasación Gorriti",
+        "empiezaEn": "2026-11-06T01:47:36.585875-03:00",
+        "duracionMin": null,
+        "propiedadId": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+        "contactoId": null,
+        "operacionId": null,
+        "lugar": "Gorriti 5530",
+        "notas": null,
+        "recordar": false,
+        "agenteId": null,
+        "recordadoEn": null,
+        "contactoNombre": null,
+        "propiedadTitulo": "Gorriti 5530",
+        "agenteNombre": null,
+        "creadaEn": "2026-11-04T23:47:36.770355-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.770355-03:00"
+      },
+      "ruta": "/v1/agenda/54478ec1-dcf2-458b-80f9-0919550c8bd2"
+    },
+    {
+      "cuerpo": {
+        "usuario": {
+          "id": "user_ana",
+          "email": "mariana@luna.test",
+          "nombre": "Mariana",
+          "apellido": "Luna",
+          "tourVisto": false
+        },
+        "inmobiliariaId": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+        "rol": "duenio",
+        "venceEn": "2026-11-05T23:47:36.579072-03:00",
+        "inmobiliarias": [
+          {
+            "inmobiliariaId": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+            "slug": "luna",
+            "nombre": "Luna Propiedades",
+            "rol": "duenio"
+          }
+        ]
+      },
+      "ruta": "/v1/auth/sesion"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "10633d249943abfc",
+          "actual": true,
+          "agente": null,
+          "ip": null,
+          "creadaEn": "2026-11-04T23:47:36.579072-03:00",
+          "vistoEn": "2026-11-04T23:47:36.579072-03:00"
+        }
+      ],
+      "ruta": "/v1/auth/sesiones"
+    },
+    {
+      "cuerpo": {
+        "avisos": [],
+        "siguiente": null,
+        "noLeidos": 0,
+        "paraHacer": 0
+      },
+      "ruta": "/v1/avisos"
+    },
+    {
+      "cuerpo": {
+        "noLeidos": 0,
+        "paraHacer": 0
+      },
+      "ruta": "/v1/avisos/contador"
+    },
+    {
+      "cuerpo": {
+        "tipos": [
+          {
+            "tipo": "consulta",
+            "nombre": "Consulta nueva",
+            "push": true,
+            "mail": false
+          },
+          {
+            "tipo": "whatsapp",
+            "nombre": "WhatsApp de mis contactos",
+            "push": true,
+            "mail": false
+          },
+          {
+            "tipo": "mercadolibre",
+            "nombre": "Pregunta en Mercado Libre",
+            "push": true,
+            "mail": false
+          },
+          {
+            "tipo": "visita",
+            "nombre": "Visita en 30 min",
+            "push": true,
+            "mail": false
+          },
+          {
+            "tipo": "cobro",
+            "nombre": "Cobro vencido",
+            "push": false,
+            "mail": true
+          },
+          {
+            "tipo": "resumen",
+            "nombre": "Resumen de la mañana",
+            "push": true,
+            "mail": true
+          },
+          {
+            "tipo": "informe",
+            "nombre": "Informe del mes",
+            "push": false,
+            "mail": true,
+            "sinPush": true
+          }
+        ],
+        "silencio": {
+          "activo": false,
+          "desde": 21,
+          "hasta": 8,
+          "domingos": true
+        }
+      },
+      "ruta": "/v1/avisos/preferencias"
+    },
+    {
+      "cuerpo": {
+        "periodo": "2026-11-01",
+        "cobradas": [],
+        "pendientes": [
+          {
+            "contratoId": "de288d93-c045-4784-9100-4d19a2584eea",
+            "propiedadTitulo": "Thames 2240",
+            "contactoNombre": "Lucía Méndez",
+            "propietarioNombre": "Sofía Paz",
+            "agenteId": null,
+            "monto": 540000,
+            "moneda": "ARS",
+            "estimado": false,
+            "vence": "2026-11-10",
+            "estado": "pendiente",
+            "cobro": null,
+            "comision": null,
+            "punitorioDiario": null
+          }
+        ],
+        "totalCobrado": {},
+        "totalPendiente": {
+          "ARS": 540000
+        },
+        "totalComision": {}
+      },
+      "ruta": "/v1/cobranzas"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "63cc840b-7b90-4231-a228-1ab8809da274",
+          "nombre": "Cabildo 2620",
+          "direccion": "Cabildo 2620",
+          "cuit": null,
+          "modoExpensas": "prorrateo",
+          "fondoTipo": "ninguno",
+          "fondoValor": 0.00,
+          "interesMensual": 0,
+          "notas": null,
+          "agenteId": null,
+          "cbu": null,
+          "diaVencimiento": null,
+          "diaSegundoVencimiento": null,
+          "fotoId": null,
+          "fotoUrl": null,
+          "reglamentoEn": null,
+          "metricas": {
+            "unidades": 2,
+            "deudores": 0,
+            "saldoAdeudado": 0.00,
+            "novedadesAbiertas": 0,
+            "trabajosPendientes": 0,
+            "trabajosVencidos": 0,
+            "servicesPorVencer": 1
+          },
+          "creadoEn": "2026-11-04T23:47:36.843472-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.890687-03:00"
+        }
+      ],
+      "ruta": "/v1/consorcios"
+    },
+    {
+      "cuerpo": {
+        "id": "63cc840b-7b90-4231-a228-1ab8809da274",
+        "nombre": "Cabildo 2620",
+        "direccion": "Cabildo 2620",
+        "cuit": null,
+        "modoExpensas": "prorrateo",
+        "fondoTipo": "ninguno",
+        "fondoValor": 0.00,
+        "interesMensual": 0,
+        "notas": null,
+        "agenteId": null,
+        "cbu": null,
+        "diaVencimiento": null,
+        "diaSegundoVencimiento": null,
+        "fotoId": null,
+        "fotoUrl": null,
+        "reglamentoEn": null,
+        "metricas": {
+          "unidades": 2,
+          "deudores": 0,
+          "saldoAdeudado": 0.00,
+          "novedadesAbiertas": 0,
+          "trabajosPendientes": 0,
+          "trabajosVencidos": 0,
+          "servicesPorVencer": 1
+        },
+        "creadoEn": "2026-11-04T23:47:36.843472-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.890687-03:00",
+        "columnas": [
+          {
+            "id": "7ca8c1ae-ea29-44ca-a7df-dbf86f902de2",
+            "nombre": "General",
+            "metodo": "coeficiente",
+            "porDefecto": true,
+            "orden": 0
+          }
+        ]
+      },
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "901db8c1-c97d-4248-ab45-938c8f26e381",
+          "nombre": "Matafuegos",
+          "categoria": "matafuego",
+          "ubicacion": null,
+          "cantidad": 4,
+          "estado": "ok",
+          "proximoService": "2026-12-14",
+          "responsable": null,
+          "notas": null,
+          "creadoEn": "2026-11-04T23:47:36.890687-03:00"
+        }
+      ],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/bienes"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/deudores"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/empleados"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/novedades"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "cda2178b-9df8-4ced-944b-f8f6c55c3f86",
+          "periodo": "2026-11",
+          "estado": "borrador",
+          "gastosTotal": 0.00,
+          "fondoTotal": 0.00,
+          "total": 0.00,
+          "liquidadoEn": null,
+          "notas": null,
+          "cargado": 0.00,
+          "creadoEn": "2026-11-04T23:47:36.879236-03:00"
+        }
+      ],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/periodos"
+    },
+    {
+      "cuerpo": {
+        "id": "cda2178b-9df8-4ced-944b-f8f6c55c3f86",
+        "periodo": "2026-11",
+        "estado": "borrador",
+        "gastosTotal": 0.00,
+        "fondoTotal": 0.00,
+        "total": 0.00,
+        "liquidadoEn": null,
+        "notas": null,
+        "cargado": 0.00,
+        "creadoEn": "2026-11-04T23:47:36.879236-03:00",
+        "gastos": [],
+        "liquidaciones": []
+      },
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/periodos/cda2178b-9df8-4ced-944b-f8f6c55c3f86"
+    },
+    {
+      "cuerpo": {
+        "unidades": [
+          {
+            "unidadId": "198057dc-e102-48fa-8cd6-9d9f0eae315b",
+            "desglose": [],
+            "subtotal": 0.00,
+            "fondo": 0.00,
+            "total": 0.00
+          },
+          {
+            "unidadId": "c720c259-59b0-4291-959e-a54c42fb0913",
+            "desglose": [],
+            "subtotal": 0.00,
+            "fondo": 0.00,
+            "total": 0.00
+          }
+        ],
+        "gastosTotal": 0.00,
+        "fondoTotal": 0.00,
+        "total": 0.00
+      },
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/periodos/cda2178b-9df8-4ced-944b-f8f6c55c3f86/prorrateo"
+    },
+    {
+      "cuerpo": {
+        "guardadoEn": null,
+        "sinCambios": false,
+        "cambios": []
+      },
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/reglamento"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/trabajos"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "198057dc-e102-48fa-8cd6-9d9f0eae315b",
+          "etiqueta": "1.º A",
+          "piso": "1",
+          "tipo": "departamento",
+          "propietarioId": null,
+          "inquilinoId": null,
+          "notas": null,
+          "expensaFija": 0.00,
+          "coeficientes": {},
+          "propietario": null,
+          "inquilino": null,
+          "propietarioEmail": null,
+          "propietarioTelefono": null,
+          "saldo": 0.00,
+          "creadaEn": "2026-11-04T23:47:36.859752-03:00",
+          "actualizadaEn": "2026-11-04T23:47:36.859752-03:00"
+        },
+        {
+          "id": "c720c259-59b0-4291-959e-a54c42fb0913",
+          "etiqueta": "1.º B",
+          "piso": "1",
+          "tipo": "departamento",
+          "propietarioId": null,
+          "inquilinoId": null,
+          "notas": null,
+          "expensaFija": 0.00,
+          "coeficientes": {},
+          "propietario": null,
+          "inquilino": null,
+          "propietarioEmail": null,
+          "propietarioTelefono": null,
+          "saldo": 0.00,
+          "creadaEn": "2026-11-04T23:47:36.871486-03:00",
+          "actualizadaEn": "2026-11-04T23:47:36.871486-03:00"
+        }
+      ],
+      "ruta": "/v1/consorcios/63cc840b-7b90-4231-a228-1ab8809da274/unidades"
+    },
+    {
+      "cuerpo": [
+        {
+          "consorcioId": "63cc840b-7b90-4231-a228-1ab8809da274",
+          "consorcio": "Cabildo 2620",
+          "tipo": "service",
+          "texto": "Matafuegos",
+          "fecha": "2026-12-14",
+          "dias": 40
+        }
+      ],
+      "ruta": "/v1/consorcios/alertas"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+          "nombre": "Valeria Gómez",
+          "telefono": "1144712290",
+          "email": null,
+          "tipo": "comprador",
+          "origen": null,
+          "notas": null,
+          "agenteId": null,
+          "buscaOperacion": "venta",
+          "buscaTipo": null,
+          "buscaMoneda": "USD",
+          "buscaDesde": 150000,
+          "buscaHasta": 180000,
+          "buscaAmbientes": 3,
+          "buscaBarrios": [
+            "Palermo",
+            "Belgrano"
+          ],
+          "buscaDetalles": [],
+          "etiquetas": [],
+          "creadoEn": "2026-11-04T23:47:36.656144-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.687313-03:00",
+          "actividadEn": "2026-11-04T23:47:36.687313-03:00",
+          "esperaDesde": null,
+          "proximaCitaEn": "2026-11-05T01:47:36.585875-03:00",
+          "proximaCitaTitulo": "Visita Mendoza 2350",
+          "propiedad": "Mendoza 2350, 5.º A",
+          "debe": []
+        },
+        {
+          "id": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+          "nombre": "Sofía Paz",
+          "telefono": "1166667777",
+          "email": null,
+          "tipo": "propietario",
+          "origen": null,
+          "notas": null,
+          "agenteId": null,
+          "buscaOperacion": null,
+          "buscaTipo": null,
+          "buscaMoneda": null,
+          "buscaDesde": null,
+          "buscaHasta": null,
+          "buscaAmbientes": null,
+          "buscaBarrios": [],
+          "buscaDetalles": [],
+          "etiquetas": [],
+          "creadoEn": "2026-11-04T23:47:36.677577-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.677577-03:00",
+          "actividadEn": "2026-11-04T23:47:36.677577-03:00",
+          "esperaDesde": null,
+          "proximaCitaEn": null,
+          "proximaCitaTitulo": null,
+          "propiedad": null,
+          "debe": []
+        },
+        {
+          "id": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+          "nombre": "Lucía Méndez",
+          "telefono": "1155556666",
+          "email": null,
+          "tipo": "inquilino",
+          "origen": null,
+          "notas": null,
+          "agenteId": null,
+          "buscaOperacion": null,
+          "buscaTipo": null,
+          "buscaMoneda": null,
+          "buscaDesde": null,
+          "buscaHasta": null,
+          "buscaAmbientes": null,
+          "buscaBarrios": [],
+          "buscaDetalles": [],
+          "etiquetas": [],
+          "creadoEn": "2026-11-04T23:47:36.667945-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.667945-03:00",
+          "actividadEn": "2026-11-04T23:47:36.667945-03:00",
+          "esperaDesde": null,
+          "proximaCitaEn": null,
+          "proximaCitaTitulo": null,
+          "propiedad": "Thames 2240",
+          "debe": []
+        }
+      ],
+      "ruta": "/v1/contactos"
+    },
+    {
+      "cuerpo": {
+        "id": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+        "nombre": "Sofía Paz",
+        "telefono": "1166667777",
+        "email": null,
+        "tipo": "propietario",
+        "origen": null,
+        "notas": null,
+        "agenteId": null,
+        "buscaOperacion": null,
+        "buscaTipo": null,
+        "buscaMoneda": null,
+        "buscaDesde": null,
+        "buscaHasta": null,
+        "buscaAmbientes": null,
+        "buscaBarrios": [],
+        "buscaDetalles": [],
+        "etiquetas": [],
+        "creadoEn": "2026-11-04T23:47:36.677577-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.677577-03:00"
+      },
+      "ruta": "/v1/contactos/16a6e918-2fb3-4699-84c0-52615a4a9557"
+    },
+    {
+      "cuerpo": {
+        "id": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+        "nombre": "Lucía Méndez",
+        "telefono": "1155556666",
+        "email": null,
+        "tipo": "inquilino",
+        "origen": null,
+        "notas": null,
+        "agenteId": null,
+        "buscaOperacion": null,
+        "buscaTipo": null,
+        "buscaMoneda": null,
+        "buscaDesde": null,
+        "buscaHasta": null,
+        "buscaAmbientes": null,
+        "buscaBarrios": [],
+        "buscaDetalles": [],
+        "etiquetas": [],
+        "creadoEn": "2026-11-04T23:47:36.667945-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.667945-03:00"
+      },
+      "ruta": "/v1/contactos/97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99"
+    },
+    {
+      "cuerpo": {
+        "id": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+        "nombre": "Valeria Gómez",
+        "telefono": "1144712290",
+        "email": null,
+        "tipo": "comprador",
+        "origen": null,
+        "notas": null,
+        "agenteId": null,
+        "buscaOperacion": "venta",
+        "buscaTipo": null,
+        "buscaMoneda": "USD",
+        "buscaDesde": 150000,
+        "buscaHasta": 180000,
+        "buscaAmbientes": 3,
+        "buscaBarrios": [
+          "Palermo",
+          "Belgrano"
+        ],
+        "buscaDetalles": [],
+        "etiquetas": [],
+        "creadoEn": "2026-11-04T23:47:36.656144-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.687313-03:00"
+      },
+      "ruta": "/v1/contactos/b9543665-f254-45b6-94fc-2dbe8fe9984f"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "fac393f1-1405-4f22-a140-236fbae53225",
+          "tipo": "nota",
+          "texto": "Quiere mudarse antes de marzo.",
+          "ocurrioEn": "2026-11-04T23:47:36.687313-03:00",
+          "autorId": "user_ana"
+        }
+      ],
+      "ruta": "/v1/contactos/b9543665-f254-45b6-94fc-2dbe8fe9984f/notas"
+    },
+    {
+      "cuerpo": [
+        {
+          "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+          "titulo": "Mendoza 2350, 5.º A",
+          "direccion": "Mendoza 2350",
+          "barrio": "Belgrano",
+          "precio": 172000,
+          "moneda": "USD",
+          "fotoId": null,
+          "estado": "visita",
+          "visitaEn": "2026-11-05T01:47:36.585875-03:00",
+          "operacionId": "d047f961-d290-4e3d-8e68-ca82407e76af",
+          "puntaje": null,
+          "enviadaEn": null,
+          "reservaVenceEl": null
+        }
+      ],
+      "ruta": "/v1/contactos/b9543665-f254-45b6-94fc-2dbe8fe9984f/propiedades"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "de288d93-c045-4784-9100-4d19a2584eea",
+          "tipo": "alquiler",
+          "estado": "vigente",
+          "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+          "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+          "propietarioId": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+          "agenteId": null,
+          "inicio": "2026-08-01",
+          "fin": null,
+          "monto": 540000,
+          "moneda": "ARS",
+          "ajusteMeses": 6,
+          "ajusteIndice": "icl",
+          "ajustePorcentaje": null,
+          "comision": 0,
+          "deposito": null,
+          "diaVencimiento": 10,
+          "garanteNombre": null,
+          "garanteTelefono": null,
+          "garanteNotas": null,
+          "notas": null,
+          "honorarios": null,
+          "punitorioDiario": null,
+          "propiedadTitulo": "Thames 2240",
+          "contactoNombre": "Lucía Méndez",
+          "propietarioNombre": "Sofía Paz",
+          "creadoEn": "2026-11-04T23:47:36.781422-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.828036-03:00"
+        }
+      ],
+      "ruta": "/v1/contratos"
+    },
+    {
+      "cuerpo": {
+        "id": "de288d93-c045-4784-9100-4d19a2584eea",
+        "tipo": "alquiler",
+        "estado": "vigente",
+        "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+        "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+        "propietarioId": "16a6e918-2fb3-4699-84c0-52615a4a9557",
+        "agenteId": null,
+        "inicio": "2026-08-01",
+        "fin": null,
+        "monto": 540000,
+        "moneda": "ARS",
+        "ajusteMeses": 6,
+        "ajusteIndice": "icl",
+        "ajustePorcentaje": null,
+        "comision": 0,
+        "deposito": null,
+        "diaVencimiento": 10,
+        "garanteNombre": null,
+        "garanteTelefono": null,
+        "garanteNotas": null,
+        "notas": null,
+        "honorarios": null,
+        "punitorioDiario": null,
+        "propiedadTitulo": "Thames 2240",
+        "contactoNombre": "Lucía Méndez",
+        "propietarioNombre": "Sofía Paz",
+        "creadoEn": "2026-11-04T23:47:36.781422-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.828036-03:00"
+      },
+      "ruta": "/v1/contratos/de288d93-c045-4784-9100-4d19a2584eea"
+    },
+    {
+      "cuerpo": {
+        "indice": "icl",
+        "base": 540000,
+        "vigente": 540000,
+        "vigenteEstimado": false,
+        "ultimoAjuste": null,
+        "proximo": {
+          "fecha": "2027-02-01",
+          "monto": null
+        },
+        "cronograma": [
+          {
+            "fecha": "2027-02-01",
+            "monto": null,
+            "factor": null,
+            "futuro": true,
+            "estimado": true
+          }
+        ],
+        "faltanDatos": true,
+        "indiceUltimoPeriodo": null,
+        "avisos": {}
+      },
+      "ruta": "/v1/contratos/de288d93-c045-4784-9100-4d19a2584eea/ajuste"
+    },
+    {
+      "cuerpo": [
+        {
+          "periodo": "2026-08-01",
+          "vence": "2026-08-10",
+          "esperado": 540000,
+          "estimado": false,
+          "estado": "sin_registro",
+          "cobro": null
+        },
+        {
+          "periodo": "2026-09-01",
+          "vence": "2026-09-10",
+          "esperado": 540000,
+          "estimado": false,
+          "estado": "cobrado",
+          "cobro": {
+            "id": "e66904a7-3664-4051-b757-6b41b764f4ae",
+            "periodo": "2026-09-01",
+            "monto": 540000,
+            "moneda": "ARS",
+            "pagadoEl": "2026-11-04",
+            "notas": null,
+            "medio": null,
+            "compartido": false,
+            "numero": 1,
+            "conceptos": []
+          }
+        },
+        {
+          "periodo": "2026-10-01",
+          "vence": "2026-10-10",
+          "esperado": 540000,
+          "estimado": false,
+          "estado": "cobrado",
+          "cobro": {
+            "id": "f831eef9-e3a2-4566-ae21-e17d7f95605a",
+            "periodo": "2026-10-01",
+            "monto": 540000,
+            "moneda": "ARS",
+            "pagadoEl": "2026-11-04",
+            "notas": null,
+            "medio": null,
+            "compartido": false,
+            "numero": 2,
+            "conceptos": []
+          }
+        },
+        {
+          "periodo": "2026-11-01",
+          "vence": "2026-11-10",
+          "esperado": 540000,
+          "estimado": false,
+          "estado": "pendiente",
+          "cobro": null
+        }
+      ],
+      "ruta": "/v1/contratos/de288d93-c045-4784-9100-4d19a2584eea/cobros"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "184e2d13-36de-45ad-89ce-c593e7210ecd",
+          "contratoId": "de288d93-c045-4784-9100-4d19a2584eea",
+          "periodo": "2026-10-01",
+          "moneda": "ARS",
+          "cobrado": 540000,
+          "comisionPorcentaje": 0,
+          "comision": 0,
+          "gastos": 0,
+          "neto": 540000,
+          "estado": "pendiente",
+          "notas": null,
+          "compartida": false,
+          "creadoEn": "2026-11-04T23:47:36.828036-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.828036-03:00",
+          "numero": null,
+          "emitidaEn": null
+        }
+      ],
+      "ruta": "/v1/contratos/de288d93-c045-4784-9100-4d19a2584eea/rendiciones"
+    },
+    {
+      "cuerpo": {
+        "id": "184e2d13-36de-45ad-89ce-c593e7210ecd",
+        "contratoId": "de288d93-c045-4784-9100-4d19a2584eea",
+        "periodo": "2026-10-01",
+        "moneda": "ARS",
+        "cobrado": 540000,
+        "comisionPorcentaje": 0,
+        "comision": 0,
+        "gastos": 0,
+        "neto": 540000,
+        "estado": "pendiente",
+        "notas": null,
+        "compartida": false,
+        "creadoEn": "2026-11-04T23:47:36.828036-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.828036-03:00",
+        "numero": null,
+        "emitidaEn": null
+      },
+      "ruta": "/v1/contratos/de288d93-c045-4784-9100-4d19a2584eea/rendiciones/184e2d13-36de-45ad-89ce-c593e7210ecd"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/contratos/deudas"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/documentos?contrato=de288d93-c045-4784-9100-4d19a2584eea"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/documentos?propiedad=e6738480-4623-4b81-be2a-9a3b0bd4f7f4"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "slug": "bosque-azul",
+          "nombre": "Bosque Azul",
+          "tipo": "loteo",
+          "estado": "preventa",
+          "descripcion": null,
+          "direccion": null,
+          "barrio": null,
+          "lat": null,
+          "lng": null,
+          "avance": 0,
+          "entrega": null,
+          "financiacion": null,
+          "comodidades": [],
+          "infraestructura": [],
+          "fotos": [],
+          "video": null,
+          "desarrolladora": null,
+          "superficieTotal": null,
+          "precioDesde": null,
+          "moneda": "USD",
+          "destacado": false,
+          "publicado": true,
+          "agenteId": null,
+          "masterplan": {},
+          "masterplanUrl": null,
+          "fotosUrl": [],
+          "unidades": {
+            "total": 6,
+            "disponibles": 6,
+            "reservadas": 0,
+            "vendidas": 0
+          },
+          "creadoEn": "2026-11-04T23:47:36.899907-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        }
+      ],
+      "ruta": "/v1/emprendimientos"
+    },
+    {
+      "cuerpo": {
+        "id": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "slug": "bosque-azul",
+        "nombre": "Bosque Azul",
+        "tipo": "loteo",
+        "estado": "preventa",
+        "descripcion": null,
+        "direccion": null,
+        "barrio": null,
+        "lat": null,
+        "lng": null,
+        "avance": 0,
+        "entrega": null,
+        "financiacion": null,
+        "comodidades": [],
+        "infraestructura": [],
+        "fotos": [],
+        "video": null,
+        "desarrolladora": null,
+        "superficieTotal": null,
+        "precioDesde": null,
+        "moneda": "USD",
+        "destacado": false,
+        "publicado": true,
+        "agenteId": null,
+        "masterplan": {},
+        "masterplanUrl": null,
+        "fotosUrl": [],
+        "unidades": {
+          "total": 6,
+          "disponibles": 6,
+          "reservadas": 0,
+          "vendidas": 0
+        },
+        "creadoEn": "2026-11-04T23:47:36.899907-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/emprendimientos/fa25c065-a2b8-4133-ac67-877bc2eb7c77"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "29caa404-21fc-43ef-817b-9b98a1198e9d",
+          "numero": 5,
+          "titulo": "Manzana A · Lote 1 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "1",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        },
+        {
+          "id": "2bb5d4dd-280c-402b-ad91-8f1174826d65",
+          "numero": 6,
+          "titulo": "Manzana A · Lote 2 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "2",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        },
+        {
+          "id": "597932d7-95de-4b02-b6f0-0840be5cdcfd",
+          "numero": 7,
+          "titulo": "Manzana A · Lote 3 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "3",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        },
+        {
+          "id": "f297e28b-88d8-4e0a-9f24-6d49ab31b77a",
+          "numero": 8,
+          "titulo": "Manzana A · Lote 4 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "4",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        },
+        {
+          "id": "36f56265-10e5-40dd-81e8-a02663251adc",
+          "numero": 9,
+          "titulo": "Manzana A · Lote 5 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "5",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        },
+        {
+          "id": "e35d6ef8-08c6-4e41-b006-d83da7a018fd",
+          "numero": 10,
+          "titulo": "Manzana A · Lote 6 · Bosque Azul",
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "superficie": 450,
+          "ambientes": null,
+          "manzana": "A",
+          "lote": "6",
+          "piso": null,
+          "depto": null,
+          "agenteId": null,
+          "fotoUrl": null
+        }
+      ],
+      "ruta": "/v1/emprendimientos/fa25c065-a2b8-4133-ac67-877bc2eb7c77/unidades"
+    },
+    {
+      "cuerpo": [
+        {
+          "usuarioId": "user_beto",
+          "email": "user_beto@prueba.test",
+          "nombre": "Beto",
+          "apellido": "Sosa",
+          "foto": null,
+          "telefono": null,
+          "whatsapp": null,
+          "rol": "agente",
+          "desde": "2026-11-04T23:47:36.580564-03:00",
+          "propiedades": 0,
+          "barrios": [],
+          "avisosPush": false
+        },
+        {
+          "usuarioId": "user_ana",
+          "email": "mariana@luna.test",
+          "nombre": "Mariana",
+          "apellido": "Luna",
+          "foto": null,
+          "telefono": "1144445555",
+          "whatsapp": null,
+          "rol": "duenio",
+          "desde": "2026-11-04T23:47:36.568767-03:00",
+          "propiedades": 0,
+          "barrios": [],
+          "avisosPush": false
+        }
+      ],
+      "ruta": "/v1/equipo"
+    },
+    {
+      "cuerpo": {
+        "habilitado": false,
+        "agendar": false,
+        "mover": false,
+        "url": "https://mcp.corredor.test/luna",
+        "aviso": "Los datos de tus contactos pasan al proveedor de tu IA cuando ella los consulta. Revisá sus condiciones: según la Ley 25.326, la inmobiliaria es la responsable de esos datos."
+      },
+      "ruta": "/v1/ia/ajustes"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/ia/conexiones"
+    },
+    {
+      "cuerpo": [
+        {
+          "codigo": "icl",
+          "ultimoPeriodo": null,
+          "ultimoValor": null,
+          "actualizadoEn": null
+        },
+        {
+          "codigo": "ipc",
+          "ultimoPeriodo": null,
+          "ultimoValor": null,
+          "actualizadoEn": null
+        },
+        {
+          "codigo": "uva",
+          "ultimoPeriodo": null,
+          "ultimoValor": null,
+          "actualizadoEn": null
+        }
+      ],
+      "ruta": "/v1/indices"
+    },
+    {
+      "cuerpo": {
+        "dias": 90,
+        "masVistas": [],
+        "totalVistas": 0,
+        "origenes": [
+          {
+            "origen": "Sin especificar",
+            "cantidad": 3
+          }
+        ],
+        "totalContactos": 3,
+        "embudo": [
+          {
+            "etapa": "nuevo",
+            "cantidad": 1
+          },
+          {
+            "etapa": "contactado",
+            "cantidad": 0
+          },
+          {
+            "etapa": "visita",
+            "cantidad": 1
+          },
+          {
+            "etapa": "reserva",
+            "cantidad": 0
+          },
+          {
+            "etapa": "cierre",
+            "cantidad": 0
+          }
+        ],
+        "cerradas": 0,
+        "diasPromedioCierre": null,
+        "honorarios": [],
+        "caidas": 0,
+        "motivoCaida": null
+      },
+      "ruta": "/v1/informe"
+    },
+    {
+      "cuerpo": {
+        "mes": "2026-10",
+        "anterior": "2026-09",
+        "actual": {
+          "consultas": 0,
+          "visitas": 0,
+          "reservas": 0,
+          "cierres": 0,
+          "captaciones": 0,
+          "caidas": 0,
+          "honorarios": {}
+        },
+        "mesAnterior": {
+          "consultas": 0,
+          "visitas": 0,
+          "reservas": 0,
+          "cierres": 0,
+          "captaciones": 0,
+          "caidas": 0,
+          "honorarios": {}
+        },
+        "inmobiliaria": "Luna Propiedades",
+        "serie": [
+          {
+            "mes": "2026-05",
+            "monto": 0
+          },
+          {
+            "mes": "2026-06",
+            "monto": 0
+          },
+          {
+            "mes": "2026-07",
+            "monto": 0
+          },
+          {
+            "mes": "2026-08",
+            "monto": 0
+          },
+          {
+            "mes": "2026-09",
+            "monto": 0
+          },
+          {
+            "mes": "2026-10",
+            "monto": 0
+          }
+        ],
+        "moneda": "USD",
+        "equipo": [],
+        "caidas": [],
+        "rendiciones": {
+          "cantidad": 1,
+          "emitidas": 0,
+          "neto": {
+            "ARS": 0
+          },
+          "comision": {
+            "ARS": 0
+          },
+          "pendientes": 1
+        }
+      },
+      "ruta": "/v1/informe/mensual"
+    },
+    {
+      "cuerpo": {
+        "id": "07c1ec42-57e3-4567-b987-40b29bdc7a26",
+        "slug": "luna",
+        "nombre": "Luna Propiedades",
+        "dominio": null,
+        "dominioVerificado": false,
+        "marca": {},
+        "avisos": {},
+        "claveFeed": "970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+        "zonaHoraria": "America/Argentina/Buenos_Aires",
+        "legales": {
+          "razonSocial": null,
+          "cuit": null,
+          "corredorResponsable": null,
+          "matricula": null,
+          "colegio": null
+        },
+        "cbu": null,
+        "web": "https://luna.corredor.test"
+      },
+      "ruta": "/v1/inmobiliaria"
+    },
+    {
+      "cuerpo": {
+        "dominio": null,
+        "registro": null,
+        "registros": [],
+        "verificado": false,
+        "web": "https://luna.corredor.test"
+      },
+      "ruta": "/v1/inmobiliaria/dominio"
+    },
+    {
+      "cuerpo": [
+        {
+          "portal": "zonaprop",
+          "url": "http://api.test/publico/feeds/zonaprop/luna?clave=970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+          "leidoEn": null,
+          "avisos": null
+        },
+        {
+          "portal": "argenprop",
+          "url": "http://api.test/publico/feeds/argenprop/luna?clave=970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+          "leidoEn": null,
+          "avisos": null
+        },
+        {
+          "portal": "mercadolibre",
+          "url": "http://api.test/publico/feeds/mercadolibre/luna?clave=970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+          "leidoEn": null,
+          "avisos": null
+        }
+      ],
+      "ruta": "/v1/inmobiliaria/feeds"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/invitaciones"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/licencias"
+    },
+    {
+      "cuerpo": {
+        "disponible": false,
+        "conectada": false,
+        "reautorizar": false,
+        "preguntasSinResponder": 0
+      },
+      "ruta": "/v1/mercadolibre"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/mercadolibre/preguntas"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "faf9c3b6-6052-476d-b8fc-5cab05012028",
+          "agenteId": null,
+          "metrica": "operaciones_cerradas",
+          "meta": 5,
+          "desde": "2026-11-01",
+          "hasta": "2026-11-30",
+          "agenteNombre": null,
+          "avance": 0,
+          "porcentaje": 0,
+          "creadoEn": "2026-11-04T23:47:36.945865-03:00"
+        }
+      ],
+      "ruta": "/v1/objetivos"
+    },
+    {
+      "cuerpo": {
+        "id": "faf9c3b6-6052-476d-b8fc-5cab05012028",
+        "agenteId": null,
+        "metrica": "operaciones_cerradas",
+        "meta": 5,
+        "desde": "2026-11-01",
+        "hasta": "2026-11-30",
+        "agenteNombre": null,
+        "avance": 0,
+        "porcentaje": 0,
+        "creadoEn": "2026-11-04T23:47:36.945865-03:00"
+      },
+      "ruta": "/v1/objetivos/faf9c3b6-6052-476d-b8fc-5cab05012028"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "531f8f06-aa87-42be-a61d-a8faae8063f9",
+          "titulo": "Alquiler Thames",
+          "etapa": "nuevo",
+          "valor": 540000,
+          "moneda": "ARS",
+          "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+          "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+          "agenteId": null,
+          "orden": 1,
+          "contactoNombre": "Lucía Méndez",
+          "propiedadTitulo": "Thames 2240",
+          "agenteNombre": null,
+          "creadaEn": "2026-11-04T23:47:36.738431-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.738431-03:00",
+          "sena": null,
+          "senaMoneda": null,
+          "caidaEn": null,
+          "caidaMotivo": null,
+          "honorariosComprador": null,
+          "honorariosVendedor": null,
+          "comisionAgente": null,
+          "checklist": {},
+          "adjuntos": [],
+          "propiedadOperacion": "alquiler",
+          "propiedadBarrio": "Palermo",
+          "propiedadPrecio": 540000,
+          "propiedadMoneda": "ARS",
+          "propiedadFotoId": null,
+          "contactoTelefono": "1155556666",
+          "propietarioId": null,
+          "propietarioNombre": null,
+          "propietarioTelefono": null,
+          "proximaCita": null,
+          "ultimaCita": null,
+          "senaVenceEl": null,
+          "senaRecibo": null,
+          "reserva": null
+        },
+        {
+          "id": "d047f961-d290-4e3d-8e68-ca82407e76af",
+          "titulo": "Venta Mendoza 2350",
+          "etapa": "visita",
+          "valor": 172000,
+          "moneda": "USD",
+          "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+          "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+          "agenteId": null,
+          "orden": 1,
+          "contactoNombre": "Valeria Gómez",
+          "propiedadTitulo": "Mendoza 2350, 5.º A",
+          "agenteNombre": null,
+          "creadaEn": "2026-11-04T23:47:36.69743-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.719973-03:00",
+          "sena": null,
+          "senaMoneda": null,
+          "caidaEn": null,
+          "caidaMotivo": null,
+          "honorariosComprador": null,
+          "honorariosVendedor": null,
+          "comisionAgente": null,
+          "checklist": {},
+          "adjuntos": [],
+          "propiedadOperacion": "venta",
+          "propiedadBarrio": "Belgrano",
+          "propiedadPrecio": 172000,
+          "propiedadMoneda": "USD",
+          "propiedadFotoId": null,
+          "contactoTelefono": "1144712290",
+          "propietarioId": null,
+          "propietarioNombre": null,
+          "propietarioTelefono": null,
+          "proximaCita": null,
+          "ultimaCita": null,
+          "senaVenceEl": null,
+          "senaRecibo": null,
+          "reserva": null
+        }
+      ],
+      "ruta": "/v1/operaciones"
+    },
+    {
+      "cuerpo": {
+        "id": "531f8f06-aa87-42be-a61d-a8faae8063f9",
+        "titulo": "Alquiler Thames",
+        "etapa": "nuevo",
+        "valor": 540000,
+        "moneda": "ARS",
+        "contactoId": "97bd3f6b-eab3-4a8b-9ddf-d0056edb3e99",
+        "propiedadId": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+        "agenteId": null,
+        "orden": 1,
+        "contactoNombre": "Lucía Méndez",
+        "propiedadTitulo": "Thames 2240",
+        "agenteNombre": null,
+        "creadaEn": "2026-11-04T23:47:36.738431-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.738431-03:00",
+        "sena": null,
+        "senaMoneda": null,
+        "caidaEn": null,
+        "caidaMotivo": null,
+        "honorariosComprador": null,
+        "honorariosVendedor": null,
+        "comisionAgente": null,
+        "checklist": {},
+        "adjuntos": [],
+        "propiedadOperacion": "alquiler",
+        "propiedadBarrio": "Palermo",
+        "propiedadPrecio": 540000,
+        "propiedadMoneda": "ARS",
+        "propiedadFotoId": null,
+        "contactoTelefono": "1155556666",
+        "propietarioId": null,
+        "propietarioNombre": null,
+        "propietarioTelefono": null,
+        "proximaCita": null,
+        "ultimaCita": null,
+        "senaVenceEl": null,
+        "senaRecibo": null,
+        "reserva": null
+      },
+      "ruta": "/v1/operaciones/531f8f06-aa87-42be-a61d-a8faae8063f9"
+    },
+    {
+      "cuerpo": {
+        "id": "d047f961-d290-4e3d-8e68-ca82407e76af",
+        "titulo": "Venta Mendoza 2350",
+        "etapa": "visita",
+        "valor": 172000,
+        "moneda": "USD",
+        "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+        "propiedadId": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+        "agenteId": null,
+        "orden": 1,
+        "contactoNombre": "Valeria Gómez",
+        "propiedadTitulo": "Mendoza 2350, 5.º A",
+        "agenteNombre": null,
+        "creadaEn": "2026-11-04T23:47:36.69743-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.719973-03:00",
+        "sena": null,
+        "senaMoneda": null,
+        "caidaEn": null,
+        "caidaMotivo": null,
+        "honorariosComprador": null,
+        "honorariosVendedor": null,
+        "comisionAgente": null,
+        "checklist": {},
+        "adjuntos": [],
+        "propiedadOperacion": "venta",
+        "propiedadBarrio": "Belgrano",
+        "propiedadPrecio": 172000,
+        "propiedadMoneda": "USD",
+        "propiedadFotoId": null,
+        "contactoTelefono": "1144712290",
+        "propietarioId": null,
+        "propietarioNombre": null,
+        "propietarioTelefono": null,
+        "proximaCita": null,
+        "ultimaCita": null,
+        "senaVenceEl": null,
+        "senaRecibo": null,
+        "reserva": null
+      },
+      "ruta": "/v1/operaciones/d047f961-d290-4e3d-8e68-ca82407e76af"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "193ce3a8-58c8-40c2-b746-9ce9c754ef5c",
+          "tipo": "etapa",
+          "texto": null,
+          "datos": {
+            "desde": "nuevo",
+            "hasta": "visita"
+          },
+          "autorId": "user_ana",
+          "autorNombre": "Mariana Luna",
+          "creadoEn": "2026-11-04T23:47:36.719973-03:00"
+        },
+        {
+          "id": "ffad94c6-d026-46fd-9222-c8896f428ab3",
+          "tipo": "alta",
+          "texto": null,
+          "datos": {
+            "etapa": "nuevo"
+          },
+          "autorId": "user_ana",
+          "autorNombre": "Mariana Luna",
+          "creadoEn": "2026-11-04T23:47:36.69743-03:00"
+        }
+      ],
+      "ruta": "/v1/operaciones/d047f961-d290-4e3d-8e68-ca82407e76af/historial"
+    },
+    {
+      "cuerpo": {
+        "numeros": {
+          "propiedadesDisponibles": 10,
+          "propiedadesReservadas": 0,
+          "propiedadesNuevasMes": 10,
+          "contactos": 3,
+          "contactosNuevosMes": 3,
+          "operacionesAbiertas": 2,
+          "cerradasMes": 0,
+          "cerradasMesAnterior": 0,
+          "citasHoy": 0,
+          "alquileresVigentes": 1,
+          "rendicionesListas": 1,
+          "primeraRendicion": {
+            "id": "184e2d13-36de-45ad-89ce-c593e7210ecd",
+            "contratoId": "de288d93-c045-4784-9100-4d19a2584eea"
+          }
+        },
+        "agendaHoy": [],
+        "sugerencias": [],
+        "objetivos": [
+          {
+            "id": "faf9c3b6-6052-476d-b8fc-5cab05012028",
+            "agenteId": null,
+            "metrica": "operaciones_cerradas",
+            "meta": 5,
+            "desde": "2026-11-01",
+            "hasta": "2026-11-30",
+            "agenteNombre": null,
+            "avance": 0,
+            "porcentaje": 0,
+            "creadoEn": "2026-11-04T23:47:36.945865-03:00"
+          }
+        ]
+      },
+      "ruta": "/v1/panel"
+    },
+    {
+      "cuerpo": {
+        "tourVisto": false,
+        "pasosOcultos": false,
+        "pasos": {
+          "datos": false,
+          "propiedad": true,
+          "web": false,
+          "whatsapp": false,
+          "equipo": true,
+          "avisos": false,
+          "portales": false
+        },
+        "usos": {
+          "captar": 0,
+          "propiedad": 4,
+          "contacto": 3,
+          "visita": 2,
+          "cobro": 2
+        },
+        "contratos": 1,
+        "propiedades": 10,
+        "contactos": 3
+      },
+      "ruta": "/v1/panel/guia"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/papelera"
+    },
+    {
+      "cuerpo": {
+        "usuarioId": "user_ana",
+        "email": "mariana@luna.test",
+        "nombre": "Mariana",
+        "apellido": "Luna",
+        "foto": null,
+        "telefono": "1144445555",
+        "whatsapp": null,
+        "rol": "duenio",
+        "desde": "2026-11-04T23:47:36.568767-03:00",
+        "propiedades": 0,
+        "barrios": null,
+        "avisosPush": false
+      },
+      "ruta": "/v1/perfil"
+    },
+    {
+      "cuerpo": {
+        "texto": null,
+        "activa": false,
+        "sugerida": "Mariana · Luna Propiedades"
+      },
+      "ruta": "/v1/perfil/firma"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "29caa404-21fc-43ef-817b-9b98a1198e9d",
+          "numero": 5,
+          "titulo": "Manzana A · Lote 1 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-1",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "1"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "2bb5d4dd-280c-402b-ad91-8f1174826d65",
+          "numero": 6,
+          "titulo": "Manzana A · Lote 2 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-2",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "2"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "36f56265-10e5-40dd-81e8-a02663251adc",
+          "numero": 9,
+          "titulo": "Manzana A · Lote 5 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-5",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "5"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "597932d7-95de-4b02-b6f0-0840be5cdcfd",
+          "numero": 7,
+          "titulo": "Manzana A · Lote 3 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-3",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "3"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "e35d6ef8-08c6-4e41-b006-d83da7a018fd",
+          "numero": 10,
+          "titulo": "Manzana A · Lote 6 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-6",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "6"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "f297e28b-88d8-4e0a-9f24-6d49ab31b77a",
+          "numero": 8,
+          "titulo": "Manzana A · Lote 4 · Bosque Azul",
+          "slug": "bosque-azul-mz-a-lote-4",
+          "descripcion": null,
+          "tipo": "lote",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 38000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Bosque Azul",
+          "barrio": null,
+          "ciudad": null,
+          "lat": null,
+          "lng": null,
+          "ambientes": null,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": 450,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {
+            "lote": {
+              "manzana": "A",
+              "numeroDeLote": "4"
+            }
+          },
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+        },
+        {
+          "id": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+          "numero": 4,
+          "titulo": "Av. del Mar 1140",
+          "slug": null,
+          "descripcion": null,
+          "tipo": "casa",
+          "operacion": "temporario",
+          "estado": "disponible",
+          "precio": 180,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Av. del Mar 1140",
+          "barrio": "Pinamar",
+          "ciudad": null,
+          "lat": -37.108,
+          "lng": -56.861,
+          "ambientes": 5,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": null,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {},
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": null,
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.646504-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.931821-03:00"
+        },
+        {
+          "id": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+          "numero": 3,
+          "titulo": "Gorriti 5530",
+          "slug": null,
+          "descripcion": null,
+          "tipo": "ph",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 340000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Gorriti 5530",
+          "barrio": "Palermo",
+          "ciudad": null,
+          "lat": -34.585,
+          "lng": -58.438,
+          "ambientes": 4,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": null,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {},
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": null,
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.636694-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.636694-03:00"
+        },
+        {
+          "id": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+          "numero": 2,
+          "titulo": "Thames 2240",
+          "slug": null,
+          "descripcion": null,
+          "tipo": "departamento",
+          "operacion": "alquiler",
+          "estado": "disponible",
+          "precio": 540000,
+          "moneda": "ARS",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Thames 2240",
+          "barrio": "Palermo",
+          "ciudad": null,
+          "lat": -34.587,
+          "lng": -58.425,
+          "ambientes": 2,
+          "dormitorios": null,
+          "banos": null,
+          "cocheras": null,
+          "superficie": null,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {},
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": null,
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.627147-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.627147-03:00"
+        },
+        {
+          "id": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+          "numero": 1,
+          "titulo": "Mendoza 2350, 5.º A",
+          "slug": null,
+          "descripcion": "Luminoso, al frente, con balcón.",
+          "tipo": "departamento",
+          "operacion": "venta",
+          "estado": "disponible",
+          "precio": 172000,
+          "moneda": "USD",
+          "periodo": null,
+          "expensas": null,
+          "precioOculto": false,
+          "direccion": "Mendoza 2350",
+          "barrio": "Belgrano",
+          "ciudad": null,
+          "lat": -34.5627,
+          "lng": -58.4563,
+          "ambientes": 3,
+          "dormitorios": null,
+          "banos": 1,
+          "cocheras": null,
+          "superficie": 74,
+          "cubierta": null,
+          "antiguedad": null,
+          "aptoCredito": null,
+          "tambienTemporario": false,
+          "comodidades": [],
+          "caracteristicas": [],
+          "servicios": [],
+          "fotos": [],
+          "video": null,
+          "ficha": {},
+          "destacada": false,
+          "publicada": true,
+          "agenteId": null,
+          "propietarioId": null,
+          "emprendimientoId": null,
+          "fotosUrl": [],
+          "creadaEn": "2026-11-04T23:47:36.608459-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.608459-03:00"
+        }
+      ],
+      "ruta": "/v1/propiedades"
+    },
+    {
+      "cuerpo": {
+        "id": "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+        "numero": 3,
+        "titulo": "Gorriti 5530",
+        "slug": null,
+        "descripcion": null,
+        "tipo": "ph",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 340000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Gorriti 5530",
+        "barrio": "Palermo",
+        "ciudad": null,
+        "lat": -34.585,
+        "lng": -58.438,
+        "ambientes": 4,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": null,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {},
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": null,
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.636694-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.636694-03:00"
+      },
+      "ruta": "/v1/propiedades/26b5ccd6-4df2-4645-9ae3-7ad3f6af36af"
+    },
+    {
+      "cuerpo": {
+        "id": "29caa404-21fc-43ef-817b-9b98a1198e9d",
+        "numero": 5,
+        "titulo": "Manzana A · Lote 1 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-1",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "1"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/29caa404-21fc-43ef-817b-9b98a1198e9d"
+    },
+    {
+      "cuerpo": {
+        "id": "2bb5d4dd-280c-402b-ad91-8f1174826d65",
+        "numero": 6,
+        "titulo": "Manzana A · Lote 2 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-2",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "2"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/2bb5d4dd-280c-402b-ad91-8f1174826d65"
+    },
+    {
+      "cuerpo": {
+        "id": "36f56265-10e5-40dd-81e8-a02663251adc",
+        "numero": 9,
+        "titulo": "Manzana A · Lote 5 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-5",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "5"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/36f56265-10e5-40dd-81e8-a02663251adc"
+    },
+    {
+      "cuerpo": {
+        "id": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+        "numero": 4,
+        "titulo": "Av. del Mar 1140",
+        "slug": null,
+        "descripcion": null,
+        "tipo": "casa",
+        "operacion": "temporario",
+        "estado": "disponible",
+        "precio": 180,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Av. del Mar 1140",
+        "barrio": "Pinamar",
+        "ciudad": null,
+        "lat": -37.108,
+        "lng": -56.861,
+        "ambientes": 5,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": null,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {},
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": null,
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.646504-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.931821-03:00"
+      },
+      "ruta": "/v1/propiedades/48b2fc1b-5048-4e5a-bf5d-05861d7b1aca"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/48b2fc1b-5048-4e5a-bf5d-05861d7b1aca/tarifas"
+    },
+    {
+      "cuerpo": {
+        "id": "597932d7-95de-4b02-b6f0-0840be5cdcfd",
+        "numero": 7,
+        "titulo": "Manzana A · Lote 3 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-3",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "3"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/597932d7-95de-4b02-b6f0-0840be5cdcfd"
+    },
+    {
+      "cuerpo": {
+        "id": "688a75b7-4b4d-4686-b40f-23860cf2980f",
+        "numero": 2,
+        "titulo": "Thames 2240",
+        "slug": null,
+        "descripcion": null,
+        "tipo": "departamento",
+        "operacion": "alquiler",
+        "estado": "disponible",
+        "precio": 540000,
+        "moneda": "ARS",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Thames 2240",
+        "barrio": "Palermo",
+        "ciudad": null,
+        "lat": -34.587,
+        "lng": -58.425,
+        "ambientes": 2,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": null,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {},
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": null,
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.627147-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.627147-03:00"
+      },
+      "ruta": "/v1/propiedades/688a75b7-4b4d-4686-b40f-23860cf2980f"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/688a75b7-4b4d-4686-b40f-23860cf2980f/actas"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/688a75b7-4b4d-4686-b40f-23860cf2980f/inventario"
+    },
+    {
+      "cuerpo": {
+        "id": "e35d6ef8-08c6-4e41-b006-d83da7a018fd",
+        "numero": 10,
+        "titulo": "Manzana A · Lote 6 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-6",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "6"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/e35d6ef8-08c6-4e41-b006-d83da7a018fd"
+    },
+    {
+      "cuerpo": {
+        "id": "e6738480-4623-4b81-be2a-9a3b0bd4f7f4",
+        "numero": 1,
+        "titulo": "Mendoza 2350, 5.º A",
+        "slug": null,
+        "descripcion": "Luminoso, al frente, con balcón.",
+        "tipo": "departamento",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 172000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Mendoza 2350",
+        "barrio": "Belgrano",
+        "ciudad": null,
+        "lat": -34.5627,
+        "lng": -58.4563,
+        "ambientes": 3,
+        "dormitorios": null,
+        "banos": 1,
+        "cocheras": null,
+        "superficie": 74,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {},
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": null,
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.608459-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.608459-03:00"
+      },
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/envios"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/grabaciones"
+    },
+    {
+      "cuerpo": [
+        {
+          "contactoId": "b9543665-f254-45b6-94fc-2dbe8fe9984f",
+          "nombre": "Valeria Gómez",
+          "telefono": "1144712290",
+          "email": null,
+          "agenteId": null,
+          "puntaje": 1,
+          "visito": true,
+          "enviadaEn": null
+        }
+      ],
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/interesados"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/publicaciones"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/reservas"
+    },
+    {
+      "cuerpo": {
+        "dias": [],
+        "total": 0
+      },
+      "ruta": "/v1/propiedades/e6738480-4623-4b81-be2a-9a3b0bd4f7f4/vistas"
+    },
+    {
+      "cuerpo": {
+        "id": "f297e28b-88d8-4e0a-9f24-6d49ab31b77a",
+        "numero": 8,
+        "titulo": "Manzana A · Lote 4 · Bosque Azul",
+        "slug": "bosque-azul-mz-a-lote-4",
+        "descripcion": null,
+        "tipo": "lote",
+        "operacion": "venta",
+        "estado": "disponible",
+        "precio": 38000,
+        "moneda": "USD",
+        "periodo": null,
+        "expensas": null,
+        "precioOculto": false,
+        "direccion": "Bosque Azul",
+        "barrio": null,
+        "ciudad": null,
+        "lat": null,
+        "lng": null,
+        "ambientes": null,
+        "dormitorios": null,
+        "banos": null,
+        "cocheras": null,
+        "superficie": 450,
+        "cubierta": null,
+        "antiguedad": null,
+        "aptoCredito": null,
+        "tambienTemporario": false,
+        "comodidades": [],
+        "caracteristicas": [],
+        "servicios": [],
+        "fotos": [],
+        "video": null,
+        "ficha": {
+          "lote": {
+            "manzana": "A",
+            "numeroDeLote": "4"
+          }
+        },
+        "destacada": false,
+        "publicada": true,
+        "agenteId": null,
+        "propietarioId": null,
+        "emprendimientoId": "fa25c065-a2b8-4133-ac67-877bc2eb7c77",
+        "fotosUrl": [],
+        "creadaEn": "2026-11-04T23:47:36.912965-03:00",
+        "actualizadoEn": "2026-11-04T23:47:36.912965-03:00"
+      },
+      "ruta": "/v1/propiedades/f297e28b-88d8-4e0a-9f24-6d49ab31b77a"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/propiedades/senales"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "70f457a3-bb54-4192-909a-84e32aeb1cb9",
+          "nombre": "Plomería Rossi",
+          "cuit": null,
+          "rubro": "plomeria",
+          "telefono": "1144445555",
+          "email": null,
+          "notas": null,
+          "creadoEn": "2026-11-04T23:47:36.969861-03:00",
+          "trabajos": 0,
+          "edificios": 0
+        }
+      ],
+      "ruta": "/v1/proveedores"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/publicaciones"
+    },
+    {
+      "cuerpo": {
+        "portales": [
+          {
+            "portal": "zonaprop",
+            "activos": 0,
+            "pausados": 0,
+            "conError": 0,
+            "pendientes": 0,
+            "visitas": 0,
+            "visitasSemana": null,
+            "visitasSemanaAnterior": null,
+            "feed": "http://api.test/publico/feeds/zonaprop/luna?clave=970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+            "leidoEn": null
+          },
+          {
+            "portal": "argenprop",
+            "activos": 0,
+            "pausados": 0,
+            "conError": 0,
+            "pendientes": 0,
+            "visitas": 0,
+            "visitasSemana": null,
+            "visitasSemanaAnterior": null,
+            "feed": "http://api.test/publico/feeds/argenprop/luna?clave=970778cc71c06461f21d8f07f0d08a9e5cd92f1652e9b8fd446085a6be81b296",
+            "leidoEn": null
+          },
+          {
+            "portal": "mercadolibre",
+            "activos": 0,
+            "pausados": 0,
+            "conError": 0,
+            "pendientes": 0,
+            "visitas": 0,
+            "visitasSemana": null,
+            "visitasSemanaAnterior": null,
+            "feed": null,
+            "leidoEn": null
+          }
+        ],
+        "difundibles": 10,
+        "faltan": [
+          "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+          "e35d6ef8-08c6-4e41-b006-d83da7a018fd",
+          "36f56265-10e5-40dd-81e8-a02663251adc",
+          "2bb5d4dd-280c-402b-ad91-8f1174826d65",
+          "597932d7-95de-4b02-b6f0-0840be5cdcfd",
+          "f297e28b-88d8-4e0a-9f24-6d49ab31b77a",
+          "29caa404-21fc-43ef-817b-9b98a1198e9d",
+          "26b5ccd6-4df2-4645-9ae3-7ad3f6af36af",
+          "688a75b7-4b4d-4686-b40f-23860cf2980f",
+          "e6738480-4623-4b81-be2a-9a3b0bd4f7f4"
+        ],
+        "reservadas": 0,
+        "webVisitasSemana": 0,
+        "webVisitasSemanaAnterior": 0
+      },
+      "ruta": "/v1/publicaciones/resumen"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/rendiciones/listas"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/reservas"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "ea13752d-e4d6-477c-8e50-8836f9a25773",
+          "titulo": "Horarios",
+          "texto": "Atendemos de lunes a viernes de 10 a 18.",
+          "usos": 0,
+          "creadaPor": "user_ana",
+          "actualizadoEn": "2026-11-04T23:47:36.959506-03:00"
+        }
+      ],
+      "ruta": "/v1/respuestas-guardadas"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/revision"
+    },
+    {
+      "cuerpo": [
+        {
+          "id": "ccdec3ac-b58f-40c4-989e-830f31452d4e",
+          "propiedadId": "48b2fc1b-5048-4e5a-bf5d-05861d7b1aca",
+          "contactoId": null,
+          "huespedNombre": "Familia Ríos",
+          "huespedTelefono": null,
+          "huespedes": 4,
+          "entrada": "2026-11-24",
+          "salida": "2026-12-01",
+          "estado": "confirmada",
+          "monto": 900000,
+          "moneda": "ARS",
+          "sena": null,
+          "notas": null,
+          "motivo": "huesped",
+          "propiedadNumero": 4,
+          "propiedadTitulo": "Av. del Mar 1140",
+          "contactoNombre": null,
+          "noches": 7,
+          "saldo": 900000,
+          "creadaPor": "user_ana",
+          "creadoEn": "2026-11-04T23:47:36.931821-03:00",
+          "actualizadoEn": "2026-11-04T23:47:36.931821-03:00",
+          "checkin": {
+            "saldo": false,
+            "deposito": false,
+            "inventario": false,
+            "dni": []
+          },
+          "llavesEn": null
+        }
+      ],
+      "ruta": "/v1/temporada/reservas"
+    },
+    {
+      "cuerpo": [
+        {
+          "nombre": "Palermo",
+          "cantidad": 2,
+          "texto": null,
+          "autorId": null,
+          "autorNombre": null
+        },
+        {
+          "nombre": "Belgrano",
+          "cantidad": 1,
+          "texto": null,
+          "autorId": null,
+          "autorNombre": null
+        },
+        {
+          "nombre": "Pinamar",
+          "cantidad": 1,
+          "texto": null,
+          "autorId": null,
+          "autorNombre": null
+        }
+      ],
+      "ruta": "/v1/web/barrios"
+    },
+    {
+      "cuerpo": {
+        "dias": 7,
+        "favoritos": 0,
+        "busquedas": 0,
+        "total": 0,
+        "masGuardada": null
+      },
+      "ruta": "/v1/web/guardadas"
+    },
+    {
+      "cuerpo": [],
+      "ruta": "/v1/whatsapp/conversaciones"
+    },
+    {
+      "cuerpo": {
+        "conectado": false,
+        "appPropia": false
+      },
+      "ruta": "/v1/whatsapp/numero"
+    }
+  ]
+}
