@@ -146,13 +146,18 @@ final class PantallasTests: XCTestCase {
         let raiz = NavigationStack { vista.destinos() }
             .environment(estado)
             .environment(estado.cola)
-        let ventana = UIWindow(frame: CGRect(x: 0, y: 0, width: 393, height: 852))
+        // En la escena del simulador (sin escena, drawHierarchy devuelve la captura en negro).
+        let escena = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
+        let ventana = escena.map { UIWindow(windowScene: $0) } ?? UIWindow()
+        ventana.frame = CGRect(x: 0, y: 0, width: 393, height: 852)
         ventana.overrideUserInterfaceStyle = oscuro ? .dark : .light
         ventana.rootViewController = UIHostingController(rootView: raiz)
         ventana.makeKeyAndVisible()
         RunLoop.main.run(until: Date().addingTimeInterval(segundos))
         if let dir = Self.capturas {
-            let img = UIGraphicsImageRenderer(bounds: ventana.bounds).image { _ in ventana.drawHierarchy(in: ventana.bounds, afterScreenUpdates: true) }
+            let img = UIGraphicsImageRenderer(bounds: ventana.bounds).image { c in
+                if !ventana.drawHierarchy(in: ventana.bounds, afterScreenUpdates: true) { ventana.layer.render(in: c.cgContext) }
+            }
             let n = nombre.replacingOccurrences(of: "()", with: "").replacingOccurrences(of: "test", with: "")
             try? img.pngData()?.write(to: dir.appendingPathComponent("\(n)-\(oscuro ? "oscuro" : "claro").png"))
         }
