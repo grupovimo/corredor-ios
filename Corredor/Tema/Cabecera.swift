@@ -22,36 +22,46 @@ struct CabeceraPestana: View {
     /// El logo de la inmobiliaria (su marca de Mi web), a la izquierda del renglón de arriba.
     var logo: URL? = nil
 
+    /// Los botones (y el avatar), a la derecha.
+    private var botones: some View {
+        HStack(spacing: 0) {
+            ForEach(acciones) { a in
+                Button(action: a.hacer) {
+                    Image(systemName: a.icono).font(.system(size: 21, weight: .medium))
+                        .foregroundStyle(C.accion)
+                        .frame(width: 44, height: 44)
+                        .overlay(alignment: .topTrailing) {
+                            if let n = a.insignia, n > 0 { InsigniaRoja(n: n).offset(x: -3, y: 3) }
+                        }
+                }
+                .accessibilityLabel(a.etiqueta)
+            }
+            if avatar {
+                Button { estado.abrir(APerfil()) } label: {
+                    Text(Formato.iniciales(estado.usuario?.completo ?? "C"))
+                        .font(Estilo(tamano: 13, peso: .bold, relativo: .caption).font)
+                        .foregroundStyle(C.oro)
+                        .frame(width: 34, height: 34)
+                        .background(C.verde700, in: Circle())
+                        .padding(2).background(C.fondo, in: Circle())
+                        .padding(1.5).background(C.oro, in: Circle())
+                        .frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Tu perfil")
+            }
+        }
+        .padding(.trailing, -8)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
-                Spacer()
-                ForEach(acciones) { a in
-                    Button(action: a.hacer) {
-                        Image(systemName: a.icono).font(.system(size: 21, weight: .medium))
-                            .foregroundStyle(C.accion)
-                            .frame(width: 44, height: 44)
-                            .overlay(alignment: .topTrailing) {
-                                if let n = a.insignia, n > 0 { InsigniaRoja(n: n).offset(x: -3, y: 3) }
-                            }
-                    }
-                    .accessibilityLabel(a.etiqueta)
-                }
-                if avatar {
-                    Button { estado.abrir(APerfil()) } label: {
-                        Text(Formato.iniciales(estado.usuario?.completo ?? "C"))
-                            .font(Estilo(tamano: 13, peso: .bold, relativo: .caption).font)
-                            .foregroundStyle(C.oro)
-                            .frame(width: 34, height: 34)
-                            .background(C.verde700, in: Circle())
-                            .padding(2).background(C.fondo, in: Circle())
-                            .padding(1.5).background(C.oro, in: Circle())
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Tu perfil")
-                }
+            // Con renglón de arriba (fecha, inmobiliaria), los botones van ahí; sin él, en el renglón del
+            // título (antes quedaban solos en una fila vacía, lejos de todo).
+            if sobre != nil {
+                HStack(spacing: 0) { Spacer(); botones }.frame(height: 44)
+            } else {
+                Color.clear.frame(height: 12)
             }
-            .frame(height: 44)
             if let sobre {
                 HStack(spacing: 10) {
                     if let logo {
@@ -67,8 +77,15 @@ struct CabeceraPestana: View {
                 }
                 .padding(.bottom, logo == nil ? 0 : 4)
             }
-            Text(titulo).estilo(.tituloGrande).foregroundStyle(C.texto)
-                .accessibilityAddTraits(.isHeader)
+            HStack(alignment: .center, spacing: 8) {
+                Text(titulo).estilo(.tituloGrande).foregroundStyle(C.texto)
+                    .lineLimit(1).minimumScaleFactor(0.7)
+                    .accessibilityAddTraits(.isHeader)
+                if sobre == nil {
+                    Spacer(minLength: 0)
+                    botones
+                }
+            }
             if let busca {
                 Button { alBuscar?() } label: {
                     HStack(spacing: 6) {
