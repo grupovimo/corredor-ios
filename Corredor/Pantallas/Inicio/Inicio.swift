@@ -644,19 +644,27 @@ struct PrimerosPasos: View {
     /// asistente) y el de la cobranza.
     private var pasos: [(Bool, String, String, AnyHashable?)] {
         let p = guia.pasos
-        var pasos: [(Bool, String, String, AnyHashable?)] = [(p?.propiedad ?? false, "house", "Cargá tu primera propiedad", AnyHashable(AAltaPropiedad()))]
+        let propiedad: Bool = p?.propiedad ?? false
+        var pasos: [(Bool, String, String, AnyHashable?)] = [(propiedad, "house", "Cargá tu primera propiedad", AnyHashable(AAltaPropiedad()))]
         if estado.esDuenio, let alta = estado.estructura?.alta {
-            pasos += alta.pasos.compactMap { x in Self.pasosAlta[x.clave].map { (x.hecho, $0, x.titulo, AnyHashable?.none) } }
+            for x in alta.pasos {
+                if let icono = Self.pasosAlta[x.clave] { pasos.append((x.hecho, icono, x.titulo, nil)) }
+            }
         } else {
-            pasos.append((p?.datos ?? false, "paintpalette", "Poné tu logo y tus colores", AnyHashable(ASeccion(clave: "web"))))
+            let datos: Bool = p?.datos ?? false
+            pasos.append((datos, "paintpalette", "Poné tu logo y tus colores", AnyHashable(ASeccion(clave: "web"))))
         }
-        pasos += [
-            (p?.whatsapp ?? false, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", AnyHashable(ASeccion(clave: "integraciones"))),
-            (p?.equipo ?? false, "person.badge.plus", "Sumá a tu equipo", AnyHashable(ASeccion(clave: "equipo"))),
-            (p?.portales ?? false, "storefront", "Publicá en Mercado Libre y portales", AnyHashable(ASeccion(clave: "integraciones"))),
-            (p?.web ?? false, "globe", "Mirá tu web", AnyHashable(ASeccion(clave: "web"))),
-        ]
-        if estado.esDuenio { pasos.insert(((guia.contratos ?? 0) > 0, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AnyHashable(AContratos())), at: 1) }
+        // De a uno: todo junto en un literal, el compilador no llegaba a tiparlo.
+        let whatsapp: Bool = p?.whatsapp ?? false, equipo: Bool = p?.equipo ?? false
+        let portales: Bool = p?.portales ?? false, web: Bool = p?.web ?? false
+        pasos.append((whatsapp, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", AnyHashable(ASeccion(clave: "integraciones"))))
+        pasos.append((equipo, "person.badge.plus", "Sumá a tu equipo", AnyHashable(ASeccion(clave: "equipo"))))
+        pasos.append((portales, "storefront", "Publicá en Mercado Libre y portales", AnyHashable(ASeccion(clave: "integraciones"))))
+        pasos.append((web, "globe", "Mirá tu web", AnyHashable(ASeccion(clave: "web"))))
+        if estado.esDuenio {
+            let cobra: Bool = (guia.contratos ?? 0) > 0
+            pasos.insert((cobra, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AnyHashable(AContratos())), at: 1)
+        }
         return pasos
     }
 
