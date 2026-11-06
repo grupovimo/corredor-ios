@@ -56,198 +56,7 @@ struct MiWeb: View {
                                      ("clasica", "Clásica", "Sobria, listado primero."), ("emprendimiento", "Emprendimiento", "Una web por proyecto.")]
 
     var body: some View {
-        Form {
-            Section {
-                MarcoPrevia(url: previa, recarga: recarga) { tocar($0) }
-                    .listRowInsets(EdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24))
-                    .listRowBackground(Color.clear)
-            }
-            Section(header: Text("Logo y portada"), footer: Text("El logo va en tu web, en los recibos y en la app.")) {
-                SubirImagenMarca(titulo: "Subí tu logo", url: marca["logoUrl"]) { u, _ in marca["logoUrl"] = u; programar(ya: true) }
-                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-                SubirImagenMarca(titulo: "Subí la foto de portada", url: marca["portadaUrl"], ancha: true) { u, _ in marca["portadaUrl"] = u; programar(ya: true) }
-                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-            }
-            if !estado.esDuenio {
-                Section { Label("La web la cambia el dueño o la dueña. Vos la podés ver como queda.", systemImage: "lock").estilo(.footnote).foregroundStyle(C.texto2) }
-            }
-            if let w = web, let u = URL(string: w) {
-                Section {
-                    Link(destination: u) { Label(w.replacingOccurrences(of: "https://", with: ""), systemImage: "globe") }
-                    Button { Afuera.whatsapp(nil, texto: "Mirá las propiedades de \(nombreInmo.nonEmpty ?? "la inmobiliaria"): \(w)") } label: { Label("Mandar por WhatsApp", systemImage: "bubble.left") }
-                    ShareLink(item: u, subject: Text(nombreInmo), message: Text("Mirá las propiedades de \(nombreInmo)")) { Label("Compartir tu web", systemImage: "square.and.arrow.up") }
-                    Button { UIPasteboard.general.url = u; estado.avisar("Copiaste el link de tu web") } label: { Label("Copiar el link", systemImage: "doc.on.doc") }
-                    Button { qr = true } label: { Label("El QR de tu web", systemImage: "qrcode") }
-                }
-            }
-            if let i = informe {
-                Section("Esta semana") {
-                    LabeledContent("Visitas a tus propiedades", value: Informe.num(i["totalVistas"]))
-                    LabeledContent("Consultas desde tu web", value: {
-                        if case .lista(let l)? = i["origenes"], let o = l.first(where: { $0["origen"]?.texto == "Web propia" }) { return Informe.num(o["cantidad"]) }
-                        return "0"
-                    }())
-                }
-            }
-            Section("Plantilla") {
-                let id = completa["plantilla"]?.texto ?? "barrio"
-                LabeledContent("En uso", value: EditorWeb.plantillas.first { $0.id == id }?.nombre ?? id)
-                Button { plantillas = true } label: { Label("Ver las plantillas", systemImage: "rectangle.3.group") }
-                Button { versiones = true } label: { Label("Versiones publicadas", systemImage: "clock.arrow.circlepath") }
-            }
-            Section(header: Text("Página de inicio"), footer: Text("Arrastrá para ordenar. Lo apagado no se ve en tu web.")) {
-                ForEach(Array(secciones.enumerated()), id: \.offset) { i, x in
-                    Toggle(Self.nombreSeccion(x["tipo"]?.texto), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
-                                                                         set: { on in ocultar(i, !on) }))
-                        .disabled(x["tipo"]?.texto == "portada")
-                        .swipeActions {
-                            if x["tipo"]?.texto != "portada" { Button("Quitar", role: .destructive) { quitarSeccion(i) } }
-                            if x["tipo"]?.texto == "texto" { Button("Duplicar") { duplicarSeccion(i) }.tint(C.accion) }
-                        }
-                        .contextMenu {
-                            if x["tipo"]?.texto == "texto" { Button { duplicarSeccion(i) } label: { Label("Duplicar", systemImage: "plus.square.on.square") } }
-                            Menu {
-                                ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in Button(Self.nombreSeccion(t)) { sumarSeccion(t, despuesDe: i) } }
-                            } label: { Label("Sumar sección acá", systemImage: "plus.rectangle.on.rectangle") }
-                            if x["tipo"]?.texto != "portada" { Button(role: .destructive) { quitarSeccion(i) } label: { Label("Quitar", systemImage: "trash") } }
-                        }
-                }
-                .onMove { desde, hacia in mover(desde, hacia) }
-                Toggle("Buscador en la portada (Comprar · Alquilar · Temporada)", isOn: Binding(get: { portada["buscador"].map { if case .bool(false) = $0 { return false }; return true } ?? true },
-                                                                                             set: { v in conPortada { $0["buscador"] = .bool(v) } }))
-                VStack(alignment: .leading, spacing: 6) {
-                    let v = veloActual
-                    let noche = EditorWeb.noche(marca["colorPrimario"])
-                    let variante = portada["variante"]?.texto ?? "foto"
-                    let seLee = variante == "foto" ? EditorWeb.seLeeConVelo(noche, v)
-                        : Acento.contraste(Acento.rgb(marca["colorPrimario"]).map(Acento.hex) ?? 0x16443B, Acento.rgb(marca["colorFondo"]).map(Acento.hex) ?? 0xFAF8F3) >= 4.5
-                    Text("Velo sobre la foto · \(Int(v)) %").estilo(.subhead)
-                    Slider(value: Binding(get: { veloActual }, set: { n in conPortada { $0["velo"] = .numero((n / 5).rounded() * 5) } }), in: 0...90, step: 5)
-                    if seLee {
-                        Label("El título se lee bien (contraste AA)", systemImage: "checkmark.circle").estilo(.footnote).foregroundStyle(C.okTinta)
-                    } else if variante == "foto" {
-                        let m = EditorWeb.veloMinimo(noche)
-                        HStack {
-                            Text("El título cuesta leerse.").estilo(.footnote).foregroundStyle(C.avisoTinta)
-                            Button("Subir el velo a \(m) %") { conPortada { $0["velo"] = .numero(Double(m)) } }.estilo(.footnoteFuerte)
-                        }
-                    } else {
-                        Text("El título puede costar leerse: probá un color más oscuro").estilo(.footnote).foregroundStyle(C.avisoTinta)
-                    }
-                }
-                Button { fotoPortada = true } label: { Label("Usar la foto de una propiedad", systemImage: "photo.on.rectangle") }
-                Picker("Portada", selection: Binding(get: { completa["web"]?["portada"]?["variante"]?.texto ?? "foto" }, set: { variante($0) })) {
-                    Text("Foto de fondo").tag("foto"); Text("Foto arriba").tag("arriba"); Text("Partida").tag("partida")
-                }
-            }
-            Section(header: Text("Sumar a la página de inicio")) {
-                Menu {
-                    ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in
-                        Button(Self.nombreSeccion(t)) { sumarSeccion(t) }
-                    }
-                } label: { Label("Sumar sección", systemImage: "plus.rectangle.on.rectangle") }
-                .disabled(EditorWeb.tiposParaSumar(secciones).isEmpty)
-                ForEach(Array(secciones.enumerated()).filter { ["texto", "testimonios"].contains($0.element["tipo"]?.texto ?? "") }, id: \.offset) { i, x in
-                    Button { editandoSeccion = i } label: {
-                        LabeledContent(Self.nombreSeccion(x["tipo"]?.texto), value: x["titulo"]?.texto ?? "Editar")
-                    }
-                }
-            }
-            Section(header: Text("Páginas"), footer: Text("Las propias viven en tu web con su link. Lo apagado no sale en el menú.")) {
-                ForEach(Array(paginas.enumerated()), id: \.offset) { i, x in
-                    let id = x["id"]?.texto ?? ""
-                    Toggle(Self.nombrePagina(x), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
-                                                               set: { on in ocultarPagina(i, !on) }))
-                        .disabled(id == "inicio" || id == "propiedades")
-                        .swipeActions { if id.hasPrefix("p-") { Button("Quitar", role: .destructive) { quitarPagina(i) } } }
-                    if id.hasPrefix("p-") {
-                        Button { editandoPagina = i } label: { Label("Editar «\(Self.nombrePagina(x))»", systemImage: "pencil") }
-                    }
-                }
-                Button { paginaNueva = true } label: { Label("Nueva página", systemImage: "plus") }
-            }
-            if let g = guardadas {
-                Section("Guardadas esta semana") {
-                    LabeledContent("Corazones", value: Informe.num(g["favoritos"]))
-                    LabeledContent("Búsquedas con alerta", value: Informe.num(g["busquedas"]))
-                    if let m = g["masGuardada"], let t = m["titulo"]?.texto {
-                        Button { if let id = m["id"]?.texto { estado.abrir(AFichaPropiedad(id: id)) } } label: { LabeledContent("La más guardada", value: t) }
-                    }
-                }
-            }
-            if estado.esDuenio { seccionDominio }
-            Section {
-                if let l = legales, l["razonSocial"]?.texto != nil || l["cuit"]?.texto != nil || l["matricula"]?.texto != nil {
-                    if let r = l["razonSocial"]?.texto { LabeledContent("Razón social", value: r) }
-                    if let c = l["cuit"]?.texto { LabeledContent("CUIT", value: c) }
-                    if let m = l["matricula"]?.texto { LabeledContent("Matrícula", value: [l["colegio"]?.texto, m].compactMap { $0 }.joined(separator: " ")) }
-                } else {
-                    Text("Faltan la razón social, el CUIT y la matrícula. En CABA y Provincia el corredor tiene que exhibirlos.").estilo(.footnote).foregroundStyle(C.avisoTinta)
-                }
-                Button("Editar") { estado.abrir(ASeccion(clave: "configuracion")) }
-            } header: { Text("Datos legales del pie") }
-            Section("Marca") {
-                HStack(spacing: 10) {
-                    ForEach(EditorWeb.colores, id: \.self) { c in
-                        Button { recordar(); marca["colorPrimario"] = c; programar() } label: {
-                            Circle().fill(Color(hex: UInt32(c.dropFirst(), radix: 16) ?? 0)).frame(width: 32, height: 32)
-                                .overlay(Circle().strokeBorder(C.oro, lineWidth: (marca["colorPrimario"] ?? "").lowercased() == c ? 3 : 0))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Color \(c)")
-                    }
-                }
-                ColorPicker("Color principal", selection: color("colorPrimario", 0x16443B), supportsOpacity: false)
-                avisoContraste
-                ColorPicker("Color de acento", selection: color("colorSecundario", 0xF2BB57), supportsOpacity: false)
-                ColorPicker("Fondo", selection: color("colorFondo", 0xFAF8F3), supportsOpacity: false)
-                if let f = Acento.rgb(marca["colorFondo"]).map(Acento.hex), Acento.contraste(f, 0x18201D) < 7 {
-                    Label("El fondo tiene que ser claro para que el texto se lea: usamos el papel", systemImage: "slider.horizontal.3").estilo(.footnote).foregroundStyle(C.avisoTinta)
-                }
-                TextField("Frase de la portada", text: campo("frase", ""))
-                botonIA("frase")
-            }
-            Section("Nosotros") {
-                TextField("Título", text: campo("nosotrosTitulo", ""))
-                TextField("Quiénes son, desde cuándo, en qué barrios trabajan.", text: campo("nosotros", ""), axis: .vertical).lineLimit(3...8)
-                botonIA("nosotros")
-            }
-            Section("Contacto") {
-                TextField("WhatsApp", text: campo("whatsapp", "")).keyboardType(.phonePad)
-                TextField("Teléfono", text: campo("telefono", "")).keyboardType(.phonePad)
-                TextField("Mail", text: campo("email", "")).keyboardType(.emailAddress)
-                TextField("Dirección", text: campo("direccion", ""))
-                TextField("Horario", text: campo("horario", ""))
-            }
-            if !barrios.isEmpty {
-                Section(header: Text("Barrios"), footer: Text("Lo que contás de cada uno sale en su página de tu web.")) {
-                    ForEach($barrios) { $b in
-                        VStack(alignment: .leading) {
-                            Text(b.nombre).estilo(.filaLista)
-                            TextField("Cómo es vivir en \(b.nombre): plazas, transporte, colegios.", text: Binding(get: { b.texto ?? "" }, set: { b.texto = String($0.prefix(600)) }), axis: .vertical)
-                                .focused($barrioFoco, equals: b.nombre)
-                                .onSubmit { Task { await guardarBarrio(b) } }
-                        }
-                    }
-                }
-            }
-        }
-        .disabled(!estado.esDuenio)
-        .environment(\.editMode, .constant(.active))
-        .scrollContentBackground(.hidden).background(FondoApp())
-        .pantallaApilada("Mi web")
-        .safeAreaInset(edge: .bottom) { if estado.esDuenio { barraPublicar } }
-        .toolbar {
-            if estado.esDuenio {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button { deshacer() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(pasado.isEmpty).accessibilityLabel("Deshacer")
-                    Button { rehacer() } label: { Image(systemName: "arrow.uturn.forward") }.disabled(futuro.isEmpty).accessibilityLabel("Rehacer")
-                }
-            }
-        }
-        .onChange(of: barrioFoco) { viejo, _ in
-            if let v = viejo, let b = barrios.first(where: { $0.nombre == v }) { Task { await guardarBarrio(b) } }
-        }
+        formulario
         .sheet(isPresented: $versiones) { HojaVersionesWeb { completa = [:]; Task { await traerBorrador() } } }
         .sheet(isPresented: $plantillas) { HojaPlantillas { completa = [:]; Task { await traerBorrador() } } }
         .sheet(isPresented: $qr) { if let w = web { HojaQRWeb(web: w, nombre: nombreInmo).presentationDetents([.medium]) } }
@@ -285,6 +94,214 @@ struct MiWeb: View {
                 var l = secciones
                 l[Int(x.id) ?? 0] = nueva
                 conWeb { $0["inicio"] = .lista(l) }
+            }
+        }
+    }
+
+    private var formulario: some View {
+        Form {
+            seccionesArriba
+            seccionesPagina
+            seccionesDatos
+        }
+        .disabled(!estado.esDuenio)
+        .environment(\.editMode, .constant(.active))
+        .scrollContentBackground(.hidden).background(FondoApp())
+        .pantallaApilada("Mi web")
+        .safeAreaInset(edge: .bottom) { if estado.esDuenio { barraPublicar } }
+        .toolbar {
+            if estado.esDuenio {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { deshacer() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(pasado.isEmpty).accessibilityLabel("Deshacer")
+                    Button { rehacer() } label: { Image(systemName: "arrow.uturn.forward") }.disabled(futuro.isEmpty).accessibilityLabel("Rehacer")
+                }
+            }
+        }
+        .onChange(of: barrioFoco) { viejo, _ in
+            if let v = viejo, let b = barrios.first(where: { $0.nombre == v }) { Task { await guardarBarrio(b) } }
+        }
+    }
+
+    // El formulario en tres partes: entero en un solo `Form` no se llegaba a tipar.
+    @ViewBuilder private var seccionesArriba: some View {
+        Section {
+            MarcoPrevia(url: previa, recarga: recarga) { tocar($0) }
+                .listRowInsets(EdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24))
+                .listRowBackground(Color.clear)
+        }
+        Section(header: Text("Logo y portada"), footer: Text("El logo va en tu web, en los recibos y en la app.")) {
+            SubirImagenMarca(titulo: "Subí tu logo", url: marca["logoUrl"]) { u, _ in marca["logoUrl"] = u; programar(ya: true) }
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            SubirImagenMarca(titulo: "Subí la foto de portada", url: marca["portadaUrl"], ancha: true) { u, _ in marca["portadaUrl"] = u; programar(ya: true) }
+                .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+        }
+        if !estado.esDuenio {
+            Section { Label("La web la cambia el dueño o la dueña. Vos la podés ver como queda.", systemImage: "lock").estilo(.footnote).foregroundStyle(C.texto2) }
+        }
+        if let w = web, let u = URL(string: w) {
+            Section {
+                Link(destination: u) { Label(w.replacingOccurrences(of: "https://", with: ""), systemImage: "globe") }
+                Button { Afuera.whatsapp(nil, texto: "Mirá las propiedades de \(nombreInmo.nonEmpty ?? "la inmobiliaria"): \(w)") } label: { Label("Mandar por WhatsApp", systemImage: "bubble.left") }
+                ShareLink(item: u, subject: Text(nombreInmo), message: Text("Mirá las propiedades de \(nombreInmo)")) { Label("Compartir tu web", systemImage: "square.and.arrow.up") }
+                Button { UIPasteboard.general.url = u; estado.avisar("Copiaste el link de tu web") } label: { Label("Copiar el link", systemImage: "doc.on.doc") }
+                Button { qr = true } label: { Label("El QR de tu web", systemImage: "qrcode") }
+            }
+        }
+        if let i = informe {
+            Section("Esta semana") {
+                LabeledContent("Visitas a tus propiedades", value: Informe.num(i["totalVistas"]))
+                LabeledContent("Consultas desde tu web", value: {
+                    if case .lista(let l)? = i["origenes"], let o = l.first(where: { $0["origen"]?.texto == "Web propia" }) { return Informe.num(o["cantidad"]) }
+                    return "0"
+                }())
+            }
+        }
+    }
+
+    @ViewBuilder private var seccionesPagina: some View {
+        Section("Plantilla") {
+            let id = completa["plantilla"]?.texto ?? "barrio"
+            LabeledContent("En uso", value: EditorWeb.plantillas.first { $0.id == id }?.nombre ?? id)
+            Button { plantillas = true } label: { Label("Ver las plantillas", systemImage: "rectangle.3.group") }
+            Button { versiones = true } label: { Label("Versiones publicadas", systemImage: "clock.arrow.circlepath") }
+        }
+        Section(header: Text("Página de inicio"), footer: Text("Arrastrá para ordenar. Lo apagado no se ve en tu web.")) {
+            ForEach(Array(secciones.enumerated()), id: \.offset) { i, x in
+                Toggle(Self.nombreSeccion(x["tipo"]?.texto), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
+                                                                     set: { on in ocultar(i, !on) }))
+                    .disabled(x["tipo"]?.texto == "portada")
+                    .swipeActions {
+                        if x["tipo"]?.texto != "portada" { Button("Quitar", role: .destructive) { quitarSeccion(i) } }
+                        if x["tipo"]?.texto == "texto" { Button("Duplicar") { duplicarSeccion(i) }.tint(C.accion) }
+                    }
+                    .contextMenu {
+                        if x["tipo"]?.texto == "texto" { Button { duplicarSeccion(i) } label: { Label("Duplicar", systemImage: "plus.square.on.square") } }
+                        Menu {
+                            ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in Button(Self.nombreSeccion(t)) { sumarSeccion(t, despuesDe: i) } }
+                        } label: { Label("Sumar sección acá", systemImage: "plus.rectangle.on.rectangle") }
+                        if x["tipo"]?.texto != "portada" { Button(role: .destructive) { quitarSeccion(i) } label: { Label("Quitar", systemImage: "trash") } }
+                    }
+            }
+            .onMove { desde, hacia in mover(desde, hacia) }
+            Toggle("Buscador en la portada (Comprar · Alquilar · Temporada)", isOn: Binding(get: { portada["buscador"].map { if case .bool(false) = $0 { return false }; return true } ?? true },
+                                                                                         set: { v in conPortada { $0["buscador"] = .bool(v) } }))
+            VStack(alignment: .leading, spacing: 6) {
+                let v = veloActual
+                let noche = EditorWeb.noche(marca["colorPrimario"])
+                let variante = portada["variante"]?.texto ?? "foto"
+                let seLee = variante == "foto" ? EditorWeb.seLeeConVelo(noche, v)
+                    : Acento.contraste(Acento.rgb(marca["colorPrimario"]).map(Acento.hex) ?? 0x16443B, Acento.rgb(marca["colorFondo"]).map(Acento.hex) ?? 0xFAF8F3) >= 4.5
+                Text("Velo sobre la foto · \(Int(v)) %").estilo(.subhead)
+                Slider(value: Binding(get: { veloActual }, set: { n in conPortada { $0["velo"] = .numero((n / 5).rounded() * 5) } }), in: 0...90, step: 5)
+                if seLee {
+                    Label("El título se lee bien (contraste AA)", systemImage: "checkmark.circle").estilo(.footnote).foregroundStyle(C.okTinta)
+                } else if variante == "foto" {
+                    let m = EditorWeb.veloMinimo(noche)
+                    HStack {
+                        Text("El título cuesta leerse.").estilo(.footnote).foregroundStyle(C.avisoTinta)
+                        Button("Subir el velo a \(m) %") { conPortada { $0["velo"] = .numero(Double(m)) } }.estilo(.footnoteFuerte)
+                    }
+                } else {
+                    Text("El título puede costar leerse: probá un color más oscuro").estilo(.footnote).foregroundStyle(C.avisoTinta)
+                }
+            }
+            Button { fotoPortada = true } label: { Label("Usar la foto de una propiedad", systemImage: "photo.on.rectangle") }
+            Picker("Portada", selection: Binding(get: { completa["web"]?["portada"]?["variante"]?.texto ?? "foto" }, set: { variante($0) })) {
+                Text("Foto de fondo").tag("foto"); Text("Foto arriba").tag("arriba"); Text("Partida").tag("partida")
+            }
+        }
+        Section(header: Text("Sumar a la página de inicio")) {
+            Menu {
+                ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in
+                    Button(Self.nombreSeccion(t)) { sumarSeccion(t) }
+                }
+            } label: { Label("Sumar sección", systemImage: "plus.rectangle.on.rectangle") }
+            .disabled(EditorWeb.tiposParaSumar(secciones).isEmpty)
+            ForEach(Array(secciones.enumerated()).filter { ["texto", "testimonios"].contains($0.element["tipo"]?.texto ?? "") }, id: \.offset) { i, x in
+                Button { editandoSeccion = i } label: {
+                    LabeledContent(Self.nombreSeccion(x["tipo"]?.texto), value: x["titulo"]?.texto ?? "Editar")
+                }
+            }
+        }
+        Section(header: Text("Páginas"), footer: Text("Las propias viven en tu web con su link. Lo apagado no sale en el menú.")) {
+            ForEach(Array(paginas.enumerated()), id: \.offset) { i, x in
+                let id = x["id"]?.texto ?? ""
+                Toggle(Self.nombrePagina(x), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
+                                                           set: { on in ocultarPagina(i, !on) }))
+                    .disabled(id == "inicio" || id == "propiedades")
+                    .swipeActions { if id.hasPrefix("p-") { Button("Quitar", role: .destructive) { quitarPagina(i) } } }
+                if id.hasPrefix("p-") {
+                    Button { editandoPagina = i } label: { Label("Editar «\(Self.nombrePagina(x))»", systemImage: "pencil") }
+                }
+            }
+            Button { paginaNueva = true } label: { Label("Nueva página", systemImage: "plus") }
+        }
+        if let g = guardadas {
+            Section("Guardadas esta semana") {
+                LabeledContent("Corazones", value: Informe.num(g["favoritos"]))
+                LabeledContent("Búsquedas con alerta", value: Informe.num(g["busquedas"]))
+                if let m = g["masGuardada"], let t = m["titulo"]?.texto {
+                    Button { if let id = m["id"]?.texto { estado.abrir(AFichaPropiedad(id: id)) } } label: { LabeledContent("La más guardada", value: t) }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private var seccionesDatos: some View {
+        if estado.esDuenio { seccionDominio }
+        Section {
+            if let l = legales, l["razonSocial"]?.texto != nil || l["cuit"]?.texto != nil || l["matricula"]?.texto != nil {
+                if let r = l["razonSocial"]?.texto { LabeledContent("Razón social", value: r) }
+                if let c = l["cuit"]?.texto { LabeledContent("CUIT", value: c) }
+                if let m = l["matricula"]?.texto { LabeledContent("Matrícula", value: [l["colegio"]?.texto, m].compactMap { $0 }.joined(separator: " ")) }
+            } else {
+                Text("Faltan la razón social, el CUIT y la matrícula. En CABA y Provincia el corredor tiene que exhibirlos.").estilo(.footnote).foregroundStyle(C.avisoTinta)
+            }
+            Button("Editar") { estado.abrir(ASeccion(clave: "configuracion")) }
+        } header: { Text("Datos legales del pie") }
+        Section("Marca") {
+            HStack(spacing: 10) {
+                ForEach(EditorWeb.colores, id: \.self) { c in
+                    Button { recordar(); marca["colorPrimario"] = c; programar() } label: {
+                        Circle().fill(Color(hex: UInt32(c.dropFirst(), radix: 16) ?? 0)).frame(width: 32, height: 32)
+                            .overlay(Circle().strokeBorder(C.oro, lineWidth: (marca["colorPrimario"] ?? "").lowercased() == c ? 3 : 0))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Color \(c)")
+                }
+            }
+            ColorPicker("Color principal", selection: color("colorPrimario", 0x16443B), supportsOpacity: false)
+            avisoContraste
+            ColorPicker("Color de acento", selection: color("colorSecundario", 0xF2BB57), supportsOpacity: false)
+            ColorPicker("Fondo", selection: color("colorFondo", 0xFAF8F3), supportsOpacity: false)
+            if let f = Acento.rgb(marca["colorFondo"]).map(Acento.hex), Acento.contraste(f, 0x18201D) < 7 {
+                Label("El fondo tiene que ser claro para que el texto se lea: usamos el papel", systemImage: "slider.horizontal.3").estilo(.footnote).foregroundStyle(C.avisoTinta)
+            }
+            TextField("Frase de la portada", text: campo("frase", ""))
+            botonIA("frase")
+        }
+        Section("Nosotros") {
+            TextField("Título", text: campo("nosotrosTitulo", ""))
+            TextField("Quiénes son, desde cuándo, en qué barrios trabajan.", text: campo("nosotros", ""), axis: .vertical).lineLimit(3...8)
+            botonIA("nosotros")
+        }
+        Section("Contacto") {
+            TextField("WhatsApp", text: campo("whatsapp", "")).keyboardType(.phonePad)
+            TextField("Teléfono", text: campo("telefono", "")).keyboardType(.phonePad)
+            TextField("Mail", text: campo("email", "")).keyboardType(.emailAddress)
+            TextField("Dirección", text: campo("direccion", ""))
+            TextField("Horario", text: campo("horario", ""))
+        }
+        if !barrios.isEmpty {
+            Section(header: Text("Barrios"), footer: Text("Lo que contás de cada uno sale en su página de tu web.")) {
+                ForEach($barrios) { $b in
+                    VStack(alignment: .leading) {
+                        Text(b.nombre).estilo(.filaLista)
+                        TextField("Cómo es vivir en \(b.nombre): plazas, transporte, colegios.", text: Binding(get: { b.texto ?? "" }, set: { b.texto = String($0.prefix(600)) }), axis: .vertical)
+                            .focused($barrioFoco, equals: b.nombre)
+                            .onSubmit { Task { await guardarBarrio(b) } }
+                    }
+                }
             }
         }
     }

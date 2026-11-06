@@ -32,7 +32,7 @@ jobs:
         run: |
           set -o pipefail
           xcodebuild build -project Corredor.xcodeproj -scheme Corredor -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -continueBuildingAfterErrors \
             | tee compilar.log | xcbeautify --renderer github-actions
       - if: failure()
         # Los errores, y si se cayó el compilador (sin «error:»), su pila y el archivo que compilaba.
