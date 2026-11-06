@@ -181,11 +181,12 @@ struct MensajesRaiz: View {
         } else if numero?.conectado == false {
             EmptyView()
         } else {
+            let verTodas: (String, () -> Void) = ("Ver todas", { soloML = false; vista = .todas })
+            let conectar: (String, () -> Void)? = estado.esDuenio ? ("Conectar WhatsApp", { estado.abrir(ASeccion(clave: "integraciones")) }) : nil
             EstadoVacio(icono: "bubble.left.and.bubble.right",
                         titulo: elegida == .pendientes && !soloML ? "No hay nadie esperando respuesta" : "No hay conversaciones acá",
                         texto: "WhatsApp, Mercado Libre y tu web entran acá.",
-                        accion: elegida != .todas || soloML ? ("Ver todas", { soloML = false; vista = .todas })
-                            : (estado.esDuenio ? ("Conectar WhatsApp", { estado.abrir(ASeccion(clave: "integraciones")) }) : nil))
+                        accion: elegida != .todas || soloML ? verTodas : conectar)
         }
     }
 

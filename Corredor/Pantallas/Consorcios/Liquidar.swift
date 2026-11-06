@@ -94,9 +94,13 @@ struct LiquidarConsorcio: View {
     }
 
     private var vacio: some View {
-        EstadoVacio(icono: "doc.text", titulo: "Empezá la liquidación de \(mes)",
-                    texto: "Abrí el período y cargá los gastos del mes: sueldos, servicios, abonos y arreglos. Después ves cómo se reparte entre las unidades antes de emitir.",
-                    accion: estado.escribe ? (abriendo ? "Abriendo…" : "Abrir \(mes)", { Task { await abrir() } }) : nil)
+        // Con el tipo explícito: la tupla con un ternario adentro tiraba abajo al compilador (6.2).
+        let texto: String = abriendo ? "Abriendo…" : "Abrir \(mes)"
+        let abrirMes: () -> Void = { Task { await abrir() } }
+        let accion: (String, () -> Void)? = estado.escribe ? (texto, abrirMes) : nil
+        return EstadoVacio(icono: "doc.text", titulo: "Empezá la liquidación de \(mes)",
+                           texto: "Abrí el período y cargá los gastos del mes: sueldos, servicios, abonos y arreglos. Después ves cómo se reparte entre las unidades antes de emitir.",
+                           accion: accion)
     }
 
     // MARK: 1 · Gastos
