@@ -35,7 +35,7 @@ struct ConsejoCargar: Tip {
 /// Más: todo lo que no está en las pestañas.
 struct ConsejoMas: Tip {
     var title: Text { Text("Todo lo demás está en «Más»") }
-    var message: Text? { Text("La plata, los contratos, los consorcios, tu web y la configuración, ordenados por área.") }
+    var message: Text? { Text("Mi inmobiliaria (tu web, tus datos, tu equipo, tu plan) y las herramientas: cobros, contratos, consorcios.") }
     var image: Image? { Image(systemName: "square.grid.2x2") }
 }
 

@@ -16,7 +16,7 @@ struct Recorrido: View {
         ("dollarsign.circle", "La plata del negocio", "Cobrá los alquileres, mandá el recibo y rendile al dueño, todo desde el celular.", .inicio),
         ("sparkles", "La IA trabaja por vos", "Te sugiere a quién mandarle qué propiedad y prepara respuestas. Vos aprobás.", .inicio),
         ("globe", "Tu web y los portales", "Tus propiedades en tu web y en Mercado Libre y los portales, sin cargar dos veces.", .mas),
-        ("square.grid.2x2", "Todo lo demás, en «Más»", "Contratos, consorcios, tu equipo y la configuración, ordenados por área. Y un buscador.", .mas),
+        ("square.grid.2x2", "Todo lo demás, en «Más»", "Arriba, Mi inmobiliaria: tu web, tus datos, tu equipo y tu plan. Abajo, las herramientas. Y claro u oscuro, a un toque.", .mas),
     ]
 
     var body: some View {
