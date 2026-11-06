@@ -42,6 +42,9 @@ struct Cita: Codable, Identifiable, Hashable {
     var contactoNombre: String?
     var propiedadTitulo: String?
     var agenteNombre: String?
+    /// Cuándo se le mandó el recordatorio por WhatsApp («confirmada»).
+    var recordadoEn: Date?
+    var creadaEn: Date?
 
     /// Lo que se ve: la propiedad, el lugar o el título.
     var donde: String { propiedadTitulo ?? lugar ?? titulo ?? "Cita" }
@@ -67,6 +70,7 @@ struct Sugerencia: Codable, Identifiable, Hashable {
     var contactoId: String?
     var propiedadId: String?
     var contratoId: String?
+    var agenteId: String?
 }
 
 /// Un objetivo del mes (operaciones, captaciones…) con su avance.
@@ -128,8 +132,62 @@ struct Conversacion: Codable, Identifiable, Hashable {
     var ultimoMensajeEn: Date?
     var ultimoEntranteEn: Date?
     var enVentana: Bool?
+    /// Lo último es del otro lado: nadie le contestó todavía.
+    var esperando: Bool?
+    var archivada: Bool?
+    /// Se vinculó sola por el código del aviso que trajo un mensaje.
+    var propiedadPorCodigo: Bool?
+    var creadaEn: Date?
 
-    var quien: String { contactoNombre ?? nombre ?? waId.map { "+\($0)" } ?? "Sin nombre" }
+    /// Como la web (lib/mensajes/modelo.ts `nombreDe`): el contacto, el nombre de WhatsApp o el número.
+    var quien: String { contactoNombre ?? nombre?.nonEmpty ?? Conversacion.telefono(waId ?? "") }
+    /// Sin contacto ni nombre: «número nuevo · crear contacto».
+    var sinNombre: Bool { contactoNombre == nil && nombre?.nonEmpty == nil }
+    /// Fuera de la ventana de 24 h (y ya escribió alguna vez).
+    var fuera: Bool { enVentana != true && ultimoEntranteEn != nil }
+
+    /// «11 3392-0071» para un número de Buenos Aires sin nombre; si no, «+<número>».
+    static func telefono(_ wa: String) -> String {
+        for patron in [#"^549(11)(\d{4})(\d{4})$"#, #"^54(11)(\d{4})(\d{4})$"#] {
+            if let r = try? NSRegularExpression(pattern: patron),
+               let m = r.firstMatch(in: wa, range: NSRange(wa.startIndex..., in: wa)), m.numberOfRanges == 4,
+               let a = Range(m.range(at: 1), in: wa), let b = Range(m.range(at: 2), in: wa), let c = Range(m.range(at: 3), in: wa) {
+                return "\(wa[a]) \(wa[b])-\(wa[c])"
+            }
+        }
+        return wa.isEmpty ? "Sin nombre" : "+" + wa
+    }
+
+    /// Lo que queda de la ventana de 24 h: «23 h 48 min» (nil si está cerrada).
+    func ventanaRestante(_ ahora: Date = Date()) -> String? {
+        guard let u = ultimoEntranteEn else { return nil }
+        let resta = u.addingTimeInterval(86_400).timeIntervalSince(ahora)
+        guard resta > 0 else { return nil }
+        let h = Int(resta) / 3600, m = (Int(resta) % 3600) / 60
+        return h > 0 ? "\(h) h \(m) min" : "\(m) min"
+    }
+}
+
+/// GET /v1/whatsapp/conversaciones/cuentas: cada vista de la bandeja con su número.
+struct CuentasBandeja: Codable, Hashable {
+    var esperando: Int?
+    var mias: Int?
+    var sinDueno: Int?
+    var fueraDeVentana: Int?
+    var noLeidas: Int?
+    var todas: Int?
+}
+
+/// GET /v1/whatsapp/numero: el número conectado y su estado en Meta (conectado, desconectado,
+/// restringido, limitado), por qué y desde cuándo.
+struct NumeroWA: Codable, Hashable {
+    var conectado: Bool
+    var telefono: String?
+    var estado: String?
+    var estadoMotivo: String?
+    var estadoEn: Date?
+    /// Conectado en Corredor y caído en Meta: hay que avisar.
+    var caido: Bool { conectado && (estado?.nonEmpty.map { $0 != "conectado" } ?? false) }
 }
 
 /// Una pregunta de Mercado Libre.
@@ -212,12 +270,32 @@ struct AvisoCentro: Codable, Identifiable, Hashable {
     var titulo: String?
     var cuerpo: String?
     var url: String?
+    /// Lo que el aviso sabe de lo que pasó (la sugerencia de respuesta, la propiedad, el monto…).
+    var datos: JSONLibre?
+    /// Quién lo provocó (el que movió la operación) y quién lo tiene que resolver.
+    var actorId: String?
+    var actorNombre: String?
+    var responsableId: String?
+    var responsableNombre: String?
     /// Pide algo (responder, cobrar): al hacerlo queda hecho, no sólo leído.
     var accionable: Bool?
+    var hecho: Bool?
+    var leido: Bool?
     var leidoEn: Date?
     var hechoEn: Date?
     var creadoEn: Date?
     var acciones: [Accion]?
+
+    var estaHecho: Bool { hecho == true || hechoEn != nil }
+    var estaLeido: Bool { leido == true || leidoEn != nil }
+}
+
+/// GET /v1/avisos: una página, el cursor de la siguiente y los contadores.
+struct PaginaAvisos: Codable {
+    var avisos: [AvisoCentro]
+    var siguiente: String?
+    var noLeidos: Int?
+    var paraHacer: Int?
 }
 
 /// El resultado de la búsqueda global (GET /v1/buscar).

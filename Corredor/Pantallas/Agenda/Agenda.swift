@@ -10,40 +10,86 @@ extension View {
     }
 }
 
-/// 7A–7B Agenda: la semana arriba (con puntos por cita), el día con la hora actual en rojo o la semana
-/// entera, y el «+» para una visita o una tarea nueva.
+/// Lo que va como franja arriba del día (y punto en la tira): vencimientos y ajustes de contratos,
+/// cobros vencidos y licencias del equipo.
+struct FranjaAgenda: Identifiable, Hashable {
+    var id: String
+    var dia: String
+    var texto: String
+    var largo: String?
+    var tono: Tono
+    var icono: String
+    var contrato: String?
+    var licencia = false
+    var accion = "Ver"
+}
+
+/// Un vencimiento o ajuste de un contrato (GET /v1/contratos/vencimientos).
+struct VencimientoContrato: Decodable {
+    var contratoId: String
+    var tipo: String
+    var fecha: String
+    var contrato: JSONLibre?
+}
+
+/// Un mes de alquiler vencido y sin cobrar (GET /v1/contactos/deudas).
+struct DeudaContacto: Decodable {
+    var contratoId: String
+    var contactoId: String
+    var contactoNombre: String
+    var periodo: String
+    var vence: String
+}
+
+/// 7A–7B Agenda, como la del panel: el día (con las franjas de vencimientos, cobros y licencias, las
+/// tareas con tilde y las visitas con «Ir» y el chat), la semana o el mes; mía o del equipo; y el alta
+/// rápida escrita como se dice.
 struct AgendaRaiz: View {
     @Environment(Estado.self) private var estado
     var diaInicial: Date? = nil
     var apilada = false
-    @State private var vista = 0
+    @State private var vista = "dia"
+    @State private var de = "equipo"
     @State private var dia = Date()
     @State private var citas: [Cita]?
+    @State private var franjas: [FranjaAgenda] = []
     @State private var error: ErrorApi?
     @State private var nueva = false
-    @State private var soloMias = true
+    @State private var licencias = false
 
-    private var lunes: Date {
+    private var lunes: Date { Self.lunes(de: dia) }
+
+    static func lunes(de d: Date) -> Date {
         let c = Calendar(identifier: .iso8601)
-        return c.date(from: c.dateComponents([.yearForWeekOfYear, .weekOfYear], from: dia)) ?? dia
+        return c.date(from: c.dateComponents([.yearForWeekOfYear, .weekOfYear], from: d)) ?? d
+    }
+
+    /// El período a la vista: la semana, o el mes con sus semanas de borde.
+    private var periodo: (Date, Date) {
+        if vista == "mes" {
+            let cal = Calendar.current
+            let primero = cal.date(from: cal.dateComponents([.year, .month], from: dia)) ?? dia
+            let ultimo = cal.date(byAdding: DateComponents(month: 1, day: -1), to: primero) ?? dia
+            return (Self.lunes(de: primero), cal.date(byAdding: .day, value: 6, to: Self.lunes(de: ultimo)) ?? ultimo)
+        }
+        return (lunes, Calendar.current.date(byAdding: .day, value: 6, to: lunes) ?? lunes)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                // Siempre con su cabecera (fecha, título y «Hoy»): desde el 5/11 se abre apilada desde el
-                // Inicio y desde «Más»; la barra de arriba queda sólo para volver.
-                CabeceraPestana(sobre: Formato.mayuscula(Formato.diaCompleto(dia)), titulo: "Agenda",
-                                acciones: [AccionCabecera(icono: "calendar.badge.clock", etiqueta: "Hoy") { withAnimation { dia = Date() } }])
+                CabeceraPestana(sobre: Self.tituloDia(dia), titulo: "Agenda", acciones: acciones)
                 VStack(alignment: .leading, spacing: 14) {
-                    Segmentado(opciones: [(0, "Día"), (1, "Semana")], elegido: $vista)
-                    semana
-                    if estado.esDuenio {
-                        Toggle("Sólo mi agenda", isOn: $soloMias).estilo(.subhead).tint(Color(hex: 0x2F9E6F))
-                    }
+                    Segmentado(opciones: [("dia", "Día"), ("semana", "Semana"), ("mes", "Mes")], elegido: $vista)
+                    Segmentado(opciones: [("mia", "Mía"), ("equipo", "Equipo")], elegido: $de)
+                    if vista != "mes" { semana }
                     if let citas {
-                        let visibles = citas.filter { !soloMias || !estado.esDuenio || $0.agenteId == nil || $0.agenteId == estado.usuario?.id }
-                        if vista == 0 { vistaDia(visibles) } else { vistaSemana(visibles); GraficoVisitasSemanas() }
+                        let visibles = citas.filter { $0.estado != "cancelada" }
+                        switch vista {
+                        case "mes": vistaMes(visibles)
+                        case "semana": vistaSemana(visibles); GraficoVisitasSemanas()
+                        default: vistaDia(visibles)
+                        }
                     } else if let error {
                         EstadoError(que: "la agenda", error: error) { Task { await cargar() } }
                     } else {
@@ -65,13 +111,38 @@ struct AgendaRaiz: View {
                     Image(systemName: "plus").font(.system(size: 26, weight: .semibold)).foregroundStyle(C.sobreAccion)
                         .frame(width: 58, height: 58).background(C.accion, in: Circle()).sombraE3()
                 }
-                .accessibilityLabel("Nueva visita o tarea")
+                .accessibilityLabel("Agendar")
                 .padding(.trailing, 20).padding(.bottom, 20)
             }
         }
-        .task(id: "\(estado.version)-\(Formato.diaISO(lunes))-\(vista)") { await cargar() }
+        .task(id: "\(estado.version)-\(Formato.diaISO(periodo.0))-\(vista)-\(de)") { await cargar() }
         .onAppear { if let diaInicial { dia = diaInicial } }
         .sheet(isPresented: $nueva) { NuevaCita(dia: dia).presentationDetents([.large]) }
+        .sheet(isPresented: $licencias) { LicenciasAgenda().hojaTLW([.large]) }
+    }
+
+    private var acciones: [AccionCabecera] {
+        var a = [AccionCabecera(icono: "chevron.left", etiqueta: "Anterior") { mover(-1) },
+                 AccionCabecera(icono: "chevron.right", etiqueta: "Siguiente") { mover(1) }]
+        if !Calendar.current.isDateInToday(dia) { a.append(AccionCabecera(icono: "calendar.badge.clock", etiqueta: "Hoy") { withAnimation { dia = Date() } }) }
+        a.append(AccionCabecera(icono: "beach.umbrella", etiqueta: "Licencias y ausencias") { licencias = true })
+        return a
+    }
+
+    private func mover(_ n: Int) {
+        let cal = Calendar.current
+        withAnimation(.snappy) {
+            switch vista {
+            case "mes": dia = cal.date(byAdding: .month, value: n, to: dia) ?? dia
+            case "semana": dia = cal.date(byAdding: .day, value: 7 * n, to: dia) ?? dia
+            default: dia = cal.date(byAdding: .day, value: n, to: dia) ?? dia
+            }
+        }
+    }
+
+    private func franjasDe(_ d: Date) -> [FranjaAgenda] {
+        let k = Formato.diaISO(d)
+        return franjas.filter { $0.dia == k }
     }
 
     private var semana: some View {
@@ -79,7 +150,8 @@ struct AgendaRaiz: View {
             ForEach(0..<7, id: \.self) { i in
                 let d = Calendar.current.date(byAdding: .day, value: i, to: lunes)!
                 let elegido = Calendar.current.isDate(d, inSameDayAs: dia)
-                let n = (citas ?? []).filter { Calendar.current.isDate($0.empiezaEn, inSameDayAs: d) }.count
+                let n = (citas ?? []).filter { Calendar.current.isDate($0.empiezaEn, inSameDayAs: d) && $0.estado != "cancelada" }.count
+                let vence = franjasDe(d).contains { !$0.licencia }
                 Button { withAnimation(.snappy) { dia = d } } label: {
                     VStack(spacing: 4) {
                         Text(Self.letra(d)).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto3)
@@ -88,13 +160,14 @@ struct AgendaRaiz: View {
                             .frame(width: 38, height: 38).background(elegido ? C.accion : .clear, in: Circle())
                         HStack(spacing: 3) {
                             ForEach(0..<min(n, 3), id: \.self) { _ in Circle().fill(elegido ? C.accion : C.texto3).frame(width: 5, height: 5) }
+                            if vence { Circle().fill(C.error).frame(width: 5, height: 5) }
                         }
                         .frame(height: 5)
                     }
                     .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(Presionable())
-                .accessibilityLabel("\(Formato.diaCompleto(d)), \(Formato.cantidad(n, "cita", "citas"))")
+                .accessibilityLabel("\(Formato.diaCompleto(d)), \(Formato.cantidad(n, "cita", "citas"))\(vence ? ", con vencimientos" : "")")
             }
         }
         .gesture(DragGesture().onEnded { g in
@@ -103,13 +176,31 @@ struct AgendaRaiz: View {
         })
     }
 
+    private func franja(_ f: FranjaAgenda) -> some View {
+        Button {
+            if f.licencia { licencias = true } else if let c = f.contrato { estado.abrir(AFichaContrato(id: c)) }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: f.icono).font(.system(size: 16, weight: .semibold))
+                Text(f.largo ?? f.texto).estilo(.subheadFuerte).frame(maxWidth: .infinity, alignment: .leading)
+                Text(f.accion).font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font)
+            }
+            .foregroundStyle(f.tono.tinta)
+            .padding(.horizontal, 14).frame(minHeight: 44)
+            .background(f.tono.fondo, in: .rect(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(Presionable())
+    }
+
     @ViewBuilder
     private func vistaDia(_ l: [Cita]) -> some View {
         let delDia = l.filter { Calendar.current.isDate($0.empiezaEn, inSameDayAs: dia) }.sorted { $0.empiezaEn < $1.empiezaEn }
         VStack(spacing: 10) {
+            ForEach(franjasDe(dia)) { franja($0) }
             if delDia.isEmpty {
-                EstadoVacio(icono: "calendar.badge.checkmark", titulo: "Día libre", texto: "Agendá una visita y le avisamos al interesado por WhatsApp.",
-                            accion: estado.escribe ? ("Nueva visita", { nueva = true }) : nil).padding(.top, 30)
+                EstadoVacio(icono: "calendar.badge.checkmark", titulo: Calendar.current.isDateInToday(dia) ? "Hoy no hay nada agendado" : "Nada agendado",
+                            texto: "Escribí «visita Mendoza 2350 con Valeria a las 17:30».",
+                            accion: estado.escribe ? ("Agendar", { nueva = true }) : nil).padding(.top, 20)
             }
             ForEach(delDia) { c in
                 if Calendar.current.isDateInToday(dia), c == delDia.first(where: { $0.empiezaEn > Date() }) { lineaAhora }
@@ -117,6 +208,9 @@ struct AgendaRaiz: View {
             }
             if Calendar.current.isDateInToday(dia), !delDia.isEmpty, delDia.allSatisfy({ $0.empiezaEn <= Date() }) { lineaAhora }
         }
+        .gesture(DragGesture(minimumDistance: 30).onEnded { g in
+            if abs(g.translation.width) > 70 && abs(g.translation.width) > abs(g.translation.height) { mover(g.translation.width < 0 ? 1 : -1) }
+        })
     }
 
     private var lineaAhora: some View {
@@ -127,44 +221,107 @@ struct AgendaRaiz: View {
         .accessibilityLabel("Ahora")
     }
 
+    static func esTarea(_ c: Cita) -> Bool { !["visita", "firma", "tasacion"].contains(c.tipo ?? "") }
+
+    private func quien(_ c: Cita) -> String {
+        c.agenteId != nil && c.agenteId == estado.usuario?.id ? "Vos" : (c.agenteNombre.map { Charla.primerNombre($0) } ?? "Sin agente")
+    }
+
+    /// «en 2 h», «en 40 min».
+    static func falta(_ f: Date) -> String {
+        let s = Int(f.timeIntervalSinceNow)
+        return s < 3600 ? "en \(max(1, s / 60))\(Formato.fino)min" : "en \(s / 3600)\(Formato.fino)h"
+    }
+
+    @ViewBuilder
     private func filaCita(_ c: Cita) -> some View {
+        if Self.esTarea(c) { filaTarea(c) } else { bloque(c) }
+    }
+
+    /// Una tarea: el tilde se marca y desmarca desde la lista, con Deshacer.
+    private func filaTarea(_ c: Cita) -> some View {
+        let hecha = c.estado == "hecha"
+        return HStack(alignment: .center, spacing: 12) {
+            Text(Formato.horaDe(c.empiezaEn)).font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font).foregroundStyle(C.texto)
+                .frame(width: 44, alignment: .leading)
+            HStack(spacing: 12) {
+                Button { Task { await tildar(c) } } label: {
+                    Image(systemName: hecha ? "checkmark.square.fill" : "square").font(.system(size: 24)).foregroundStyle(hecha ? Color(hex: 0x2F9E6F) : C.texto3)
+                }
+                .disabled(!estado.escribe)
+                .accessibilityLabel("Hecho: \(c.titulo ?? "")")
+                .accessibilityAddTraits(hecha ? .isSelected : [])
+                Button { estado.abrir(ACita(id: c.id)) } label: {
+                    Text((c.titulo ?? c.tipoTexto) + (c.agenteId != estado.usuario?.id && c.agenteNombre != nil ? " · \(quien(c))" : ""))
+                        .estilo(.body16).foregroundStyle(hecha ? C.texto3 : C.texto).strikethrough(hecha)
+                        .frame(maxWidth: .infinity, alignment: .leading).multilineTextAlignment(.leading)
+                }
+                .buttonStyle(Presionable())
+            }
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .background(C.superficie, in: .rect(cornerRadius: 16, style: .continuous))
+            .sombraE2()
+        }
+    }
+
+    /// Una visita, firma o tasación: con propiedad, quién, «confirmada» o «en 2 h»; si está por empezar
+    /// (menos de 3 h), «Ir» y el chat de WhatsApp dentro de Corredor.
+    private func bloque(_ c: Cita) -> some View {
         let tono = Self.tono(c)
+        let falta = c.empiezaEn.timeIntervalSinceNow
+        let prox = falta > 0 && falta < 3 * 3600
+        let nombre = ["visita": "Visita", "firma": "Firma", "tasacion": "Tasación"][c.tipo ?? ""] ?? ""
+        let titulo = c.propiedadTitulo.map { "\(nombre) \($0)" } ?? (c.titulo ?? c.tipoTexto)
+        let q = quien(c)
+        let detalle = [c.contactoNombre, q != "Vos" ? q : nil, prox ? Self.falta(c.empiezaEn) : (c.estado == "hecha" ? "hecha" : (c.recordar == true ? "confirmada" : nil))]
+            .compactMap { $0 }.joined(separator: " · ")
         return HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(Formato.horaDe(c.empiezaEn)).font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font).foregroundStyle(C.texto)
                 Text(Formato.horaDe(c.terminaEn)).font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto3)
             }
             .frame(width: 44, alignment: .leading).padding(.top, 12)
-            Button { estado.abrir(ACita(id: c.id)) } label: {
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("\(c.tipoTexto) · \(c.donde)", systemImage: c.icono).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(tono)
-                    Text([c.contactoNombre.map { "Con \($0)" }, c.agenteNombre.map { estado.esDuenio ? $0 : nil } ?? nil, c.estado == "hecha" ? "Hecha" : nil]
-                        .compactMap { $0 }.joined(separator: " · ").nonEmpty ?? (c.titulo ?? ""))
-                        .estilo(.texto14).foregroundStyle(C.texto2).multilineTextAlignment(.leading)
-                    if c.tipo == "visita" && c.terminaEn > Date() && Calendar.current.isDateInToday(c.empiezaEn) {
-                        HStack(spacing: 8) {
-                            Button { Afuera.mapas(c.lugar ?? c.propiedadTitulo ?? "") } label: {
-                                Label("Cómo llegar", systemImage: "location.fill").font(Estilo(tamano: 14, peso: .semibold, relativo: .footnote).font)
-                                    .foregroundStyle(C.accion).frame(maxWidth: .infinity, minHeight: 44).background(C.hundida, in: .rect(cornerRadius: 12))
-                            }
-                            Button { llegando(c) } label: {
-                                Text("Estoy llegando").font(Estilo(tamano: 14, peso: .semibold, relativo: .footnote).font)
-                                    .foregroundStyle(Color(hex: 0x0B3D1F)).frame(maxWidth: .infinity, minHeight: 44).background(Color(hex: 0x25D366), in: .rect(cornerRadius: 12))
-                            }
-                        }
-                        .padding(.top, 8)
+            VStack(alignment: .leading, spacing: 4) {
+                Button { estado.abrir(ACita(id: c.id)) } label: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Label(titulo, systemImage: c.icono).font(Estilo(tamano: 14, peso: .bold, relativo: .footnote).font).foregroundStyle(tono)
+                        if !detalle.isEmpty { Text(detalle).estilo(.texto14).foregroundStyle(C.texto2).multilineTextAlignment(.leading) }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading).contentShape(Rectangle())
                 }
-                .padding(.horizontal, 14).padding(.vertical, 12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(C.superficie)
-                .overlay(alignment: .leading) { Rectangle().fill(tono).frame(width: 4) }
-                .clipShape(.rect(cornerRadius: 16, style: .continuous))
-                .sombraE2()
-                .opacity(c.estado == "cancelada" ? 0.5 : 1)
+                .buttonStyle(Presionable())
+                if prox {
+                    HStack(spacing: 8) {
+                        Button { Afuera.mapas(c.lugar ?? c.propiedadTitulo ?? "") } label: {
+                            Label("Ir", systemImage: "location.fill").font(Estilo(tamano: 14, peso: .semibold, relativo: .footnote).font)
+                                .foregroundStyle(C.sobreAccion).frame(maxWidth: .infinity, minHeight: 44).background(C.accion, in: .rect(cornerRadius: 12))
+                        }
+                        if let x = c.contactoId {
+                            Button { Task { await abrirChat(x) } } label: {
+                                Image(systemName: "bubble.left.fill").font(.system(size: 17)).foregroundStyle(C.accion)
+                                    .frame(width: 48, height: 44).background(C.hundida, in: .rect(cornerRadius: 12))
+                            }
+                            .accessibilityLabel("WhatsApp a \(c.contactoNombre ?? "")")
+                        }
+                    }
+                    .padding(.top, 8)
+                }
             }
-            .buttonStyle(Presionable())
+            .padding(.horizontal, 14).padding(.vertical, 12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(C.superficie)
+            .overlay(alignment: .leading) { Rectangle().fill(tono).frame(width: 4) }
+            .clipShape(.rect(cornerRadius: 16, style: .continuous))
+            .sombraE2()
+            .opacity(c.estado == "hecha" ? 0.7 : 1)
         }
+    }
+
+    /// Tocar un evento de la semana lleva al contacto o a la operación (o al día).
+    private func abrirEvento(_ c: Cita) {
+        if let x = c.contactoId { estado.abrir(AFichaContacto(id: x)) }
+        else if let o = c.operacionId { estado.abrir(AFichaOperacion(id: o)) }
+        else { withAnimation { dia = c.empiezaEn; vista = "dia" } }
     }
 
     @ViewBuilder
@@ -174,17 +331,21 @@ struct AgendaRaiz: View {
                 let d = Calendar.current.date(byAdding: .day, value: i, to: lunes)!
                 let delDia = l.filter { Calendar.current.isDate($0.empiezaEn, inSameDayAs: d) }.sorted { $0.empiezaEn < $1.empiezaEn }
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(Formato.mayuscula(Formato.diaCompleto(d))).estilo(.label).foregroundStyle(C.texto2).padding(.horizontal, 4)
+                    Button { withAnimation { dia = d; vista = "dia" } } label: {
+                        Text(Formato.mayuscula(Formato.diaCompleto(d))).estilo(.label).foregroundStyle(Calendar.current.isDateInToday(d) ? C.accion : C.texto2).padding(.horizontal, 4)
+                    }
+                    .buttonStyle(Presionable())
+                    ForEach(franjasDe(d)) { franja($0) }
                     VStack(spacing: 0) {
                         if delDia.isEmpty {
                             Text("Libre").estilo(.texto14).foregroundStyle(C.texto3).padding(.horizontal, 14).frame(maxWidth: .infinity, minHeight: 46, alignment: .leading)
                         }
                         ForEach(delDia) { c in
-                            Button { estado.abrir(ACita(id: c.id)) } label: {
+                            Button { abrirEvento(c) } label: {
                                 HStack(spacing: 10) {
                                     Circle().fill(Self.tono(c)).frame(width: 8, height: 8)
                                     Text(Formato.horaDe(c.empiezaEn)).font(Estilo(tamano: 14, peso: .bold, relativo: .footnote).font).frame(width: 44, alignment: .leading)
-                                    Text("\(c.tipoTexto) · \(c.donde)").estilo(.texto14).lineLimit(1)
+                                    Text("\(c.titulo ?? c.tipoTexto) · \(c.contactoNombre ?? quien(c))").estilo(.texto14).lineLimit(1).strikethrough(c.estado == "hecha")
                                     Spacer()
                                 }
                                 .foregroundStyle(C.texto).padding(.horizontal, 14).frame(minHeight: 46)
@@ -192,12 +353,70 @@ struct AgendaRaiz: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(Presionable())
+                            .contextMenu { Button { estado.abrir(ACita(id: c.id)) } label: { Label("Ver la cita", systemImage: "calendar") } }
                         }
                     }
                     .tarjeta(16)
                 }
             }
         }
+    }
+
+    /// El mes: las semanas que lo cubren, con hasta 3 citas por día, «y N más» y el primer vencimiento.
+    @ViewBuilder
+    private func vistaMes(_ l: [Cita]) -> some View {
+        let semanas: [[Date]] = semanasDelMes
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                ForEach(Array(["L", "M", "M", "J", "V", "S", "D"].enumerated()), id: \.offset) { _, x in
+                    Text(x).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.texto3).frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.vertical, 8)
+            ForEach(Array(semanas.enumerated()), id: \.offset) { _, sem in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(sem, id: \.self) { d in celdaMes(d, l) }
+                }
+                .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
+            }
+        }
+        .tarjeta(16)
+    }
+
+    private var semanasDelMes: [[Date]] {
+        let cal = Calendar.current
+        let p = periodo
+        let dias = max(0, cal.dateComponents([.day], from: p.0, to: p.1).day ?? 0)
+        return stride(from: 0, through: dias, by: 7).map { s in (0..<7).compactMap { cal.date(byAdding: .day, value: s + $0, to: p.0) } }
+    }
+
+    private func celdaMes(_ d: Date, _ l: [Cita]) -> some View {
+        let cal = Calendar.current
+        let cs = l.filter { cal.isDate($0.empiezaEn, inSameDayAs: d) }.sorted { $0.empiezaEn < $1.empiezaEn }
+        let fuera = !cal.isDate(d, equalTo: dia, toGranularity: .month)
+        let v = franjasDe(d).first { !$0.licencia }
+        return Button { withAnimation { dia = d; vista = "dia" } } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(cal.component(.day, from: d))").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font)
+                    .foregroundStyle(cal.isDateInToday(d) ? C.sobreAccion : (fuera ? C.texto3 : C.texto))
+                    .frame(width: 22, height: 22).background(cal.isDateInToday(d) ? C.accion : .clear, in: Circle())
+                if let v {
+                    Text(v.texto).font(Estilo(tamano: 9, peso: .bold, relativo: .caption2).font).foregroundStyle(v.tono.tinta).lineLimit(1)
+                        .padding(.horizontal, 3).background(v.tono.fondo, in: .rect(cornerRadius: 3))
+                }
+                ForEach(cs.prefix(3)) { c in
+                    Text("\(Formato.horaDe(c.empiezaEn)) \(c.propiedadTitulo.map { String($0.split(separator: ",").first ?? "") } ?? (c.titulo ?? ""))")
+                        .font(Estilo(tamano: 9, peso: .semibold, relativo: .caption2).font).foregroundStyle(Self.tono(c)).lineLimit(1)
+                }
+                if cs.count > 3 { Text("y \(cs.count - 3) más").font(Estilo(tamano: 9, peso: .regular, relativo: .caption2).font).foregroundStyle(C.texto3) }
+                Spacer(minLength: 0)
+            }
+            .padding(3).frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
+            .opacity(fuera ? 0.55 : 1)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(Presionable())
+        .accessibilityLabel("\(Formato.diaCompleto(d)), \(Formato.cantidad(cs.count, "cita", "citas"))")
     }
 
     static func tono(_ c: Cita) -> Color {
@@ -214,22 +433,96 @@ struct AgendaRaiz: View {
         ["Do", "Lu", "Ma", "Mi", "Ju", "Vi", "Sá"][Calendar.current.component(.weekday, from: d) - 1]
     }
 
-    private func llegando(_ c: Cita) {
-        guard let id = c.contactoId else { return estado.avisar("La visita no tiene un contacto cargado.", ok: false) }
-        Task {
-            struct C: Decodable { var nombre: String?; var telefono: String? }
-            let x: C? = try? await estado.api.get("/v1/contactos/\(id)")
-            Afuera.whatsapp(x?.telefono, texto: "Hola \(x?.nombre?.split(separator: " ").first.map(String.init) ?? ""), estoy llegando a \(c.donde).")
+    static func nombreDia(_ d: Date) -> String {
+        ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"][Calendar.current.component(.weekday, from: d) - 1]
+    }
+
+    /// «Hoy, jueves 12», «Mañana, viernes 13», «Ayer, miércoles 11» o «sábado 14».
+    static func tituloDia(_ d: Date) -> String {
+        let cal = Calendar.current
+        let base = "\(nombreDia(d)) \(cal.component(.day, from: d))"
+        if cal.isDateInToday(d) { return "Hoy, \(base)" }
+        if cal.isDateInTomorrow(d) { return "Mañana, \(base)" }
+        if cal.isDateInYesterday(d) { return "Ayer, \(base)" }
+        return base
+    }
+
+    private func abrirChat(_ contacto: String) async {
+        struct Cuerpo: Encodable { var contactoId: String }
+        struct Conv: Decodable { var id: String }
+        do {
+            let x: Conv = try await estado.api.enviar("POST", "/v1/whatsapp/conversaciones", Cuerpo(contactoId: contacto))
+            estado.abrir(AChat(id: x.id))
+        } catch { estado.avisar(error) }
+    }
+
+    private func tildar(_ c: Cita) async {
+        struct Cuerpo: Encodable { var estado: String }
+        let nuevo = c.estado == "hecha" ? "pendiente" : "hecha"
+        if let i = citas?.firstIndex(where: { $0.id == c.id }) { citas?[i].estado = nuevo }
+        do {
+            try await estado.cola.enviar("PATCH", "/v1/agenda/\(c.id)", Cuerpo(estado: nuevo), etiqueta: "Tarea \(nuevo == "hecha" ? "hecha" : "pendiente")")
+            if nuevo == "hecha" {
+                Haptico.exito()
+                estado.avisar("Hecho · \(c.titulo ?? "")") {
+                    Task {
+                        do {
+                            try await estado.api.hacer("PATCH", "/v1/agenda/\(c.id)", Cuerpo(estado: "pendiente"))
+                            estado.version += 1
+                        } catch { estado.avisar(error) }
+                    }
+                }
+            }
+            estado.version += 1
+        } catch {
+            if let i = citas?.firstIndex(where: { $0.id == c.id }) { citas?[i].estado = c.estado }
+            estado.avisar(error)
         }
     }
 
     private func cargar() async {
-        let desde = Calendar.current.date(byAdding: .day, value: -1, to: lunes)!
-        let hasta = Calendar.current.date(byAdding: .day, value: 8, to: lunes)!
+        let (desde, hasta) = periodo
+        let d = Formato.diaISO(desde), h = Formato.diaISO(hasta)
         do {
-            citas = try await estado.api.todas("/v1/agenda", query: [.init(name: "desde", value: Formato.diaISO(desde)), .init(name: "hasta", value: Formato.diaISO(hasta))])
+            var q: [URLQueryItem] = [.init(name: "desde", value: d), .init(name: "hasta", value: h), .init(name: "limite", value: "500")]
+            if de == "mia" { q.append(.init(name: "agente", value: "yo")) }
+            citas = try await estado.api.get("/v1/agenda", query: q)
             error = nil
         } catch let e as ErrorApi { if citas == nil { error = e } } catch {}
+        await cargarFranjas(d, h)
+    }
+
+    /// Vencimientos y ajustes de contratos, cobros vencidos y licencias del equipo.
+    private func cargarFranjas(_ desde: String, _ hasta: String) async {
+        var f: [FranjaAgenda] = []
+        let vencs: [VencimientoContrato] = (try? await estado.api.get("/v1/contratos/vencimientos", query: [.init(name: "dias", value: "120")])) ?? []
+        for v in vencs where v.fecha >= desde && v.fecha <= hasta {
+            let calle = v.contrato?["propiedadTitulo"]?.texto.map { " " + String($0.split(separator: ",").first ?? "") } ?? ""
+            let vence = v.tipo == "vencimiento"
+            f.append(FranjaAgenda(id: v.contratoId + v.tipo + v.fecha, dia: v.fecha, texto: vence ? "Vence alquiler\(calle)" : "Ajuste\(calle)",
+                                  tono: vence ? .rojo : .azul, icono: vence ? "calendar.badge.exclamationmark" : "chart.line.uptrend.xyaxis", contrato: v.contratoId))
+        }
+        let deudas: [DeudaContacto] = (try? await estado.api.get("/v1/contactos/deudas", query: [.init(name: "desde", value: desde), .init(name: "hasta", value: hasta)])) ?? []
+        for d in deudas {
+            let apellido = d.contactoNombre.split(separator: " ").last.map(String.init) ?? d.contactoNombre
+            f.append(FranjaAgenda(id: "cobro" + d.contratoId + d.periodo, dia: d.vence, texto: "Cobro \(apellido) vencido", largo: "Cobro de \(d.contactoNombre) vencido",
+                                  tono: .rojo, icono: "dollarsign.circle", contrato: d.contratoId, accion: "Recordar"))
+        }
+        let hoy = Formato.diaISO(Date())
+        let hasta60 = Formato.diaISO(Calendar.current.date(byAdding: .day, value: 60, to: Date()) ?? Date())
+        let lics: [Licencia] = (try? await estado.api.get("/v1/licencias", query: [.init(name: "desde", value: min(desde, hoy)), .init(name: "hasta", value: max(hasta, hasta60))])) ?? []
+        let ausente = ["licencia": "de licencia", "vacaciones": "de vacaciones", "enfermedad": "de licencia", "tramite": "de trámite"]
+        for l in lics {
+            var d = max(l.desde, desde)
+            var vueltas = 0
+            while d <= l.hasta && d <= hasta && vueltas < 400 {
+                let quien = l.usuarioId == estado.usuario?.id ? "Vos" : Charla.primerNombre(l.usuarioNombre)
+                f.append(FranjaAgenda(id: "licencia" + l.id + d, dia: d, texto: "\(quien) \(ausente[l.tipo ?? ""] ?? "de licencia")", tono: .neutro, icono: "beach.umbrella", licencia: true))
+                d = Entender.sumar(d, 1)
+                vueltas += 1
+            }
+        }
+        franjas = f
     }
 }
 
@@ -241,6 +534,15 @@ struct NuevaCita: View {
     var contacto: (id: String, nombre: String)? = nil
     var dia: Date = Date()
     var editar: Cita? = nil
+    /// La operación a la que queda vinculada (desde la ficha de la operación).
+    var operacion: String? = nil
+    /// La hora ya elegida («HH:mm»), si viene de otro lado.
+    var hora: String? = nil
+    /// Visita, tarea o recordatorio, para el alta rápida.
+    var clase = "visita"
+
+    /// Sin `editar`, el alta rápida escrita como se dice; «Elegir campo por campo» pasa al formulario.
+    @State private var formulario = false
 
     @State private var tipo = "visita"
     @State private var esTarea = 0
@@ -258,6 +560,15 @@ struct NuevaCita: View {
     @State private var guardando = false
 
     var body: some View {
+        if editar == nil && !formulario {
+            AltaRapidaCita(propiedadPrevia: propiedad, contactoPrevio: contacto?.id, operacion: operacion,
+                           diaPrevio: Formato.diaISO(dia), horaPrevia: hora, clasePrevia: clase) { formulario = true }
+        } else {
+            formularioCompleto
+        }
+    }
+
+    private var formularioCompleto: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -322,7 +633,9 @@ struct NuevaCita: View {
             var c = Calendar.current.dateComponents([.year, .month, .day], from: dia)
             let ahora = Calendar.current.dateComponents([.hour], from: Date())
             c.hour = min(20, (ahora.hour ?? 9) + 1)
+            if let h = hora?.split(separator: ":").compactMap({ Int($0) }), h.count == 2 { c.hour = h[0]; c.minute = h[1] }
             cuando = Calendar.current.date(from: c) ?? Date()
+            if clase != "visita" { esTarea = 1 }
             if let e = editar {
                 tipo = e.tipo ?? "visita"
                 esTarea = e.tipo == "otro" ? 1 : 0
@@ -369,11 +682,13 @@ struct NuevaCita: View {
             var notas: String?
             var recordar: Bool
             var agenteId: String?
+            var operacionId: String?
         }
         let t = esTarea == 1 ? "otro" : tipo
         let tit = esTarea == 1 ? titulo : "\(Cita.tipos.first { $0.0 == t }?.1 ?? "Visita") · \(prop?.nombre ?? lugar)"
         let c = Cuerpo(tipo: t, estado: editar?.estado ?? "pendiente", titulo: tit, empiezaEn: cuando, duracionMin: duracion, propiedadId: prop?.id, contactoId: con?.id,
-                       lugar: lugar.nonEmpty, notas: notas.nonEmpty, recordar: avisar && esTarea == 0, agenteId: editar?.agenteId ?? estado.usuario?.id)
+                       lugar: lugar.nonEmpty, notas: notas.nonEmpty, recordar: avisar && esTarea == 0, agenteId: editar?.agenteId ?? prop?.agenteId ?? estado.usuario?.id,
+                       operacionId: editar?.operacionId ?? operacion)
         do {
             if let e = editar {
                 try await estado.cola.enviar("PUT", "/v1/agenda/\(e.id)", c, etiqueta: "Cambios en \(tit)")
@@ -423,10 +738,11 @@ struct ElegirContacto: View {
                         Task {
                             struct Cuerpo: Encodable { var nombre: String; var tipo: String }
                             struct Nuevo: Decodable { var id: String; var nombre: String }
-                            if let n: Nuevo = try? await estado.api.enviar("POST", "/v1/contactos", Cuerpo(nombre: q, tipo: tipo)) {
+                            do {
+                                let n: Nuevo = try await estado.api.enviar("POST", "/v1/contactos", Cuerpo(nombre: q, tipo: tipo))
                                 alElegir(Resultado(id: n.id, tipo: "contacto", titulo: n.nombre))
                                 cerrar()
-                            }
+                            } catch { estado.avisar(error) }
                         }
                     } label: { Label("Cargar «\(q)» como contacto nuevo", systemImage: "person.badge.plus") }
                 }
@@ -478,6 +794,7 @@ struct FichaCita: View {
                     if estado.escribe {
                         VStack(spacing: 8) {
                             if c.estado != "hecha" { Button("Marcar como hecha") { Task { await poner("hecha") } }.buttonStyle(BotonAccion()) }
+                            else { Button("Volver a pendiente") { Task { await poner("pendiente") } }.buttonStyle(BotonHundido()) }
                             if c.estado == "pendiente" || c.estado == nil {
                                 Button("Estoy llegando") { llegando(c) }.buttonStyle(BotonHundido())
                             }
@@ -525,7 +842,12 @@ struct FichaCita: View {
             estado.version += 1
             if nuevo == "hecha" { Haptico.exito() }
             estado.avisar("Cita \(Self.estadoTexto(nuevo).lowercased())") {
-                Task { try? await estado.api.hacer("PATCH", "/v1/agenda/\(id)", Cuerpo(estado: antes)); estado.version += 1 }
+                Task {
+                    do {
+                        try await estado.api.hacer("PATCH", "/v1/agenda/\(id)", Cuerpo(estado: antes))
+                        estado.version += 1
+                    } catch { estado.avisar(error) }
+                }
             }
         } catch { estado.avisar(error) }
     }
@@ -543,8 +865,10 @@ struct FichaCita: View {
         let tarea = Task {
             try? await Task.sleep(for: .seconds(5))
             if Task.isCancelled { return }
-            try? await estado.api.hacer("DELETE", "/v1/agenda/\(id)")
-            estado.version += 1
+            do {
+                try await estado.api.hacer("DELETE", "/v1/agenda/\(id)")
+                estado.version += 1
+            } catch { estado.avisar(error) }
         }
         cerrar()
         estado.avisar("Cita borrada") { tarea.cancel() }

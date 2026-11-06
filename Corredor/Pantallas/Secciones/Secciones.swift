@@ -52,6 +52,11 @@ struct Seccion: View {
         case "reglamento": if let id { ReglamentoConsorcio(consorcio: id) }
         case "ia": CorredorEnTuIA()
         case "firma": FirmaYSesiones()
+        case "tarjeta-agente": if let id { TarjetaAgente(usuario: id) }
+        case "autorizar-ia": if let id { AutorizarIA(solicitud: id) }
+        case "invitacion": if let id { VerInvitacion(token: id) }
+        case "invitaciones": PegarInvitacion()
+        case "empezar": CrearOtraInmobiliaria()
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
         }
     }

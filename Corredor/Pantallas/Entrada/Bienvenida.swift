@@ -15,14 +15,17 @@ struct Bienvenida: View {
     @State private var whatsapp = ""
     @State private var guardado = ""
     @State private var permiso: UNAuthorizationStatus = .notDetermined
+    /// Cuántas propiedades le asignaron y quién (el dueño o la dueña del equipo).
+    @State private var propias = 0
+    @State private var quienAsigna = ""
 
     /// Cómo aparece en la web de la inmobiliaria (GET/PUT /v1/perfil/web).
     struct EnLaWeb: Codable { var fotoId: String?; var enWeb = true; var presentacion: String? }
 
-    /// «Hola, Martín. Armemos tu perfil.»
+    /// «Hola, Martín. Esto es lo tuyo hoy.»
     private var saludo: String {
-        guard let n = estado.usuario?.nombre.nonEmpty else { return "Hola. Armemos tu perfil." }
-        return "Hola, \(n). Armemos tu perfil."
+        let n = (estado.usuario?.nombre.nonEmpty ?? estado.usuario?.email ?? "").split(separator: " ").first.map(String.init) ?? ""
+        return "Hola, \(n). Esto es lo tuyo hoy."
     }
 
     /// La foto subida (GET /v1/archivos/{id} da su dirección pública).
@@ -36,12 +39,12 @@ struct Bienvenida: View {
                         Text((estado.inmobiliaria?.nombre ?? "").uppercased())
                             .font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.6).foregroundStyle(C.oroTinta)
                         Text(saludo).estilo(.tituloPaso).foregroundStyle(C.texto)
-                        Text(Formato.sinViudas("Así te ven los clientes en la web y en las fichas que mandás.")).estilo(.subhead).foregroundStyle(C.texto2)
                     }
                     PhotosPicker(selection: $foto, matching: .images) {
                         HStack(spacing: 14) {
                             Group {
-                                if let u = urlFoto {
+                                if let u = urlFoto ?? estado.usuario?.foto.flatMap(URL.init(string:)) {
+                                    // La subida o, si no subió otra, la de la cuenta.
                                     AsyncImage(url: u) { $0.resizable().scaledToFill() } placeholder: { ProgressView() }
                                 } else {
                                     Text(Formato.iniciales(estado.usuario?.completo ?? "C")).font(Estilo(tamano: 22, peso: .bold, relativo: .title3).font)
@@ -50,8 +53,8 @@ struct Bienvenida: View {
                             }
                             .frame(width: 64, height: 64).clipShape(Circle())
                             VStack(alignment: .leading, spacing: 2) {
-                                Text(subiendo ? "Subiendo…" : enLaWeb.fotoId == nil ? "Subí tu foto" : "Cambiar tu foto").estilo(.filaLista).foregroundStyle(C.texto)
-                                Text("Una donde se te vea la cara").estilo(.footnote).foregroundStyle(C.texto2)
+                                Text(subiendo ? "Subiendo…" : "Tu foto").estilo(.filaLista).foregroundStyle(C.texto)
+                                Text("Sale en la web y en las fichas que mandás").estilo(.footnote).foregroundStyle(C.texto2)
                             }
                             Spacer(minLength: 0)
                             Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(C.texto3)
@@ -70,20 +73,18 @@ struct Bienvenida: View {
                         Text("Ahí te escriben por las propiedades que tenés.").estilo(.footnote).foregroundStyle(C.texto2)
                     }
                     .padding(14).tarjeta()
-                    Button { Task { await avisos() } } label: {
-                        HStack(spacing: 12) {
-                            IconoTono(icono: permiso == .authorized ? "bell.badge.fill" : "bell", tono: permiso == .authorized ? .verde : .oro, tam: 42)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(permiso == .authorized ? "Los avisos están activos" : "Activá los avisos").estilo(.filaLista).foregroundStyle(C.texto)
-                                Text("Para que no se te escape una consulta").estilo(.footnote).foregroundStyle(C.texto2)
-                            }
-                            Spacer(minLength: 0)
-                            if permiso == .authorized { Image(systemName: "checkmark").foregroundStyle(C.ok) }
-                        }
-                        .padding(14).contentShape(Rectangle()).tarjeta()
+                    if permiso != .authorized && permiso != .provisional && permiso != .ephemeral {
+                        tarea("bell.badge", .oro, "Activá los avisos", "Para que no se te escape una consulta") { Task { await avisos() } }
                     }
-                    .buttonStyle(Presionable())
-                    .disabled(permiso == .authorized)
+                    if propias > 0 {
+                        tarea("house", .verde, "\(quienAsigna.nonEmpty ?? "Tu equipo") te asignó \(Formato.cantidad(propias, "propiedad", "propiedades"))", "Miralas en 1 minuto") { verCartera() }
+                    } else {
+                        tarea("house", .verde, "Mirá la cartera", "Lo que no tiene dueño también es tuyo") { verCartera() }
+                    }
+                    tarea("camera", .neutro, "Probá MIRA con un cartel", "Tres toques, sin escribir") {
+                        cerrar()
+                        estado.miraAbierta = true
+                    }
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Apariencia").estilo(.filaLista).foregroundStyle(C.texto)
                         Segmentado(opciones: [("sistema", "Automático"), ("claro", "Claro"), ("oscuro", "Oscuro")], elegido: $tema)
@@ -96,7 +97,7 @@ struct Bienvenida: View {
                 VStack(spacing: 2) {
                     Button("Empezar") { Task { await empezar() } }
                         .buttonStyle(BotonPrincipal())
-                    Text("Podés saltearlo: queda en tu perfil.").estilo(.footnote).foregroundStyle(C.texto2)
+                    Text("Podés saltearlo: queda en tu Inicio.").estilo(.footnote).foregroundStyle(C.texto2)
                 }
                 .padding(.horizontal, 20).padding(.vertical, 10).background(.ultraThinMaterial)
             }
@@ -111,6 +112,13 @@ struct Bienvenida: View {
                 if let id = w.fotoId, let a: Archivo = try? await estado.api.get("/v1/archivos/\(id)") { urlFoto = a.url.flatMap(URL.init(string:)) }
             }
             permiso = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+            struct Prop: Decodable { var id: String }
+            if let l: [Prop] = try? await estado.api.get("/v1/propiedades", query: [.init(name: "agente", value: "yo"), .init(name: "limite", value: "200")]) {
+                propias = l.count
+            }
+            if let eq: [Miembro] = try? await estado.api.get("/v1/equipo") {
+                quienAsigna = eq.first(where: { $0.rol == "duenio" && $0.usuarioId != estado.usuario?.id })?.nombre ?? ""
+            }
         }
         .onChange(of: foto) { _, i in
             guard let i else { return }
@@ -129,6 +137,29 @@ struct Bienvenida: View {
                 } catch { estado.avisar(error) }
             }
         }
+    }
+
+    /// Una tarea de la bienvenida: ícono en su tono, qué es y para qué.
+    private func tarea(_ icono: String, _ tono: Tono, _ titulo: String, _ detalle: String, _ hacer: @escaping () -> Void) -> some View {
+        Button(action: hacer) {
+            HStack(spacing: 12) {
+                IconoTono(icono: icono, tono: tono, tam: 42)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titulo).estilo(.filaLista).foregroundStyle(C.texto).multilineTextAlignment(.leading)
+                    Text(detalle).estilo(.footnote).foregroundStyle(C.texto2)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(C.texto3)
+            }
+            .padding(14).contentShape(Rectangle()).tarjeta()
+        }
+        .buttonStyle(Presionable())
+    }
+
+    /// Sus propiedades (Propiedades, «Mías»).
+    private func verCartera() {
+        cerrar()
+        estado.pestana = .propiedades
     }
 
     /// Guarda el WhatsApp si quedó escrito sin guardar, y sigue (al recorrido).

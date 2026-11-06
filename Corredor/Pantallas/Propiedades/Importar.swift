@@ -27,6 +27,9 @@ struct ImportacionAPI: Codable {
 /// previa (cuántas entran, avisos y errores por fila); después se traen, sin publicar.
 struct Importar: View {
     @Environment(Estado.self) private var estado
+    @Environment(\.dismiss) private var cerrar
+    /// Una vista previa para retomar (la web: `/importar?id=`).
+    var retomar: String? = nil
     @State private var tipo = "propiedades"
     @State private var eligiendo = false
     @State private var subiendo = false
@@ -40,12 +43,23 @@ struct Importar: View {
                                 texto: [(r.yaEstaban ?? 0) > 0 ? "\(r.yaEstaban!) ya estaban" : nil, (r.conErrores ?? 0) > 0 ? "\(r.conErrores!) con errores quedaron afuera" : nil].compactMap { $0 }.joined(separator: " · ").nonEmpty,
                                 accion: ("Ver la cartera", { estado.pestana = tipo == "contactos" ? .inicio : .propiedades; if tipo == "contactos" { estado.abrir(AContactos()) } }))
                         .padding(.top, 30)
+                    if let i = imp { barra(i, importada: true) }
+                    Text(Formato.sinViudas("\((r.yaEstaban ?? 0) > 0 ? "\(Formato.cantidad(r.yaEstaban ?? 0, "ya estaba", "ya estaban")) en tu cartera. " : "")Quedaron sin publicar: revisalas en Propiedades."))
+                        .estilo(.footnote).foregroundStyle(C.texto2)
+                    if estado.esDuenio, estado.estructura?.alta.terminada == false {
+                        HStack(spacing: 8) {
+                            Button("Seguir: tu equipo") { estado.abrir(ASeccion(clave: "equipo")) }.buttonStyle(BotonPrincipal())
+                            Button("Lo hago después") { cerrar() }.buttonStyle(BotonTexto())
+                        }
+                    }
                 } else if let i = imp {
                     HStack(spacing: 8) {
                         Cifra(etiqueta: "Entran", valor: "\(i.validas ?? 0)")
                         Cifra(etiqueta: "Con avisos", valor: "\(i.conAvisos ?? 0)")
                         Cifra(etiqueta: "Con errores", valor: "\(i.conErrores ?? 0)")
                     }
+                    barra(i, importada: false)
+                    muestra(i)
                     if let c = i.columnas?.filter({ $0.campo != nil }).map(\.columna), !c.isEmpty {
                         Text("Reconocimos: \(c.joined(separator: ", "))").estilo(.footnote).foregroundStyle(C.texto2)
                     }
@@ -75,6 +89,10 @@ struct Importar: View {
             .padding(16)
         }
         .pantallaApilada("Importar")
+        .task {
+            guard let retomar, imp == nil else { return }
+            do { imp = try await estado.api.get("/v1/importaciones/\(retomar)"); tipo = imp?.tipo ?? tipo } catch { estado.avisar(error) }
+        }
         .fileImporter(isPresented: $eligiendo, allowedContentTypes: [.commaSeparatedText, .spreadsheet, .data]) { r in
             if case .success(let u) = r { Task { await subir(u) } }
         }
@@ -83,7 +101,9 @@ struct Importar: View {
     private func subir(_ u: URL) async {
         let acceso = u.startAccessingSecurityScopedResource()
         defer { if acceso { u.stopAccessingSecurityScopedResource() } }
-        guard let d = try? Data(contentsOf: u) else { return }
+        let d: Data
+        do { d = try Data(contentsOf: u) } catch { estado.avisar(error); return }
+        guard d.count <= 5 << 20 else { estado.avisar("El archivo pesa más de 5 MB.", ok: false); return }
         subiendo = true
         defer { subiendo = false }
         do {
@@ -91,6 +111,48 @@ struct Importar: View {
                                                    tipo: u.pathExtension.lowercased() == "csv" ? "text/csv" : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
             imp = try Api.decodificador.decode(ImportacionAPI.self, from: r)
         } catch { estado.avisar(error) }
+    }
+
+    /// «Revisá antes de traerla · 38 / 40», con la barra (traídas o válidas sobre el total).
+    private func barra(_ i: ImportacionAPI, importada: Bool) -> some View {
+        let total = max(1, i.total ?? 0)
+        let n = importada ? (i.resultado?.creadas ?? 0) : (i.validas ?? 0)
+        let lleno = importada ? (i.resultado?.creadas ?? 0) + (i.resultado?.yaEstaban ?? 0) : (i.validas ?? 0)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(importada ? "Trajimos tu cartera" : "Revisá antes de traerla").estilo(.subheadFuerte).foregroundStyle(C.texto)
+                Spacer()
+                Text("\(Formato.numero(n)) / \(Formato.numero(i.total ?? 0))").estilo(.subheadFuerte).foregroundStyle(C.texto).monospacedDigit()
+            }
+            if !importada, let e = i.conErrores, e > 0 { Text(Formato.cantidad(e, "fila con errores", "filas con errores")).estilo(.footnote).foregroundStyle(C.errorTinta) }
+            ProgressView(value: Double(lleno), total: Double(total)).tint(C.oro)
+        }
+    }
+
+    /// Las primeras 6 que entran: el precio y la dirección (o su aviso).
+    @ViewBuilder
+    private func muestra(_ i: ImportacionAPI) -> some View {
+        let fichas = (i.filas ?? []).filter { ($0.errores ?? []).isEmpty }.prefix(6)
+        if !fichas.isEmpty {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)], spacing: 8) {
+                ForEach(Array(fichas.enumerated()), id: \.offset) { _, f in
+                    let d = f.datos ?? [:]
+                    let precio: String = {
+                        if case .numero(let n)? = d["precio"] { return Formato.plata(n, d["moneda"]?.texto ?? "USD") }
+                        return "Sin precio"
+                    }()
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(precio).estilo(.subheadFuerte).foregroundStyle(C.texto)
+                        if let a = f.avisos?.first?.mensaje {
+                            Text(a).estilo(.footnote).foregroundStyle(C.avisoTinta).lineLimit(2)
+                        } else {
+                            Text(d["direccion"]?.texto ?? d["titulo"]?.texto ?? "").estilo(.footnote).foregroundStyle(C.texto2).lineLimit(2)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(12).tarjeta(14)
+                }
+            }
+        }
     }
 
     private func confirmar(_ i: ImportacionAPI) async {

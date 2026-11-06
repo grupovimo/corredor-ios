@@ -141,6 +141,13 @@ struct PublicacionPortal: Codable, Identifiable, Hashable {
     var visitas: Int?
     var visitasSemana: Int?
     var consultas: Int?
+    var propiedadId: String?
+    /// El título de la propiedad (GET /v1/publicaciones).
+    var propiedad: String?
+    var externoId: String?
+    var publicadaEn: Date?
+    var sincronizadaEn: Date?
+    var actualizadoEn: Date?
 
     static let nombres = ["web": "Tu web", "mercadolibre": "Mercado Libre", "zonaprop": "Zonaprop", "argenprop": "Argenprop",
                           "properati": "Properati", "inmuebles24": "Inmuebles24"]

@@ -14,6 +14,8 @@ struct PantallaPlan: View {
     @State private var gestionar = false
     @State private var elegibleGratis: [String: Bool] = [:]
     @State private var inicializado = false
+    @State private var confirmarBaja = false
+    @State private var bajando = false
 
     private var s: Suscripcion? { estado.suscripcion }
 
@@ -25,12 +27,13 @@ struct PantallaPlan: View {
                     if !estado.esDuenio {
                         nota("person.badge.key", "El plan lo elige y lo paga el dueño de la inmobiliaria. Si necesitás algo que tu plan no trae, pedíselo.")
                     } else if s.conMercadoPago {
-                        nota("creditcard", "Tu plan se paga con Mercado Pago. Lo cambiás o lo das de baja desde ahí.")
+                        nota("creditcard", "Tu plan se paga con Mercado Pago. Para pasarlo al App Store, primero da de baja el débito acá abajo.")
                     }
                     Segmentado(opciones: [("mes", "Mensual"), ("anio", "Anual · 2 meses gratis")], elegido: $ciclo)
                     ForEach(s.planes) { p in tarjetaPlan(p, s) }
-                    if estado.esDuenio, !s.conMercadoPago { ticket(s) }
+                    if estado.esDuenio { ticket(s) }
                     if estado.esDuenio, !s.cobros.isEmpty { cobros(s) }
+                    if estado.esDuenio, s.medio == "mercadopago", s.renueva { baja(s) }
                 } else {
                     ProgressView().frame(maxWidth: .infinity, minHeight: 300)
                 }
@@ -84,7 +87,7 @@ struct PantallaPlan: View {
     private func titulo(_ s: Suscripcion) -> String {
         switch s.estado {
         case "prueba": return "Tenés todo Corredor gratis hasta el \(Formato.fechaLarga(s.pruebaHasta))."
-        case "activa": return "Próximo cobro: \(Formato.fechaLarga(s.proximoCobro ?? s.vigenteHasta))."
+        case "activa": return "Próximo cobro: \(Formato.fechaLarga(s.proximoCobro ?? s.vigenteHasta))\(s.importe.map { " · \(Formato.plata($0, s.moneda ?? "ARS"))" } ?? "")."
         case "baja": return "Tu plan no se renueva: vale hasta el \(Formato.fechaLarga(s.vigenteHasta))."
         default: return "Tu inmobiliaria está en sólo lectura."
         }
@@ -93,8 +96,8 @@ struct PantallaPlan: View {
     private func detalle(_ s: Suscripcion) -> String {
         switch s.estado {
         case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, después queda en sólo lectura: nada se borra."
-        case "activa": return s.medio == "apple" ? "Se cobra a tu cuenta de Apple." : "Se debita solo."
-        case "baja": return "Elegí un plan para seguir sin cortes."
+        case "activa": return s.medio == "apple" ? "Se paga con el App Store, desde el iPhone." : "Se debita solo con Mercado Pago."
+        case "baja": return "Elegí un plan para seguir sin cortes. Lo que ya pagaste no se pierde."
         default: return "Todo lo tuyo sigue acá y lo podés ver. Para volver a cargar, elegí un plan: se activa en el momento."
         }
     }
@@ -158,7 +161,6 @@ struct PantallaPlan: View {
                 if ciclo == "anio" {
                     Text("Equivale a \(porMes(p)) por mes\(ahorro(p).map { " · ahorrás \($0)" } ?? "")").estilo(.caption).foregroundStyle(C.texto3)
                 }
-                if on {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(p.incluye, id: \.self) { x in
                             Label { Text(x).estilo(.footnote).foregroundStyle(C.texto2) } icon: {
@@ -167,8 +169,6 @@ struct PantallaPlan: View {
                         }
                     }
                     .padding(.top, 8)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -202,6 +202,7 @@ struct PantallaPlan: View {
             Text("Resumen").font(Estilo.total.font).foregroundStyle(C.texto)
             linea("Corredor \(plan.nombre)", ciclo == "anio" ? "anual" : "mensual", fuerte: true)
             linea("Personas que cargan", plan.agentes == 0 ? "sin tope" : plan.agentes == 1 ? "1" : "hasta \(plan.agentes)")
+            if ciclo == "anio", let doce = doceMeses(plan) { linea("12 meses × \(precio(plan, "mes"))", doce) }
             if ciclo == "anio", let a = ahorro(plan) { linea("2 meses de regalo", "−\(a)", tono: C.okTinta) }
             linea("Total por \(cada)", precioTxt, fuerte: true)
             Rayita()
@@ -225,6 +226,7 @@ struct PantallaPlan: View {
                 Label { Text(Formato.sinViudas("Hoy cargan \(s.agentes.usados) personas y este plan es para \(Formato.cantidad(plan.agentes, "persona", "personas")). Pasá \(Formato.cantidad(sobran, "persona", "personas")) a lector en Equipo o elegí un plan más grande.")).estilo(.footnote) } icon: { Image(systemName: "person.2") }
                     .foregroundStyle(C.oroTinta).padding(10).background(C.avisoFondo, in: .rect(cornerRadius: 10))
             }
+            if !s.conMercadoPago {
             Button {
                 Task { await comprar(plan) }
             } label: {
@@ -245,6 +247,7 @@ struct PantallaPlan: View {
                 if restaurando { ProgressView() } else { Text("Restaurar compras") }
             }
             .buttonStyle(BotonTexto(alto: 40))
+            }
             Text(Formato.sinViudas("La suscripción se cobra a tu cuenta de Apple y se renueva sola cada \(cada) al mismo precio, salvo que la des de baja al menos 24 horas antes de que termine el período, desde Ajustes › tu nombre › Suscripciones. Al vencer, tu inmobiliaria queda en sólo lectura y nada se borra."))
                 .estilo(.caption).foregroundStyle(C.texto3).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
@@ -273,6 +276,43 @@ struct PantallaPlan: View {
             Text(t).estilo(.caption).foregroundStyle(C.texto3)
             Text(v).estilo(.footnote).foregroundStyle(C.texto)
         }
+    }
+
+    /// «12 meses × $X»: lo que serían doce meses sueltos (con la tienda, su precio).
+    private func doceMeses(_ p: Suscripcion.Plan) -> String? {
+        if let m = producto(p, "mes") { return (m.price * 12).formatted(m.priceFormatStyle) }
+        return Formato.plata(p.precioMes * 12)
+    }
+
+    // MARK: Baja del débito de Mercado Pago
+
+    private func baja(_ s: Suscripcion) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !confirmarBaja {
+                Button("Dar de baja el débito") { confirmarBaja = true }.buttonStyle(BotonTexto(alto: 40, color: C.errorTinta))
+            } else {
+                Text(Formato.sinViudas("No se cobra más. Seguís con todo hasta el \(Formato.fechaLarga(s.vigenteHasta)); después, sólo lectura."))
+                    .estilo(.footnote).foregroundStyle(C.texto)
+                HStack(spacing: 10) {
+                    Button("Mejor no") { confirmarBaja = false }.buttonStyle(BotonSecundario())
+                    Button { Task { await darDeBaja() } } label: { if bajando { ProgressView() } else { Text("Dar de baja") } }
+                        .buttonStyle(BotonDestructivo()).disabled(bajando)
+                }
+            }
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .tarjeta()
+    }
+
+    private func darDeBaja() async {
+        bajando = true
+        defer { bajando = false; confirmarBaja = false }
+        do {
+            let s: Suscripcion = try await estado.api.enviar("POST", "/v1/suscripcion/baja", [String: String]())
+            estado.suscripcion = s
+            estado.avisar("Listo, no se renueva más. Seguís con todo hasta el \(Formato.fechaLarga(s.vigenteHasta)).")
+        } catch { estado.avisar(error) }
     }
 
     // MARK: Pagos

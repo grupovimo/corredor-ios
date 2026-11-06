@@ -40,7 +40,7 @@ struct ReglamentoConsorcio: View {
                         }
                     }
                 }
-                if estado.esDuenio {
+                if estado.escribe {
                     Section { Button("Guardar los de hoy como reglamento") { Task { do { try await estado.api.hacer("PUT", "/v1/consorcios/\(consorcio)/reglamento"); await cargar(); estado.avisar("Reglamento guardado") } catch { estado.avisar(error) } } } }
                 }
             } else { ProgressView() }

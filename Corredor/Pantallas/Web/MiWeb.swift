@@ -31,6 +31,21 @@ struct MiWeb: View {
     @State private var recarga = 0
     @State private var zona: ZonaWeb?
     @State private var publicando = false
+    @State private var versiones = false
+    @State private var plantillas = false
+    @State private var qr = false
+    @State private var fotoPortada = false
+    @State private var editandoPagina: Int?
+    @State private var legales: JSONLibre?
+    @State private var informe: JSONLibre?
+    @State private var errorDominio: String?
+    @State private var verificando = false
+    @State private var nombreInmo = ""
+    @FocusState private var barrioFoco: String?
+    /// Deshacer y rehacer (50 pasos): la marca entera antes de cada cambio.
+    @State private var pasado: [[String: JSONLibre]] = []
+    @State private var futuro: [[String: JSONLibre]] = []
+    @State private var ultimoPaso = Date.distantPast
 
     /// Una parte de la web tocada en la vista previa.
     struct ZonaWeb: Identifiable { var clave: String; var id: String { clave } }
@@ -53,36 +68,85 @@ struct MiWeb: View {
                 SubirImagenMarca(titulo: "Subí la foto de portada", url: marca["portadaUrl"], ancha: true) { u, _ in marca["portadaUrl"] = u; programar(ya: true) }
                     .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
             }
+            if !estado.esDuenio {
+                Section { Label("La web la cambia el dueño o la dueña. Vos la podés ver como queda.", systemImage: "lock").estilo(.footnote).foregroundStyle(C.texto2) }
+            }
             if let w = web, let u = URL(string: w) {
                 Section {
                     Link(destination: u) { Label(w.replacingOccurrences(of: "https://", with: ""), systemImage: "globe") }
-                    ShareLink(item: u) { Label("Compartir tu web", systemImage: "square.and.arrow.up") }
-                    Button { UIPasteboard.general.url = u; estado.avisar("Link copiado") } label: { Label("Copiar el link", systemImage: "doc.on.doc") }
+                    Button { Afuera.whatsapp(nil, texto: "Mirá las propiedades de \(nombreInmo.nonEmpty ?? "la inmobiliaria"): \(w)") } label: { Label("Mandar por WhatsApp", systemImage: "bubble.left") }
+                    ShareLink(item: u, subject: Text(nombreInmo), message: Text("Mirá las propiedades de \(nombreInmo)")) { Label("Compartir tu web", systemImage: "square.and.arrow.up") }
+                    Button { UIPasteboard.general.url = u; estado.avisar("Copiaste el link de tu web") } label: { Label("Copiar el link", systemImage: "doc.on.doc") }
+                    Button { qr = true } label: { Label("El QR de tu web", systemImage: "qrcode") }
+                }
+            }
+            if let i = informe {
+                Section("Esta semana") {
+                    LabeledContent("Visitas a tus propiedades", value: Informe.num(i["totalVistas"]))
+                    LabeledContent("Consultas desde tu web", value: {
+                        if case .lista(let l)? = i["origenes"], let o = l.first(where: { $0["origen"]?.texto == "Web propia" }) { return Informe.num(o["cantidad"]) }
+                        return "0"
+                    }())
                 }
             }
             Section("Plantilla") {
-                Picker("Plantilla", selection: campo("plantilla", "barrio")) {
-                    ForEach(Self.plantillas, id: \.0) { k, n, d in VStack(alignment: .leading) { Text(n); Text(d).font(.footnote).foregroundStyle(.secondary) }.tag(k) }
-                }
-                .pickerStyle(.inline).labelsHidden()
+                let id = completa["plantilla"]?.texto ?? "barrio"
+                LabeledContent("En uso", value: EditorWeb.plantillas.first { $0.id == id }?.nombre ?? id)
+                Button { plantillas = true } label: { Label("Ver las plantillas", systemImage: "rectangle.3.group") }
+                Button { versiones = true } label: { Label("Versiones publicadas", systemImage: "clock.arrow.circlepath") }
             }
             Section(header: Text("Página de inicio"), footer: Text("Arrastrá para ordenar. Lo apagado no se ve en tu web.")) {
                 ForEach(Array(secciones.enumerated()), id: \.offset) { i, x in
                     Toggle(Self.nombreSeccion(x["tipo"]?.texto), isOn: Binding(get: { x["oculta"].map { if case .bool(true) = $0 { return false }; return true } ?? true },
                                                                          set: { on in ocultar(i, !on) }))
                         .disabled(x["tipo"]?.texto == "portada")
+                        .swipeActions {
+                            if x["tipo"]?.texto != "portada" { Button("Quitar", role: .destructive) { quitarSeccion(i) } }
+                            if x["tipo"]?.texto == "texto" { Button("Duplicar") { duplicarSeccion(i) }.tint(C.accion) }
+                        }
+                        .contextMenu {
+                            if x["tipo"]?.texto == "texto" { Button { duplicarSeccion(i) } label: { Label("Duplicar", systemImage: "plus.square.on.square") } }
+                            Menu {
+                                ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in Button(Self.nombreSeccion(t)) { sumarSeccion(t, despuesDe: i) } }
+                            } label: { Label("Sumar sección acá", systemImage: "plus.rectangle.on.rectangle") }
+                            if x["tipo"]?.texto != "portada" { Button(role: .destructive) { quitarSeccion(i) } label: { Label("Quitar", systemImage: "trash") } }
+                        }
                 }
                 .onMove { desde, hacia in mover(desde, hacia) }
+                Toggle("Buscador en la portada (Comprar · Alquilar · Temporada)", isOn: Binding(get: { portada["buscador"].map { if case .bool(false) = $0 { return false }; return true } ?? true },
+                                                                                             set: { v in conPortada { $0["buscador"] = .bool(v) } }))
+                VStack(alignment: .leading, spacing: 6) {
+                    let v = veloActual
+                    let noche = EditorWeb.noche(marca["colorPrimario"])
+                    let variante = portada["variante"]?.texto ?? "foto"
+                    let seLee = variante == "foto" ? EditorWeb.seLeeConVelo(noche, v)
+                        : Acento.contraste(Acento.rgb(marca["colorPrimario"]).map(Acento.hex) ?? 0x16443B, Acento.rgb(marca["colorFondo"]).map(Acento.hex) ?? 0xFAF8F3) >= 4.5
+                    Text("Velo sobre la foto · \(Int(v)) %").estilo(.subhead)
+                    Slider(value: Binding(get: { veloActual }, set: { n in conPortada { $0["velo"] = .numero((n / 5).rounded() * 5) } }), in: 0...90, step: 5)
+                    if seLee {
+                        Label("El título se lee bien (contraste AA)", systemImage: "checkmark.circle").estilo(.footnote).foregroundStyle(C.okTinta)
+                    } else if variante == "foto" {
+                        let m = EditorWeb.veloMinimo(noche)
+                        HStack {
+                            Text("El título cuesta leerse.").estilo(.footnote).foregroundStyle(C.avisoTinta)
+                            Button("Subir el velo a \(m) %") { conPortada { $0["velo"] = .numero(Double(m)) } }.estilo(.footnoteFuerte)
+                        }
+                    } else {
+                        Text("El título puede costar leerse: probá un color más oscuro").estilo(.footnote).foregroundStyle(C.avisoTinta)
+                    }
+                }
+                Button { fotoPortada = true } label: { Label("Usar la foto de una propiedad", systemImage: "photo.on.rectangle") }
                 Picker("Portada", selection: Binding(get: { completa["web"]?["portada"]?["variante"]?.texto ?? "foto" }, set: { variante($0) })) {
                     Text("Foto de fondo").tag("foto"); Text("Foto arriba").tag("arriba"); Text("Partida").tag("partida")
                 }
             }
             Section(header: Text("Sumar a la página de inicio")) {
                 Menu {
-                    ForEach(["texto", "testimonios", "equipo", "tasacion", "contacto", "temporada", "emprendimiento"], id: \.self) { t in
+                    ForEach(EditorWeb.tiposParaSumar(secciones), id: \.self) { t in
                         Button(Self.nombreSeccion(t)) { sumarSeccion(t) }
                     }
                 } label: { Label("Sumar sección", systemImage: "plus.rectangle.on.rectangle") }
+                .disabled(EditorWeb.tiposParaSumar(secciones).isEmpty)
                 ForEach(Array(secciones.enumerated()).filter { ["texto", "testimonios"].contains($0.element["tipo"]?.texto ?? "") }, id: \.offset) { i, x in
                     Button { editandoSeccion = i } label: {
                         LabeledContent(Self.nombreSeccion(x["tipo"]?.texto), value: x["titulo"]?.texto ?? "Editar")
@@ -96,6 +160,9 @@ struct MiWeb: View {
                                                                set: { on in ocultarPagina(i, !on) }))
                         .disabled(id == "inicio" || id == "propiedades")
                         .swipeActions { if id.hasPrefix("p-") { Button("Quitar", role: .destructive) { quitarPagina(i) } } }
+                    if id.hasPrefix("p-") {
+                        Button { editandoPagina = i } label: { Label("Editar «\(Self.nombrePagina(x))»", systemImage: "pencil") }
+                    }
                 }
                 Button { paginaNueva = true } label: { Label("Nueva página", systemImage: "plus") }
             }
@@ -108,19 +175,35 @@ struct MiWeb: View {
                     }
                 }
             }
-            Section(header: Text("Dominio propio"), footer: Text("Apuntá un registro A a 187.41.102.190 (o un CNAME de www). Se conecta solo, con certificado.")) {
-                if let d = dominio?["dominio"]?.texto {
-                    LabeledContent(d, value: dominio?["verificado"].map { if case .bool(true) = $0 { return "Conectado" }; return "Verificando" } ?? "Verificando")
-                    Button("Verificar ahora") { Task { do { try await estado.api.hacer("POST", "/v1/inmobiliaria/dominio/verificar"); await cargarDominio() } catch { estado.avisar(error) } } }
-                    Button("Quitar el dominio", role: .destructive) { Task { await ponerDominio("") } }
+            if estado.esDuenio { seccionDominio }
+            Section {
+                if let l = legales, l["razonSocial"]?.texto != nil || l["cuit"]?.texto != nil || l["matricula"]?.texto != nil {
+                    if let r = l["razonSocial"]?.texto { LabeledContent("Razón social", value: r) }
+                    if let c = l["cuit"]?.texto { LabeledContent("CUIT", value: c) }
+                    if let m = l["matricula"]?.texto { LabeledContent("Matrícula", value: [l["colegio"]?.texto, m].compactMap { $0 }.joined(separator: " ")) }
                 } else {
-                    TextField("tuinmobiliaria.com.ar", text: $dominioNuevo).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
-                    Button("Conectar") { Task { await ponerDominio(dominioNuevo) } }.disabled(!dominioNuevo.contains("."))
+                    Text("Faltan la razón social, el CUIT y la matrícula. En CABA y Provincia el corredor tiene que exhibirlos.").estilo(.footnote).foregroundStyle(C.avisoTinta)
                 }
-            }
+                Button("Editar") { estado.abrir(ASeccion(clave: "configuracion")) }
+            } header: { Text("Datos legales del pie") }
             Section("Marca") {
+                HStack(spacing: 10) {
+                    ForEach(EditorWeb.colores, id: \.self) { c in
+                        Button { recordar(); marca["colorPrimario"] = c; programar() } label: {
+                            Circle().fill(Color(hex: UInt32(c.dropFirst(), radix: 16) ?? 0)).frame(width: 32, height: 32)
+                                .overlay(Circle().strokeBorder(C.oro, lineWidth: (marca["colorPrimario"] ?? "").lowercased() == c ? 3 : 0))
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Color \(c)")
+                    }
+                }
                 ColorPicker("Color principal", selection: color("colorPrimario", 0x16443B), supportsOpacity: false)
+                avisoContraste
                 ColorPicker("Color de acento", selection: color("colorSecundario", 0xF2BB57), supportsOpacity: false)
+                ColorPicker("Fondo", selection: color("colorFondo", 0xFAF8F3), supportsOpacity: false)
+                if let f = Acento.rgb(marca["colorFondo"]).map(Acento.hex), Acento.contraste(f, 0x18201D) < 7 {
+                    Label("El fondo tiene que ser claro para que el texto se lea: usamos el papel", systemImage: "slider.horizontal.3").estilo(.footnote).foregroundStyle(C.avisoTinta)
+                }
                 TextField("Frase de la portada", text: campo("frase", ""))
                 botonIA("frase")
             }
@@ -141,7 +224,8 @@ struct MiWeb: View {
                     ForEach($barrios) { $b in
                         VStack(alignment: .leading) {
                             Text(b.nombre).estilo(.filaLista)
-                            TextField("Cómo es vivir en \(b.nombre)", text: Binding(get: { b.texto ?? "" }, set: { b.texto = $0 }), axis: .vertical)
+                            TextField("Cómo es vivir en \(b.nombre): plazas, transporte, colegios.", text: Binding(get: { b.texto ?? "" }, set: { b.texto = String($0.prefix(600)) }), axis: .vertical)
+                                .focused($barrioFoco, equals: b.nombre)
                                 .onSubmit { Task { await guardarBarrio(b) } }
                         }
                     }
@@ -153,6 +237,32 @@ struct MiWeb: View {
         .scrollContentBackground(.hidden).background(FondoApp())
         .pantallaApilada("Mi web")
         .safeAreaInset(edge: .bottom) { if estado.esDuenio { barraPublicar } }
+        .toolbar {
+            if estado.esDuenio {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { deshacer() } label: { Image(systemName: "arrow.uturn.backward") }.disabled(pasado.isEmpty).accessibilityLabel("Deshacer")
+                    Button { rehacer() } label: { Image(systemName: "arrow.uturn.forward") }.disabled(futuro.isEmpty).accessibilityLabel("Rehacer")
+                }
+            }
+        }
+        .onChange(of: barrioFoco) { viejo, _ in
+            if let v = viejo, let b = barrios.first(where: { $0.nombre == v }) { Task { await guardarBarrio(b) } }
+        }
+        .sheet(isPresented: $versiones) { HojaVersionesWeb { completa = [:]; Task { await traerBorrador() } } }
+        .sheet(isPresented: $plantillas) { HojaPlantillas { completa = [:]; Task { await traerBorrador() } } }
+        .sheet(isPresented: $qr) { if let w = web { HojaQRWeb(web: w, nombre: nombreInmo).presentationDetents([.medium]) } }
+        .sheet(isPresented: $fotoPortada) { ElegirFotoPortada { u in recordar(); marca["portadaUrl"] = u; programar(ya: true) } }
+        .sheet(item: Binding(get: { editandoPagina.map { CampoAlta(id: String($0)) } }, set: { editandoPagina = $0.flatMap { Int($0.id) } })) { x in
+            let i = Int(x.id) ?? 0
+            EditorPaginaWeb(pagina: paginas[safe: i] ?? .objeto([:]), web: web) { t, texto in
+                var l = paginas
+                guard case .objeto(var o)? = l[safe: i] else { return }
+                o["titulo"] = .texto(t)
+                o["texto"] = .texto(texto)
+                l[i] = .objeto(o)
+                conWeb { $0["paginas"] = .lista(l) }
+            }
+        }
         .sheet(item: $zona) { z in
             EditorZonaWeb(zona: z.clave, marca: $marca) { programar(ya: true) }
                 .presentationDetents([.medium, .large])
@@ -160,19 +270,16 @@ struct MiWeb: View {
         // Lo cambiado desde la computadora (o el alta) se trae, si acá no hay nada esperando guardarse.
         .task(id: estado.version) { if guardado == nil, !publicando { await traerBorrador() } }
         .task {
-            struct I: Decodable { var web: String? }
-            if let i: I = try? await estado.api.get("/v1/inmobiliaria") { web = i.web }
+            struct I: Decodable { var web: String?; var nombre: String?; var legales: JSONLibre? }
+            if let i: I = try? await estado.api.get("/v1/inmobiliaria") { web = i.web; nombreInmo = i.nombre ?? ""; legales = i.legales }
+            informe = try? await estado.api.get("/v1/informe", query: [.init(name: "dias", value: "7")])
             await traerBorrador()
             if estado.esDuenio { previa = try? await BorradorWeb.urlPrevia(estado.api, slug: estado.inmobiliaria?.slug ?? "") }
             barrios = (try? await estado.api.get("/v1/web/barrios")) ?? []
             guardadas = try? await estado.api.get("/v1/web/guardadas", query: [.init(name: "dias", value: "7")])
             await cargarDominio()
         }
-        .alert("Página nueva", isPresented: $paginaNueva) {
-            TextField("Servicios, Tasaciones…", text: $tituloPagina)
-            Button("Cancelar", role: .cancel) {}
-            Button("Crear") { sumarPagina(tituloPagina); tituloPagina = "" }
-        }
+        .sheet(isPresented: $paginaNueva) { NuevaPaginaWeb(paginas: paginas, web: web) { t in sumarPagina(t) } }
         .sheet(item: Binding(get: { editandoSeccion.map { CampoAlta(id: String($0)) } }, set: { editandoSeccion = $0.flatMap { Int($0.id) } })) { x in
             EditorSeccionWeb(seccion: secciones[Int(x.id) ?? 0]) { nueva in
                 var l = secciones
@@ -194,6 +301,7 @@ struct MiWeb: View {
     }
 
     private func conWeb(_ f: (inout [String: JSONLibre]) -> Void) {
+        recordar(forzar: true)
         var w: [String: JSONLibre] = [:]
         if case .objeto(let o)? = completa["web"] { w = o }
         f(&w)
@@ -255,20 +363,20 @@ struct MiWeb: View {
     }
 
     private func sumarPagina(_ titulo: String) {
-        let ruta = titulo.lowercased().folding(options: .diacriticInsensitive, locale: nil)
-            .replacingOccurrences(of: "ñ", with: "n").components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }.joined(separator: "-")
-        guard !ruta.isEmpty else { return }
+        if let p = EditorWeb.problemaPagina(paginas, titulo) { return estado.avisar(p, ok: false) }
+        let ruta = EditorWeb.rutaDe(titulo)
         var l = paginas
         l.append(.objeto(["id": .texto("p-\(ruta)"), "titulo": .texto(titulo), "ruta": .texto(ruta), "texto": .texto("")]))
         conWeb { $0["paginas"] = .lista(l) }
     }
 
-    private func sumarSeccion(_ tipo: String) {
+    private func sumarSeccion(_ tipo: String, despuesDe: Int? = nil) {
         var l = secciones
-        var o: [String: JSONLibre] = ["id": .texto(tipo == "texto" ? "texto-\(Int(Date().timeIntervalSince1970))" : tipo), "tipo": .texto(tipo)]
+        guard EditorWeb.tiposParaSumar(l).contains(tipo) else { return estado.avisar(l.count >= EditorWeb.maxSecciones ? "Hasta \(EditorWeb.maxSecciones) secciones." : "Esa sección ya está.", ok: false) }
+        var o: [String: JSONLibre] = ["id": .texto(EditorWeb.idNuevo(l, tipo)), "tipo": .texto(tipo)]
         if tipo == "texto" { o["titulo"] = .texto("Un título"); o["texto"] = .texto("") }
-        if tipo != "texto", l.contains(where: { $0["tipo"]?.texto == tipo }) { return estado.avisar("Esa sección ya está.", ok: false) }
-        l.append(.objeto(o))
+        if tipo == "testimonios" { o["items"] = .lista([]) }
+        l.insert(.objeto(o), at: despuesDe.map { min(l.count, $0 + 1) } ?? l.count)
         conWeb { $0["inicio"] = .lista(l) }
         estado.avisar("Sumaste «\(Self.nombreSeccion(tipo))»")
     }
@@ -299,15 +407,20 @@ struct MiWeb: View {
 
     private func ponerDominio(_ d: String) async {
         struct C: Encodable { var dominio: String }
+        errorDominio = nil
         do {
-            try await estado.api.hacer("PATCH", "/v1/inmobiliaria", C(dominio: d.trimmingCharacters(in: .whitespaces).lowercased()))
+            _ = try await estado.api.conCampos("PATCH", "/v1/inmobiliaria", C(dominio: d.trimmingCharacters(in: .whitespaces).lowercased()))
             dominioNuevo = ""
             await cargarDominio()
+        } catch let e as ErrorConCampos {
+            errorDominio = e.campos["dominio"] ?? e.error.detalle
+        } catch let e as ErrorApi where e.estado == 409 || e.estado == 400 {
+            errorDominio = e.detalle
         } catch { estado.avisar(error) }
     }
 
     private func campo(_ k: String, _ def: String) -> Binding<String> {
-        Binding(get: { marca[k] ?? def }, set: { marca[k] = $0; programar() })
+        Binding(get: { marca[k] ?? def }, set: { recordar(); marca[k] = $0; programar() })
     }
 
     private func color(_ k: String, _ def: UInt32) -> Binding<Color> {
@@ -318,6 +431,7 @@ struct MiWeb: View {
             let u = UIColor(c)
             var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
             u.getRed(&r, green: &g, blue: &b, alpha: &a)
+            recordar()
             marca[k] = String(format: "#%02x%02x%02x", Int(r * 255), Int(g * 255), Int(b * 255))
             programar()
         })
@@ -343,7 +457,10 @@ struct MiWeb: View {
             } catch let e as ErrorApi where e.codigo == "borrador_cambiado" {
                 estado.avisar("Tu web se cambió desde otro lado. Trajimos lo último.", ok: false)
                 await traerBorrador()
-            } catch { estado.avisar(error) }
+            } catch {
+                let msj = (error as? ErrorApi)?.detalle ?? "No se guardó"
+                estado.sugerir("\(msj) · No se guardó", "Reintentar") { programar(ya: true) }
+            }
             guardado = nil
         }
     }
@@ -409,20 +526,166 @@ struct MiWeb: View {
     private func descartar() async {
         guardado?.cancel()
         guardado = nil
+        let antes = actual()
         do {
             try await BorradorWeb.descartar(estado.api)
             en = nil
             completa = [:]
             await traerBorrador()
-            estado.avisar("Volviste a la web publicada")
+            estado.avisar("Volviste a la web publicada") { aplicar(antes) }
         } catch { estado.avisar(error) }
+    }
+
+    // MARK: Deshacer, quitar, duplicar y el dominio
+
+    /// La marca entera con lo que se está escribiendo encima.
+    private func actual() -> [String: JSONLibre] {
+        var m = completa
+        for (k, v) in marca { m.poner(k, v) }
+        return m
+    }
+
+    /// Guarda el paso para deshacer (al escribir, uno cada tanto; los demás cambios, siempre).
+    private func recordar(forzar: Bool = false) {
+        guard forzar || Date().timeIntervalSince(ultimoPaso) > 1.5 else { return }
+        ultimoPaso = Date()
+        pasado.append(actual())
+        if pasado.count > 50 { pasado.removeFirst() }
+        futuro = []
+    }
+
+    private func aplicar(_ m: [String: JSONLibre]) {
+        completa = m
+        marca = m.compactMapValues { $0.texto }
+        programar(ya: true)
+    }
+
+    private func deshacer() {
+        guard let m = pasado.popLast() else { return }
+        futuro.append(actual())
+        aplicar(m)
+    }
+
+    private func rehacer() {
+        guard let m = futuro.popLast() else { return }
+        pasado.append(actual())
+        aplicar(m)
+    }
+
+    private func quitarSeccion(_ i: Int) {
+        var l = secciones
+        guard l.indices.contains(i), l[i]["tipo"]?.texto != "portada" else { return }
+        let antes = l
+        let nombre = Self.nombreSeccion(l[i]["tipo"]?.texto)
+        l.remove(at: i)
+        conWeb { $0["inicio"] = .lista(l) }
+        estado.avisar("Quitaste «\(nombre)»") { conWeb { $0["inicio"] = .lista(antes) } }
+    }
+
+    private func duplicarSeccion(_ i: Int) {
+        var l = secciones
+        guard l.indices.contains(i), l[i]["tipo"]?.texto == "texto", l.count < EditorWeb.maxSecciones, case .objeto(var o) = l[i] else { return }
+        o["id"] = .texto(EditorWeb.idNuevo(l, "texto"))
+        l.insert(.objeto(o), at: i + 1)
+        conWeb { $0["inicio"] = .lista(l) }
+        estado.avisar("Duplicaste la sección de texto")
+    }
+
+    private var portada: [String: JSONLibre] {
+        if case .objeto(let o)? = completa["web"]?["portada"] { return o }
+        return [:]
+    }
+
+    private var veloActual: Double { if case .numero(let n)? = portada["velo"] { return n }; return 45 }
+
+    private func conPortada(_ f: (inout [String: JSONLibre]) -> Void) {
+        conWeb { w in
+            var p: [String: JSONLibre] = [:]
+            if case .objeto(let o)? = w["portada"] { p = o }
+            f(&p)
+            w["portada"] = .objeto(p)
+        }
+    }
+
+    /// «Lo oscurecimos un poco…» si el color no llega a contraste AA con el blanco.
+    @ViewBuilder
+    private var avisoContraste: some View {
+        if let p = Acento.rgb(marca["colorPrimario"]).map(Acento.hex) {
+            if Acento.contraste(p, 0xFFFFFF) < 4.5 {
+                Label("Lo oscurecimos un poco para que botones y textos lleguen a contraste AA", systemImage: "slider.horizontal.3").estilo(.footnote).foregroundStyle(C.avisoTinta)
+            } else {
+                Label("Contraste AA en botones y textos", systemImage: "checkmark.circle").estilo(.footnote).foregroundStyle(C.okTinta)
+            }
+        }
+    }
+
+    /// El dominio propio en tres pasos, con los registros DNS para copiar.
+    @ViewBuilder
+    private var seccionDominio: some View {
+        let d = dominio?["dominio"]?.texto
+        let verificado: Bool = { if case .bool(true)? = dominio?["verificado"] { return true }; return false }()
+        Section {
+            if let d {
+                LabeledContent(d, value: verificado ? "Conectado" : "Verificando")
+                Label("1. Lo compraste en NIC.ar u otro registro", systemImage: "checkmark.circle.fill").foregroundStyle(C.okTinta)
+                let registros: [JSONLibre] = { if case .lista(let l)? = dominio?["registros"] { return l }; return [] }()
+                let principal = registros.first
+                Label("2. Cargaste \(principal?["tipo"]?.texto == "A" ? "el registro A" : "el CNAME") \(principal?["valor"]?.texto ?? "")",
+                      systemImage: verificado ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(verificado ? C.okTinta : C.texto)
+                if !verificado {
+                    ForEach(Array(registros.enumerated()), id: \.offset) { _, r in
+                        Button {
+                            UIPasteboard.general.string = r["valor"]?.texto
+                            estado.avisar("Copiado")
+                        } label: {
+                            HStack {
+                                Text(r["tipo"]?.texto ?? "").frame(width: 56, alignment: .leading)
+                                Text(r["nombre"]?.texto ?? "").frame(width: 60, alignment: .leading)
+                                Text(r["valor"]?.texto ?? "").lineLimit(1).truncationMode(.middle)
+                                Spacer()
+                                Image(systemName: "doc.on.doc")
+                            }
+                            .font(.system(size: 13, design: .monospaced))
+                        }
+                    }
+                    Label("3. Esperando que se propague · suele tardar hasta 2 h", systemImage: "hourglass").foregroundStyle(C.texto2)
+                    Button(verificando ? "Verificando…" : "Verificar ahora") { Task { await verificar() } }.disabled(verificando)
+                } else if let u = URL(string: "https://\(d)") {
+                    Link(destination: u) { Label("3. Tu web responde en \(d)", systemImage: "checkmark.circle.fill") }
+                }
+                Button("Quitar", role: .destructive) { Task { await quitarDominio(d) } }
+            } else {
+                TextField("tuinmobiliaria.com.ar", text: $dominioNuevo).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
+                if let e = errorDominio { MensajeError(texto: e) }
+                Button("Conectar") { Task { await ponerDominio(dominioNuevo) } }.disabled(!dominioNuevo.contains("."))
+            }
+        } header: { Text("Dominio propio") } footer: {
+            if d == nil { Text("Hoy tu web está en \((web ?? "").replacingOccurrences(of: "https://", with: "")). Si tenés un dominio (de NIC.ar u otro), la ponemos ahí en tres pasos.") }
+        }
+    }
+
+    private func verificar() async {
+        verificando = true
+        defer { verificando = false }
+        do {
+            try await estado.api.hacer("POST", "/v1/inmobiliaria/dominio/verificar")
+            await cargarDominio()
+            estado.avisar("¡Listo! Tu web ya responde en tu dominio.")
+        } catch { estado.avisar(error) }
+    }
+
+    private func quitarDominio(_ antes: String) async {
+        await ponerDominio("")
+        if dominio?["dominio"]?.texto == nil {
+            estado.avisar("Quitaste el dominio propio") { Task { await ponerDominio(antes) } }
+        }
     }
 
     private func guardarBarrio(_ b: BarrioWeb) async {
         struct Cuerpo: Encodable { var texto: String }
         do {
             try await estado.api.hacer("PUT", "/v1/web/barrios/\(b.nombre)", Cuerpo(texto: b.texto ?? ""))
-            estado.avisar("Guardado el texto de \(b.nombre)")
         } catch { estado.avisar(error) }
     }
 }
@@ -450,13 +713,18 @@ struct EditorSeccionWeb: View {
                     }
                     .onDelete { items.remove(atOffsets: $0) }
                     Button { items.append(("", "")) } label: { Label("Sumar testimonio", systemImage: "plus") }
+                        .disabled(items.count >= 6)
+                    if items.count >= 6 { Text("Hasta 6 testimonios.").estilo(.footnote).foregroundStyle(C.texto2) }
                 } else {
                     TextField("Texto", text: $texto, axis: .vertical).lineLimit(4...14)
                     Button {
                         Task {
                             struct C: Encodable { var campo = "texto"; var texto: String }
                             struct R: Decodable { var texto: String }
-                            if let r: R = try? await estado.api.enviar("POST", "/v1/web/reescribir", C(texto: texto)) { texto = r.texto }
+                            do {
+                                let r: R = try await estado.api.enviar("POST", "/v1/web/reescribir", C(texto: texto))
+                                texto = r.texto
+                            } catch { estado.avisar(error) }
                         }
                     } label: { Label("Reescribir con IA", systemImage: "sparkles") }
                     .disabled(texto.isEmpty)

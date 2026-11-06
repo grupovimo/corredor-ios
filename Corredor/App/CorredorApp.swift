@@ -41,12 +41,7 @@ struct CorredorApp: App {
             .onContinueUserActivity(CSSearchableItemActionType) { a in
                 if let id = a.userInfo?[CSSearchableItemActivityIdentifier] as? String, let r = Ruta(texto: id) { estado.ir(r) }
             }
-            .onOpenURL { url in
-                // El link de una invitación (corredor.com.ar/invitacion/<token>): entra directo a la inmobiliaria.
-                if url.host?.hasSuffix("corredor.com.ar") == true, url.pathComponents.count > 2, url.pathComponents[1] == "invitacion" {
-                    Task { await estado.aceptarInvitacion(url.pathComponents[2]) }
-                } else if let r = Ruta(texto: url.absoluteString) { estado.ir(r) }
-            }
+            .onOpenURL { url in abrirLink(url) }
             .onContinueUserActivity("ar.com.corredor.app.propiedad") { a in
                 if let id = a.userInfo?["id"] as? String { estado.ir(Ruta(.propiedades, AFichaPropiedad(id: id))) }
             }
@@ -75,6 +70,34 @@ struct CorredorApp: App {
     }
 }
 
+extension CorredorApp {
+    /// Un link que abre la app (universal link de corredor.com.ar o `corredor://`).
+    /// - `invitacion/<token>`: se muestra la invitación antes de aceptarla (sin sesión, después de entrar).
+    /// - `ingresar?alta=1` o `empezar`: el ingreso en modo «Creá tu cuenta»; `ingresar/recuperar`: «¿No podés entrar?».
+    /// - Lo demás: su pantalla. Sin sesión queda pendiente y se abre al entrar (como el `?volver=` de la web).
+    @MainActor
+    func abrirLink(_ url: URL) {
+        let web = url.host?.hasSuffix("corredor.com.ar") == true
+        let partes = url.scheme == "corredor" ? ([url.host ?? ""] + url.pathComponents.filter { $0 != "/" }) : url.pathComponents.filter { $0 != "/" }
+        if (web || url.scheme == "corredor"), partes.count > 1, partes[0] == "invitacion" {
+            estado.abrirInvitacion(partes[1])
+            return
+        }
+        if estado.fase != .adentro {
+            let q = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            if partes.first == "ingresar" || partes.first == "empezar" {
+                if partes.count > 1, partes[1] == "recuperar" { estado.recuperarAbierto = true }
+                else { estado.ingresoAlta = partes.first == "empezar" || q.contains { $0.name == "alta" } }
+                if let n = q.first(where: { $0.name == "nombre" })?.value?.nonEmpty { estado.nombreSugerido = String(n.prefix(120)) }
+                return
+            }
+        }
+        if partes.first == "ingresar" { return }
+        guard let r = Ruta(texto: url.absoluteString) else { return }
+        if estado.fase == .adentro { estado.ir(r) } else { Abrir.pendiente = r }
+    }
+}
+
 /// Qué se ve según la sesión: lanzamiento, entrada (1A–1B), elegir inmobiliaria (1C) o la app.
 struct Raiz: View {
     @Environment(Estado.self) private var estado
@@ -97,6 +120,11 @@ struct Raiz: View {
             if estado.bloqueada {
                 Bloqueo().transition(.opacity).zIndex(2)
             }
+        }
+        // La invitación de un link, para verla antes de aceptarla (sobre la app o sobre «¿Dónde trabajás hoy?»).
+        .sheet(item: Binding(get: { estado.invitacionAbierta }, set: { estado.invitacionAbierta = $0 })) { i in
+            NavigationStack { VerInvitacion(token: i.token) }
+                .environment(estado).environment(estado.cola)
         }
         .animation(.easeInOut(duration: 0.25), value: estado.fase)
         .animation(.easeInOut(duration: 0.2), value: estado.bloqueada)

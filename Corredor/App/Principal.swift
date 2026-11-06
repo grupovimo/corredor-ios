@@ -68,6 +68,15 @@ struct Principal: View {
         }
         // La suscripción (avisos de prueba y sólo lectura), al día con el tiempo real.
         .task(id: estado.version) { await estado.cargarSuscripcion() }
+        // Las insignias de la barra y de «Más»: con cada cambio, al volver y cada minuto.
+        .task(id: estado.version) { await Insignias.compartidas.refrescar(estado) }
+        .task(id: "\(escena == .active)-insignias") {
+            while escena == .active && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                if Task.isCancelled { break }
+                await Insignias.compartidas.refrescar(estado)
+            }
+        }
         // En vivo (App/Vivo.swift) con la app adelante; se corta al ir al fondo y vuelve al volver.
         .task(id: "\(escena == .active)-\(estado.sesion?.inmobiliariaId ?? "")") {
             if escena == .active { await estado.escucharEnVivo() }
@@ -162,8 +171,13 @@ struct BarraPestanas: View {
         }
     }
 
+    /// Mensajes: la bandeja (WhatsApp sin leer y preguntas de Mercado Libre); Más: los cobros atrasados.
     private func insignia(_ p: Pestana) -> Int? {
-        p == .mensajes ? estado.sinLeer : nil
+        switch p {
+        case .mensajes: return estado.sinLeer
+        case .mas: return Insignias.compartidas.cobranzas
+        default: return nil
+        }
     }
 }
 

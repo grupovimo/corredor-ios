@@ -238,17 +238,33 @@ enum Documentos {
         return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Recibo \(c.periodo)")
     }
 
-    /// La rendición al propietario.
-    static func rendicion(_ r: RendicionAPI, contrato k: ContratoAPI?, api: Api) async -> URL? {
+    /// La rendición de cuentas al propietario (07 · 48 «Rendición · A4»), con los datos del
+    /// comprobante de la API (GET …/rendiciones/{rid}/imprimir): el propietario, la dirección, el
+    /// detalle, «Neto transferido» o «Neto a transferir», el próximo ajuste y las notas.
+    static func rendicion(_ c: ComprobanteRendicion, items: [RendicionAPI.Item]? = nil, neto: Double? = nil, api: Api) async -> URL? {
+        let m = c.moneda
+        var filas: [(String, String)] = [("Alquiler cobrado", Formato.numero(Int(c.cobrado.rounded())))]
+        if let x = c.comision, x > 0 { filas.append(("Administración \(TextosCobro.numero(c.comisionPorcentaje ?? 0)) %", "−" + Formato.numero(Int(x.rounded())))) }
+        for it in items ?? c.items ?? [] { filas.append((it.descripcion, (it.monto < 0 ? "" : "−") + Formato.numero(Int(abs(it.monto).rounded())))) }
+        var partes: [(String, String)] = []
+        if let p = c.propietario { partes.append(("Propietario", p)) }
+        if let l = c.propiedadDireccion?.nonEmpty ?? c.propiedadTitulo { partes.append(("Propiedad", l)) }
+        var bloques: [Documento.Bloque] = []
+        if !partes.isEmpty { bloques.append(.init(titulo: nil, filas: partes)) }
+        bloques.append(.init(titulo: "Detalle", filas: filas, total: (c.estado == "pagada" ? "Neto transferido" : "Neto a transferir", Formato.plata(neto ?? c.neto, m))))
+        var pie: [String] = []
+        if let p = c.proximo {
+            var t = "Próximo ajuste: \(TextosCobro.nombreIndice[p.indice] ?? "índice"), \(TextosCobro.fechaCortita(p.fecha))"
+            if let x = p.monto { t += ", alquiler \(p.estimado == true ? "estimado " : "")\(Formato.plata(x, m))" }
+            pie.append(t + ".")
+        }
+        if let n = c.notas?.nonEmpty { pie.append(n) }
+        if !pie.isEmpty { bloques.append(.init(texto: pie.joined(separator: " "))) }
+        let mes = String(TextosCobro.nombreMes(c.periodo).prefix(3)).uppercased() + " " + c.periodo.prefix(4)
+        let d = Documento(titulo: "Rendición de cuentas", subtitulo: c.inmobiliaria?.nombre,
+                          numero: RendicionAPI.numeroTexto(c.numero).map { "N.º \($0) · \(mes)" } ?? mes, bloques: bloques)
         let inmo = await inmobiliaria(api)
-        let m = r.moneda ?? "ARS"
-        var filas: [(String, String)] = [("Alquiler cobrado", Formato.plata(r.cobrado ?? 0, m))]
-        if let c = r.comision, c > 0 { filas.append(("Administración \(Formato.numero(Int(r.comisionPorcentaje ?? 0))) %", "−" + Formato.plata(c, m))) }
-        for it in r.items ?? [] { filas.append((it.descripcion, "−" + Formato.plata(it.monto, m))) }
-        let d = Documento(titulo: k?.propietarioNombre ?? "Rendición", subtitulo: "\(k?.propiedadTitulo ?? "") · \(ReciboVista.mes(r.periodo))",
-                          numero: r.numero.map { "Rendición N.º \($0)" },
-                          bloques: [.init(titulo: "Detalle", filas: filas, total: ("A transferir", Formato.plata(r.neto ?? 0, m)))])
-        return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Rendición \(r.periodo)")
+        return Impresor.pdf(d, inmobiliaria: c.inmobiliaria?.nombre ?? inmo?.nombre ?? "Corredor", nombre: "Rendición \(c.periodo.prefix(7))")
     }
 
     /// El contrato: partes, plazo, monto, ajuste y condiciones.
@@ -258,14 +274,14 @@ enum Documentos {
         var partes: [(String, String)] = []
         if let x = k.contactoNombre { partes.append((k.tipo == "venta" ? "Comprador" : "Inquilino", x)) }
         if let x = k.propietarioNombre { partes.append(("Propietario", x)) }
-        if let x = k.garanteNombre { partes.append(("Garante", x + (k.garanteTelefono.map { " · \($0)" } ?? ""))) }
+        if let x = k.garanteNombre { partes.append(("Garante", x + (k.garanteTelefono.map { " · \($0)" } ?? "") + (k.garanteNotas.map { " · \($0)" } ?? ""))) }
         var cond: [(String, String)] = [("Desde", k.inicio.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "—"), ("Hasta", k.fin.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "—")]
-        if let x = k.monto { cond.append((k.tipo == "venta" ? "Precio" : "Alquiler mensual", Formato.plata(x, m))) }
+        if let x = k.monto { cond.append((k.tipo == "venta" ? "Precio" : "Alquiler inicial", Formato.plata(x, m))) }
         if k.tipo != "venta" { cond.append(("Ajuste", k.ajusteTexto)) }
         if let x = k.diaVencimiento { cond.append(("Vence", "El \(x) de cada mes")) }
         if let x = k.deposito { cond.append(("Depósito", Formato.plata(x, m))) }
-        if let x = k.honorarios { cond.append(("Honorarios", "\(Formato.numero(Int(x))) %")) }
-        if let x = k.punitorioDiario { cond.append(("Punitorio diario", "\(x) %")) }
+        if let x = k.honorarios { cond.append(("Honorarios", "\(TextosCobro.numero(x)) % del total del contrato")) }
+        if let x = k.punitorioDiario { cond.append(("Punitorios", "\(TextosCobro.numero(x)) % diario")) }
         if let x = k.comision { cond.append(("Administración", "\(Formato.numero(Int(x))) % de lo cobrado")) }
         var bloques = [Documento.Bloque(titulo: "Partes", filas: partes), .init(titulo: "Condiciones", filas: cond)]
         if let n = k.notas?.nonEmpty { bloques.append(.init(titulo: "Notas", texto: n)) }
@@ -273,29 +289,6 @@ enum Documentos {
                           bloques: bloques, firmas: [.init(parte: k.tipo == "venta" ? "Comprador" : "Inquilino", nombre: k.contactoNombre),
                                                      .init(parte: "Propietario", nombre: k.propietarioNombre)])
         return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Contrato \(k.propiedadTitulo ?? "")")
-    }
-
-    /// El acta de entrega o devolución: cada ambiente con sus ítems y su estado (los que quedaron
-    /// congelados al labrarla, `acta.items`), y las tres firmas.
-    static func acta(_ a: Acta, propiedad: String, api: Api) async -> URL? {
-        let inmo = await inmobiliaria(api)
-        let items = a.items ?? []
-        var ambientes: [String] = []
-        for i in items where !ambientes.contains(i.ambiente) { ambientes.append(i.ambiente) }
-        var bloques = ambientes.map { amb in
-            Documento.Bloque(titulo: amb, filas: items.filter { $0.ambiente == amb }.map { i in
-                (i.descripcion + (i.cantidad.map { $0 > 1 ? " × \($0)" : "" } ?? ""),
-                 (ItemInventario.estados.first { $0.0 == i.estado }?.1 ?? i.estado) + (i.notas?.nonEmpty.map { " · \($0)" } ?? ""))
-            })
-        }
-        if let o = a.observaciones?.nonEmpty { bloques.append(.init(titulo: "Observaciones", texto: o)) }
-        let firmas = [("inquilino", "Inquilino"), ("propietario", "Propietario"), ("inmobiliaria", "Inmobiliaria")].map { k, n in
-            Documento.Firma(parte: n, nombre: a.firmas?[k]?.nombre, trazo: a.firmas?[k]?.trazo)
-        }
-        let d = Documento(titulo: a.esSalida ? "Acta de devolución" : "Acta de entrega",
-                          subtitulo: "\(propiedad) · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "")", bloques: bloques, firmas: firmas,
-                          pie: "Las partes aceptan el estado de cada ambiente tal como quedó registrado. Hecha con Corredor")
-        return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Acta \(propiedad)")
     }
 
     /// Cualquier respuesta de la API (liquidación de expensas, recibo de sueldo): las listas como bloques

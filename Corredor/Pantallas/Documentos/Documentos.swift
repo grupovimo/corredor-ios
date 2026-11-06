@@ -24,6 +24,8 @@ struct DocumentosLista: View {
     var de: String
     var id: String
     @State private var lista: [DocumentoAPI] = []
+    @State private var cargado = false
+    @State private var error: ErrorApi?
     @State private var eligiendo = false
     @State private var foto: PhotosPickerItem?
     @State private var previo: ArchivoPrevio?
@@ -35,7 +37,12 @@ struct DocumentosLista: View {
             if estado.escribe {
                 TipView(ConsejoEscanear()).tipBackground(C.superficie).listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
-            if lista.isEmpty {
+            if let error, lista.isEmpty {
+                EstadoError(que: "los documentos", error: error) { Task { await cargar() } }
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
+            } else if !cargado {
+                EsqueletoFilas(filas: 3).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            } else if lista.isEmpty {
                 EstadoVacio(icono: "folder", titulo: "Sin documentos", texto: "El contrato firmado, el DNI, la escritura, los planos: todo a mano.",
                             accion: estado.escribe ? ("Subir un PDF", { eligiendo = true }) : nil)
                     .listRowBackground(Color.clear).listRowSeparator(.hidden)
@@ -51,7 +58,7 @@ struct DocumentosLista: View {
                         }
                     }
                 }
-                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/documentos/\(d.id)"); await cargar() } catch { estado.avisar(error) } } } } }
+                .swipeActions { if estado.escribe { Button("Sacar", role: .destructive) { Task { await sacar(d) } } } }
             }
             if subiendo { ProgressView() }
         }
@@ -79,22 +86,52 @@ struct DocumentosLista: View {
                 Task {
                     let acceso = u.startAccessingSecurityScopedResource()
                     defer { if acceso { u.stopAccessingSecurityScopedResource() } }
-                    if let d = try? Data(contentsOf: u) { await subir(d, nombre: u.lastPathComponent, tipo: u.pathExtension.lowercased() == "pdf" ? "application/pdf" : "image/jpeg") }
+                    do {
+                        let d = try Data(contentsOf: u)
+                        await subir(d, nombre: u.lastPathComponent, tipo: u.pathExtension.lowercased() == "pdf" ? "application/pdf" : "image/jpeg")
+                    } catch { estado.avisar(error) }
                 }
             }
         }
         .onChange(of: foto) { _, i in
             guard let i else { return }
             Task {
-                if let d = try? await i.loadTransferable(type: Data.self) { await subir(UIImage(data: d)?.jpegData(compressionQuality: 0.85) ?? d, nombre: "Foto.jpg", tipo: "image/jpeg") }
+                do {
+                    if let d = try await i.loadTransferable(type: Data.self) { await subir(UIImage(data: d)?.jpegData(compressionQuality: 0.85) ?? d, nombre: "Foto.jpg", tipo: "image/jpeg") }
+                } catch { estado.avisar(error) }
                 foto = nil
             }
         }
     }
 
-    private func cargar() async { lista = (try? await estado.api.get("/v1/documentos", query: [.init(name: de, value: id)])) ?? [] }
+    private func cargar() async {
+        do {
+            lista = try await estado.api.get("/v1/documentos", query: [.init(name: de, value: id)])
+            error = nil
+        } catch let e as ErrorApi { error = e } catch {}
+        cargado = true
+    }
+
+    /// Sacar va a la papelera al toque, con deshacer (se vuelve a sumar el mismo archivo).
+    private func sacar(_ d: DocumentoAPI) async {
+        struct C: Encodable { var archivoId: String; var nombre: String; var contratoId: String?; var propiedadId: String? }
+        do {
+            try await estado.api.hacer("DELETE", "/v1/documentos/\(d.id)")
+            lista.removeAll { $0.id == d.id }
+            estado.avisar("Sacaste «\(d.nombre)»") {
+                Task {
+                    guard let a = d.archivoId else { return }
+                    do {
+                        try await estado.api.hacer("POST", "/v1/documentos", C(archivoId: a, nombre: d.nombre, contratoId: de == "contrato" ? id : nil, propiedadId: de == "propiedad" ? id : nil))
+                        await cargar()
+                    } catch { estado.avisar(error) }
+                }
+            }
+        } catch { estado.avisar(error) }
+    }
 
     private func subir(_ datos: Data, nombre: String, tipo: String) async {
+        guard datos.count <= 25 << 20 else { estado.avisar("El archivo pasa de 25 MB.", ok: false); return }
         subiendo = true
         defer { subiendo = false }
         do {

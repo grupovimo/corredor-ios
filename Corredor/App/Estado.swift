@@ -41,6 +41,12 @@ struct Ingreso: Decodable {
     var sesion: Sesion { Sesion(usuario: usuario, inmobiliariaId: inmobiliariaId, rol: rol, inmobiliarias: inmobiliarias) }
 }
 
+/// La invitación abierta para ver antes de aceptarla (la hoja de `Raiz`).
+struct InvitacionAbierta: Identifiable, Equatable {
+    var token: String
+    var id: String { token }
+}
+
 /// El aviso de abajo (handoff · «Deshacer en vez de confirmar»): 5 s, con «Deshacer» si se puede.
 struct Aviso: Identifiable, Equatable {
     let id = UUID()
@@ -99,6 +105,14 @@ final class Estado {
     var altaAbierta: PasoAlta?
     /// La bienvenida de quien se suma a un equipo (su foto, su WhatsApp, los avisos y la apariencia).
     var bienvenidaAbierta = false
+    /// La invitación que se está viendo antes de aceptarla (el token del link), en una hoja sobre todo.
+    var invitacionAbierta: InvitacionAbierta?
+    /// El ingreso en modo «Creá tu cuenta» (el link `ingresar?alta=1` o el de crear la web).
+    var ingresoAlta = false
+    /// «¿No podés entrar?» abierto desde un link (`ingresar/recuperar`).
+    var recuperarAbierto = false
+    /// El nombre que trae el link de crear la web (`empezar?nombre=`), para no tener que escribirlo de nuevo.
+    var nombreSugerido: String?
     @ObservationIgnored var recargaVivo: Task<Void, Never>?
     let cola: Cola
     private(set) var tokenPush: String?
@@ -169,9 +183,10 @@ final class Estado {
     private func entrarSegunInmobiliaria() {
         guard let s = sesion else { fase = .afuera; return }
         if let t = invitacionPendiente, s.inmobiliariaId == nil {
-            // Recién entra y lo invitaron: mientras se acepta, la pantalla de elegir.
+            // Recién entra y lo invitaron: la invitación se ve (y se acepta) sobre la pantalla de elegir.
             fase = .eligiendo
-            Task { await aceptarInvitacion(t) }
+            invitacionPendiente = nil
+            invitacionAbierta = InvitacionAbierta(token: t)
         } else if s.inmobiliariaId == nil || (s.inmobiliarias.count > 1 && !UserDefaults.standard.bool(forKey: "eligio-\(s.usuario.id)")) {
             fase = .eligiendo
         } else {
@@ -182,7 +197,10 @@ final class Estado {
     }
 
     private func despuesDeEntrar() async {
-        if let t = invitacionPendiente { await aceptarInvitacion(t) }
+        if let t = invitacionPendiente {
+            invitacionPendiente = nil
+            invitacionAbierta = InvitacionAbierta(token: t)
+        }
         // Las compras del App Store que llegan solas (renovaciones, otro dispositivo) van a la API.
         Tienda.compartida.api = api
         Tienda.compartida.escuchar()
@@ -224,6 +242,11 @@ final class Estado {
         try await canjear(try await clerk.conCodigo(i, codigo: codigo))
     }
 
+    /// El JWT de una sesión de Clerk (ingreso con mail y contraseña, recuperar el acceso) → la sesión.
+    func ingresarConJWT(_ jwt: String) async throws {
+        try await canjear(jwt)
+    }
+
     private func canjear(_ jwt: String) async throws {
         struct Cuerpo: Encodable { var token: String }
         let i: Ingreso = try await api.enviar("POST", "/v1/auth/clerk", Cuerpo(token: jwt))
@@ -242,24 +265,35 @@ final class Estado {
         set { UserDefaults.standard.set(newValue, forKey: "invitacion") }
     }
 
-    /// Acepta la invitación del link y entra a esa inmobiliaria. Sin sesión, la guarda para después.
-    func aceptarInvitacion(_ token: String) async {
-        guard api.token != nil, fase != .afuera else {
+    /// El link de una invitación (corredor.com.ar/invitacion/<token>): sin sesión se guarda para después
+    /// de entrar; con sesión se muestra (de dónde es, con qué rol, a qué mail) antes de aceptarla.
+    func abrirInvitacion(_ token: String) {
+        guard api.token != nil, fase != .afuera, fase != .arrancando else {
             invitacionPendiente = token
-            avisar("Entrá con tu cuenta y te sumamos a la inmobiliaria.")
+            if api.token == nil || fase == .afuera { avisar("Entrá con tu cuenta y te mostramos la invitación.") }
             return
         }
+        invitacionAbierta = InvitacionAbierta(token: token)
+    }
+
+    /// Acepta la invitación y entra a esa inmobiliaria (después, `VerInvitacion` abre la bienvenida).
+    func aceptarInvitacion(_ token: String) async throws {
         struct C: Encodable { var token: String }
-        do {
-            let antes = Set(sesion?.inmobiliarias.map(\.id) ?? [])
-            try await api.hacer("POST", "/v1/invitaciones/aceptar", C(token: token))
-            invitacionPendiente = nil
-            try await cargarSesion()
-            if let nueva = sesion?.inmobiliarias.first(where: { !antes.contains($0.id) }) {
-                try await elegir(nueva)
-                avisar("Ya estás en \(nueva.nombre) como \(ElegirInmobiliaria.rol(nueva.rol).lowercased())")
-            }
-        } catch { avisar(error) }
+        let antes = Set(sesion?.inmobiliarias.map(\.id) ?? [])
+        try await api.hacer("POST", "/v1/invitaciones/aceptar", C(token: token))
+        invitacionPendiente = nil
+        try await cargarSesion()
+        if let nueva = sesion?.inmobiliarias.first(where: { !antes.contains($0.id) }) {
+            try await elegir(nueva)
+            avisar("Ya estás en \(nueva.nombre) como \(ElegirInmobiliaria.rol(nueva.rol).lowercased())")
+        }
+    }
+
+    /// «No soy yo»: salir y volver a entrar con la cuenta del mail invitado, sin perder la invitación.
+    func otraCuenta(invitacion token: String) async {
+        invitacionAbierta = nil
+        await salir()
+        invitacionPendiente = token
     }
 
     /// 1C: elegir (o cambiar) la inmobiliaria.
@@ -282,10 +316,12 @@ final class Estado {
     }
 
     /// Crear la primera inmobiliaria desde la app (la cuenta nueva sin ninguna).
-    func crearInmobiliaria(nombre: String) async throws {
-        struct Cuerpo: Encodable { var nombre: String }
+    /// También crea otra teniendo ya una («Tus inmobiliarias › Crear otra inmobiliaria»): la persona
+    /// queda como dueña y la sesión pasa a la nueva. `slug`: la dirección de la web (vacía, la arma la API).
+    func crearInmobiliaria(nombre: String, slug: String = "") async throws {
+        struct Cuerpo: Encodable { var nombre: String; var slug: String }
         struct Creada: Decodable { var id: String }
-        let c: Creada = try await api.enviar("POST", "/v1/inmobiliarias", Cuerpo(nombre: nombre))
+        let c: Creada = try await api.enviar("POST", "/v1/inmobiliarias", Cuerpo(nombre: nombre, slug: slug))
         try await cargarSesion()
         if let m = sesion?.inmobiliarias.first(where: { $0.inmobiliariaId == c.id }) {
             try await elegir(m)
@@ -419,8 +455,30 @@ final class Estado {
     }
 
     /// El token de APNs, registrado en la API para que mande los avisos al iPhone.
+    /// «Avisos en este dispositivo · Apagar» (perfil): este iPhone deja de recibir sin tocar los ajustes
+    /// del sistema ni lo que se elige en «Avisos».
+    var pushApagado: Bool {
+        get { UserDefaults.standard.bool(forKey: "pushApagado") }
+        set { UserDefaults.standard.set(newValue, forKey: "pushApagado") }
+    }
+
+    /// Apaga los avisos de este iPhone (lo borra de la API).
+    func apagarPush() async throws {
+        if let t = tokenPush { try await api.hacer("DELETE", "/v1/push/dispositivos/\(t)") }
+        pushApagado = true
+    }
+
+    /// Los vuelve a prender (pide el permiso si hace falta y anota el token).
+    func prenderPush() async {
+        pushApagado = false
+        if let t = tokenPush { await registrarTokenPush(t) }
+        await pedirPermisoPush()
+    }
+
     func registrarTokenPush(_ hex: String) async {
         tokenPush = hex
+        // Apagados en este iPhone desde el perfil: no se vuelve a anotar solo.
+        if pushApagado { return }
         struct Cuerpo: Encodable {
             var token: String
             var plataforma = "ios"

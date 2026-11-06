@@ -25,129 +25,366 @@ struct FilaBandeja: Identifiable {
     var fuera: Bool
     var ir: AnyHashable
     var contactoId: String? = nil
+    /// La conversación de WhatsApp (para los datos de la fila y «Tomar»).
+    var conversacion: Conversacion? = nil
 }
 
-/// 6A Bandeja: WhatsApp, Mercado Libre y las consultas de la web juntas, con filtros.
+/// Las vistas de la bandeja (los chips del celular de la web): se piden filtradas a la API.
+enum VistaBandeja: String, CaseIterable, Hashable {
+    case pendientes, mios, sinDueno, fuera, todas
+
+    var texto: String {
+        switch self {
+        case .pendientes: return "Sin responder"
+        case .mios: return "Míos"
+        case .sinDueno: return "Sin dueño"
+        case .fuera: return "Fuera de 24 h"
+        case .todas: return "Todos"
+        }
+    }
+
+    var query: [URLQueryItem] {
+        switch self {
+        case .pendientes: return [.init(name: "esperando", value: "si")]
+        case .mios: return [.init(name: "agente", value: "yo")]
+        case .sinDueno: return [.init(name: "agente", value: "libre")]
+        case .fuera: return [.init(name: "ventana", value: "fuera")]
+        case .todas: return []
+        }
+    }
+
+    func cuenta(_ c: CuentasBandeja?) -> Int? {
+        guard let c else { return nil }
+        switch self {
+        case .pendientes: return c.esperando
+        case .mios: return c.mias
+        case .sinDueno: return c.sinDueno
+        case .fuera: return c.fueraDeVentana
+        case .todas: return c.todas
+        }
+    }
+}
+
+/// 6A Bandeja: WhatsApp (con las vistas resueltas en la API), las preguntas de Mercado Libre y las
+/// consultas de la web; el estado del número, las plantillas aprobadas y los otros canales.
 struct MensajesRaiz: View {
     @Environment(Estado.self) private var estado
-    @State private var filtro = 0
-    @State private var filas: [FilaBandeja]?
+    @State private var vista: VistaBandeja?
+    @State private var q = ""
+    @State private var conversaciones: [Conversacion]?
+    @State private var otras: [FilaBandeja] = []
+    @State private var cuentas: CuentasBandeja?
+    @State private var numero: NumeroWA?
+    @State private var plantillas: [PlantillaWA] = []
+    @State private var ml: EstadoML?
+    @State private var soloML = false
+    @State private var tomadas: Set<String> = []
     @State private var error: ErrorApi?
     @State private var nuevo = false
 
-    private static let filtros = ["Pendientes", "Míos", "Sin dueño", "Todos"]
+    struct EstadoML: Decodable { var conectada: Bool?; var preguntasSinResponder: Int? }
+
+    private var elegida: VistaBandeja { vista ?? ((cuentas?.esperando ?? 0) > 0 ? .pendientes : .todas) }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
                 CabeceraPestana(titulo: "Mensajes",
-                                acciones: estado.escribe ? [AccionCabecera(icono: "square.and.pencil", etiqueta: "Mensaje nuevo") { nuevo = true }] : [],
-                                busca: "Persona o propiedad") { estado.abrir(ABuscar()) }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(Self.filtros.enumerated()), id: \.offset) { i, n in
-                            ChipFiltro(texto: n + (cuenta(i).map { " \($0)" } ?? ""), activo: filtro == i) { filtro = i }
-                        }
-                    }
-                    .padding(.horizontal, 16).padding(.vertical, 2)
-                }
-                if let filas {
-                    let l = filas.filter(pasa)
-                    if l.isEmpty {
-                        EstadoVacio(icono: "bubble.left.and.bubble.right", titulo: filtro == 0 ? "Respondiste todo" : "No hay mensajes acá",
-                                    texto: filas.isEmpty ? "Conectá tu WhatsApp y Mercado Libre para recibir las consultas en un solo lugar." : nil,
-                                    accion: filas.isEmpty && estado.esDuenio ? ("Conectar WhatsApp", { estado.abrir(ASeccion(clave: "integraciones")) }) : nil)
-                            .padding(.top, 30)
-                    } else {
-                        VStack(spacing: 0) {
-                            ForEach(Array(l.enumerated()), id: \.element.id) { i, x in fila(x, primera: i == 0) }
-                        }
-                        .tarjeta()
-                        .padding(.horizontal, 16)
-                    }
-                } else if let error {
-                    EstadoError(que: "los mensajes", error: error) { Task { await cargar() } }.padding(.top, 30)
-                } else {
-                    EsqueletoFilas(filas: 6).padding(.horizontal, 16)
-                }
+                                acciones: estado.escribe ? [AccionCabecera(icono: "square.and.pencil", etiqueta: "Mensaje nuevo") { nuevo = true }] : [])
+                Buscador(placeholder: "Nombre, número o mensaje…", texto: $q).padding(.horizontal, 16)
+                if numero?.conectado == true { chips }
+                if let n = numero, n.caido { NumeroCaido(numero: n).padding(.horizontal, 16) }
+                if numero?.conectado == false { SinWhatsApp().padding(.horizontal, 16) }
+                lista
+                otrosBloques
             }
             .padding(.bottom, 32)
         }
         .refreshable { await cargar() }
         .pantallaRaiz()
-        .task(id: estado.version) { await cargar() }
+        .task(id: "\(estado.version)-\(elegida.rawValue)-\(q)") {
+            if !q.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
+            if Task.isCancelled { return }
+            await cargar()
+        }
         .sheet(isPresented: $nuevo) { MensajeNuevo().presentationDetents([.medium, .large]) }
     }
 
-    private func pasa(_ x: FilaBandeja) -> Bool {
-        switch filtro {
-        case 0: return x.nuevo
-        case 1: return x.mio
-        case 2: return x.sinDueno
-        default: return true
+    private var chips: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(VistaBandeja.allCases, id: \.self) { v in
+                    let n = v.cuenta(cuentas) ?? 0
+                    ChipFiltro(texto: v.texto + (n > 0 && v != .todas ? " \(n)" : ""), activo: elegida == v && !soloML) {
+                        soloML = false
+                        vista = v
+                    }
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 2)
         }
     }
 
-    private func cuenta(_ i: Int) -> Int? {
-        guard let filas else { return nil }
-        let n = filas.filter { f in
-            switch i { case 0: return f.nuevo; case 1: return f.mio; case 2: return f.sinDueno; default: return true }
-        }.count
-        return n > 0 && i < 3 ? n : nil
-    }
-
-    private func fila(_ x: FilaBandeja, primera: Bool) -> some View {
-        Button { estado.abrir(x.ir) } label: {
-            HStack(alignment: .top, spacing: 12) {
-                Text(Formato.iniciales(x.nombre)).font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font).foregroundStyle(C.texto)
-                    .frame(width: 48, height: 48).background(C.hundida, in: Circle())
-                    .overlay(alignment: .bottomTrailing) {
-                        Group {
-                            switch x.canal {
-                            case "wa": Image("LogoWhatsApp").resizable().scaledToFit().frame(width: 16, height: 16)
-                            case "ml": Image("LogoMercadoLibre").resizable().scaledToFit().frame(width: 16, height: 16)
-                            default: Image(systemName: "globe").font(.system(size: 14)).foregroundStyle(C.azulTinta)
-                            }
-                        }
-                        .frame(width: 22, height: 22).background(C.superficie, in: Circle()).offset(x: 3, y: 3)
-                    }
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(x.nombre).font(Estilo(tamano: 16, peso: x.nuevo ? .bold : .medium, relativo: .body).font).foregroundStyle(C.texto).lineLimit(1)
-                        Spacer()
-                        Text(x.cuando.map { Calendar.current.isDateInToday($0) ? Formato.horaDe($0) : Formato.dia($0) } ?? "")
-                            .estilo(.footnote).foregroundStyle(x.nuevo ? C.accion : C.texto3)
-                    }
-                    HStack(spacing: 8) {
-                        Text(x.texto).estilo(.texto14).foregroundStyle(C.texto2).lineLimit(1)
-                        Spacer()
-                        if x.nuevo { Circle().fill(C.accion).frame(width: 10, height: 10) }
-                    }
-                    HStack(spacing: 6) {
-                        if let p = x.propiedad { etiqueta(p, C.hundida, C.texto2) }
-                        if x.sinDueno { etiqueta("Sin dueño", C.azulFondo, C.azulTinta) }
-                        if x.fuera { etiqueta("Fuera de 24 h", C.avisoFondo, C.avisoTinta) }
-                    }
-                    .padding(.top, 4)
+    /// Las filas de la vista: las conversaciones que dio la API, y las preguntas de ML y las consultas
+    /// de la web que van en esa vista.
+    private var filas: [FilaBandeja] {
+        let yo = estado.usuario?.id
+        let wa: [FilaBandeja] = soloML ? [] : (conversaciones ?? []).map { (c0: Conversacion) -> FilaBandeja in
+            var c = c0
+            if tomadas.contains(c.id), c.agenteId == nil { c.agenteId = yo; c.agenteNombre = estado.usuario?.completo }
+            return FilaBandeja(id: "wa" + c.id, canal: "wa", nombre: c.quien, texto: c.ultimoTexto ?? "", cuando: c.ultimoMensajeEn, propiedad: c.propiedadTitulo,
+                               nuevo: c.esperando ?? ((c.noLeidos ?? 0) > 0), mio: c.agenteId == yo, sinDueno: c.agenteId == nil, fuera: c.fuera,
+                               ir: AChat(id: c.id), contactoId: c.contactoId, conversacion: c)
+        }
+        let f = MasRaiz.normal(q)
+        let extra = otras.filter { x in
+            let enVista: Bool
+            if soloML { enVista = x.canal == "ml" }
+            else {
+                switch elegida {
+                case .pendientes: enVista = x.nuevo
+                case .sinDueno: enVista = x.sinDueno
+                case .todas: enVista = true
+                case .mios, .fuera: enVista = false
                 }
             }
-            .padding(.horizontal, 14).padding(.vertical, 12).contentShape(Rectangle())
+            return enVista && (f.isEmpty || MasRaiz.normal(x.nombre + " " + x.texto + " " + (x.propiedad ?? "")).contains(f))
+        }
+        return (wa + extra).sorted { ($0.cuando ?? .distantPast) > ($1.cuando ?? .distantPast) }
+    }
+
+    @ViewBuilder
+    private var lista: some View {
+        if conversaciones != nil {
+            let l = filas
+            if l.isEmpty {
+                vacio.padding(.top, 20)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(l.enumerated()), id: \.element.id) { i, x in fila(x, primera: i == 0) }
+                }
+                .tarjeta()
+                .padding(.horizontal, 16)
+            }
+        } else if let error {
+            EstadoError(que: "los mensajes", error: error) { Task { await cargar() } }.padding(.top, 30)
+        } else {
+            EsqueletoFilas(filas: 6).padding(.horizontal, 16)
+        }
+    }
+
+    @ViewBuilder
+    private var vacio: some View {
+        if !q.isEmpty {
+            EstadoVacio(icono: "magnifyingglass", titulo: "No encontramos «\(q)»", texto: "Probá con el nombre, el número o lo que escribió.",
+                        accion: ("Borrar la búsqueda", { q = "" }))
+        } else if numero?.conectado == false {
+            EmptyView()
+        } else {
+            EstadoVacio(icono: "bubble.left.and.bubble.right",
+                        titulo: elegida == .pendientes && !soloML ? "No hay nadie esperando respuesta" : "No hay conversaciones acá",
+                        texto: "WhatsApp, Mercado Libre y tu web entran acá.",
+                        accion: elegida != .todas || soloML ? ("Ver todas", { soloML = false; vista = .todas })
+                            : (estado.esDuenio ? ("Conectar WhatsApp", { estado.abrir(ASeccion(clave: "integraciones")) }) : nil))
+        }
+    }
+
+    /// Las plantillas aprobadas con sus usos y los otros canales (el panel de sección de la web).
+    @ViewBuilder
+    private var otrosBloques: some View {
+        if !plantillas.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                TituloBloque(texto: "Plantillas aprobadas")
+                VStack(spacing: 0) {
+                    ForEach(Array(plantillas.prefix(4).enumerated()), id: \.element.id) { i, p in
+                        HStack(spacing: 12) {
+                            IconoTono(icono: "text.bubble", tono: .neutro, tam: 36)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(Charla.nombrePlantilla(p.nombre)).estilo(.filaLista).foregroundStyle(C.texto)
+                                Text((p.usos ?? 0) > 0 ? "usada \(p.usos == 1 ? "1 vez" : "\(p.usos ?? 0) veces")" : "sin usar todavía")
+                                    .estilo(.footnote).foregroundStyle(C.texto2)
+                            }
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
+                    }
+                }
+                .tarjeta()
+            }
+            .padding(.horizontal, 16).padding(.top, 10)
+        }
+        VStack(alignment: .leading, spacing: 8) {
+            TituloBloque(texto: "Otros canales")
+            VStack(spacing: 0) {
+                canal("storefront", .oro, "Mercado Libre", ml?.conectada == true ? "preguntas" : "sin conectar", cuenta: ml?.preguntasSinResponder ?? 0, primera: true) {
+                    if ml?.conectada == true { soloML = true } else { estado.abrir(ASeccion(clave: "mercadolibre")) }
+                }
+                canal("megaphone", .azul, "Difusión a portales", "Zonaprop, Argenprop", cuenta: 0, primera: false) {
+                    estado.abrir(ASeccion(clave: "difusion"))
+                }
+            }
+            .tarjeta()
+        }
+        .padding(.horizontal, 16).padding(.top, 10)
+    }
+
+    private func canal(_ icono: String, _ tono: Tono, _ t: String, _ d: String, cuenta: Int, primera: Bool, _ hacer: @escaping () -> Void) -> some View {
+        Button(action: hacer) {
+            HStack(spacing: 12) {
+                IconoTono(icono: icono, tono: tono, tam: 36)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(t).estilo(.filaLista).foregroundStyle(C.texto)
+                    Text(d).estilo(.footnote).foregroundStyle(C.texto2)
+                }
+                Spacer()
+                if cuenta > 0 { InsigniaRoja(n: cuenta) }
+                Chevron()
+            }
+            .padding(.horizontal, 14).padding(.vertical, 10).contentShape(Rectangle())
         }
         .buttonStyle(Presionable())
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
-        .contextMenu {
-            if x.canal == "web", x.sinDueno, estado.escribe, let c = x.contactoId {
-                Button { Task { await tomar(c) } } label: { Label("Tomarla yo", systemImage: "person.crop.circle.badge.checkmark") }
+    }
+
+    private func cuando(_ x: FilaBandeja) -> String {
+        guard let f = x.cuando else { return "" }
+        let cal = Formato.calendario
+        if cal.isDateInToday(f) {
+            return Date().timeIntervalSince(f) < 6 * 3600 ? Formato.hace(f).replacingOccurrences(of: "hace ", with: "") : Formato.horaDe(f)
+        }
+        if cal.isDateInYesterday(f) { return x.fuera ? "ayer \(Formato.horaDe(f))" : "ayer" }
+        return Formato.dia(f)
+    }
+
+    @ViewBuilder
+    private func avatar(_ x: FilaBandeja) -> some View {
+        Group {
+            if x.conversacion?.sinNombre == true {
+                Text("+54").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).foregroundStyle(C.azulTinta)
+                    .frame(width: 48, height: 48).background(C.azulFondo, in: Circle())
+            } else {
+                Text(Formato.iniciales(x.nombre)).font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font).foregroundStyle(C.texto)
+                    .frame(width: 48, height: 48).background(C.hundida, in: Circle())
             }
         }
-        .swipeActions {
-            if x.canal == "web", x.sinDueno, estado.escribe, let c = x.contactoId {
-                Button("Tomarla") { Task { await tomar(c) } }.tint(C.verde700)
+        .overlay(alignment: .bottomTrailing) {
+            Group {
+                switch x.canal {
+                case "wa": Image("LogoWhatsApp").resizable().scaledToFit().frame(width: 16, height: 16)
+                case "ml": Image("LogoMercadoLibre").resizable().scaledToFit().frame(width: 16, height: 16)
+                default: Image(systemName: "globe").font(.system(size: 14)).foregroundStyle(C.azulTinta)
+                }
+            }
+            .frame(width: 22, height: 22).background(C.superficie, in: Circle()).offset(x: 3, y: 3)
+        }
+    }
+
+    /// Lo de abajo de la fila, como la web (FilaConversacion): número nuevo, más de 24 h, sin dueño, la
+    /// propiedad con las iniciales de quien la tiene, o «de Martín».
+    @ViewBuilder
+    private func meta(_ x: FilaBandeja) -> some View {
+        if let c = x.conversacion {
+            if c.sinNombre {
+                Text("número nuevo · crear contacto").estilo(.footnote).foregroundStyle(C.azulTinta)
+            } else if c.fuera && c.esperando == true {
+                Label("más de 24 h · plantilla", systemImage: "clock").font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font)
+                    .foregroundStyle(C.avisoTinta).padding(.horizontal, 8).frame(height: 22).background(C.avisoFondo, in: .rect(cornerRadius: 6))
+            } else if c.agenteId == nil {
+                Text("sin dueño" + (c.propiedadTitulo.map { " · \($0)" } ?? "")).estilo(.footnote).foregroundStyle(C.avisoTinta).lineLimit(1)
+            } else if let p = c.propiedadTitulo {
+                HStack(spacing: 6) {
+                    if let a = c.agenteNombre { mini(a) }
+                    etiqueta(p, C.hundida, C.texto2)
+                }
+            } else if let a = c.agenteNombre {
+                HStack(spacing: 6) { mini(a); Text("de \(Charla.primerNombre(a))").estilo(.footnote).foregroundStyle(C.texto2) }
+            }
+        } else {
+            HStack(spacing: 6) {
+                if let p = x.propiedad { etiqueta(p, C.hundida, C.texto2) }
+                if x.sinDueno { etiqueta("Sin dueño", C.azulFondo, C.azulTinta) }
             }
         }
     }
 
-    private func tomar(_ contacto: String) async {
+    private func mini(_ n: String) -> some View {
+        Text(Formato.iniciales(n)).font(Estilo(tamano: 10, peso: .bold, relativo: .caption2).font).foregroundStyle(C.avisoTinta)
+            .frame(width: 20, height: 20).background(C.avisoFondo, in: Circle())
+    }
+
+    private func fila(_ x: FilaBandeja, primera: Bool) -> some View {
+        let c = x.conversacion
+        let espera = c?.esperando ?? x.nuevo
+        let colorHora: Color = espera ? (x.fuera ? C.error : C.accion) : C.texto3
+        let previa = c.map { ($0.esperando == true ? "" : "Vos: ") + ($0.ultimoTexto ?? "") } ?? x.texto
+        let sinLeer = c?.noLeidos ?? (x.nuevo ? 1 : 0)
+        return HStack(alignment: .center, spacing: 8) {
+            Button { estado.abrir(x.ir) } label: {
+                HStack(alignment: .top, spacing: 12) {
+                    avatar(x)
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(x.nombre).font(Estilo(tamano: 16, peso: espera ? .bold : .medium, relativo: .body).font).foregroundStyle(C.texto).lineLimit(1)
+                            Spacer()
+                            Text(cuando(x)).estilo(.footnote).foregroundStyle(colorHora)
+                        }
+                        HStack(spacing: 8) {
+                            Text(previa).estilo(.texto14).foregroundStyle(C.texto2).lineLimit(1)
+                            Spacer()
+                            if sinLeer > 0 {
+                                if c != nil { InsigniaRoja(n: sinLeer) } else { Circle().fill(C.accion).frame(width: 10, height: 10) }
+                            }
+                        }
+                        meta(x).padding(.top, 2)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(Presionable())
+            if let c, c.agenteId == nil, estado.escribe {
+                Button("Tomar") { Task { await tomarConversacion(c) } }
+                    .buttonStyle(BotonTonal())
+                    .accessibilityLabel("Tomar la conversación con \(x.nombre)")
+            }
+        }
+        .padding(.horizontal, 14).padding(.vertical, 12)
+        .opacity(espera ? 1 : 0.82)
+        .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
+        .contextMenu {
+            if let c, c.agenteId == nil, estado.escribe {
+                Button { Task { await tomarConversacion(c) } } label: { Label("Tomar", systemImage: "person.crop.circle.badge.checkmark") }
+            }
+            if x.canal == "web", x.sinDueno, estado.escribe, let id = x.contactoId {
+                Button { Task { await tomarConsulta(id) } } label: { Label("Tomarla yo", systemImage: "person.crop.circle.badge.checkmark") }
+            }
+        }
+    }
+
+    /// Tomar una sin dueño: queda de la persona al toque; si falla, vuelve y avisa con «Reintentar».
+    private func tomarConversacion(_ c: Conversacion) async {
+        struct Cuerpo: Encodable { var agenteId: String? }
+        tomadas.insert(c.id)
+        do {
+            try await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(c.id)", Cuerpo(agenteId: estado.usuario?.id))
+            Haptico.exito()
+            estado.avisar("Tomaste la conversación con \(c.quien)") {
+                Task {
+                    do {
+                        try await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(c.id)", JSONLibre.objeto(["agenteId": .nulo]))
+                        tomadas.remove(c.id)
+                        estado.version += 1
+                    } catch { estado.avisar(error) }
+                }
+            }
+            estado.version += 1
+        } catch {
+            tomadas.remove(c.id)
+            estado.avisarReintentar(Estado.texto(error, si: "No se guardó")) { Task { await tomarConversacion(c) } }
+        }
+    }
+
+    private func tomarConsulta(_ contacto: String) async {
         struct C: Encodable { var agenteId: String? }
         do {
             try await estado.api.hacer("POST", "/v1/consultas/\(contacto)/asignar", C(agenteId: estado.usuario?.id))
@@ -157,35 +394,113 @@ struct MensajesRaiz: View {
     }
 
     private func etiqueta(_ t: String, _ f: Color, _ c: Color) -> some View {
-        Text(t).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(c)
+        Text(t).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(c).lineLimit(1)
             .padding(.horizontal, 8).frame(height: 22).background(f, in: .rect(cornerRadius: 6))
     }
 
     private func cargar() async {
+        numero = try? await estado.api.get("/v1/whatsapp/numero")
+        cuentas = try? await estado.api.get("/v1/whatsapp/conversaciones/cuentas")
         do {
-            let yo = estado.usuario?.id
-            let wa: [Conversacion] = try await estado.api.get("/v1/whatsapp/conversaciones", query: [.init(name: "limite", value: "100")])
-            let ml: [PreguntaML] = (try? await estado.api.get("/v1/mercadolibre/preguntas", query: [.init(name: "limite", value: "50")])) ?? []
-            struct Lista: Decodable { var avisos: [AvisoCentro] }
-            let web = (try? await estado.api.get("/v1/avisos", query: [.init(name: "vista", value: "para_hacer"), .init(name: "tipo", value: "consulta"), .init(name: "limite", value: "30")]) as Lista)?.avisos ?? []
-            var f: [FilaBandeja] = wa.map { c in
-                FilaBandeja(id: "wa" + c.id, canal: "wa", nombre: c.quien, texto: c.ultimoTexto ?? "", cuando: c.ultimoMensajeEn, propiedad: c.propiedadTitulo,
-                            nuevo: (c.noLeidos ?? 0) > 0, mio: c.agenteId == yo, sinDueno: c.agenteId == nil, fuera: c.enVentana == false, ir: AChat(id: c.id))
-            }
-            f += ml.map { p in
-                FilaBandeja(id: "ml" + p.id, canal: "ml", nombre: p.compradorApodo ?? "Mercado Libre", texto: p.texto ?? "", cuando: p.creadaEn, propiedad: p.propiedad,
-                            nuevo: p.estado == "sin_responder", mio: true, sinDueno: false, fuera: false, ir: APreguntaML(id: p.id))
-            }
-            f += web.map { a in
-                FilaBandeja(id: "web" + a.id, canal: "web", nombre: a.titulo ?? "Consulta desde tu web", texto: a.cuerpo ?? "", cuando: a.creadoEn, propiedad: nil,
-                            nuevo: a.hechoEn == nil, mio: false, sinDueno: true, fuera: false,
-                            ir: a.url.flatMap { Ruta(texto: $0)?.destino } ?? AnyHashable(AAvisos()),
-                            contactoId: a.url.flatMap { Ruta(texto: $0)?.destino as? AFichaContacto }?.id)
-            }
-            filas = f.sorted { ($0.cuando ?? .distantPast) > ($1.cuando ?? .distantPast) }
-            estado.sinLeer = wa.reduce(0) { $0 + ($1.noLeidos ?? 0) } + ml.filter { $0.estado == "sin_responder" }.count
+            var query: [URLQueryItem] = [.init(name: "limite", value: "60")] + elegida.query
+            if let t = q.nonEmpty { query.append(.init(name: "q", value: String(t.prefix(120)))) }
+            conversaciones = try await estado.api.get("/v1/whatsapp/conversaciones", query: query)
             error = nil
-        } catch let e as ErrorApi { if filas == nil { error = e } } catch {}
+        } catch let e as ErrorApi {
+            // Sin WhatsApp conectado la bandeja igual muestra Mercado Libre y la web.
+            if conversaciones == nil { if numero?.conectado == false { conversaciones = [] } else { error = e } }
+        } catch {}
+        let preguntas: [PreguntaML] = (try? await estado.api.get("/v1/mercadolibre/preguntas", query: [.init(name: "limite", value: "50")])) ?? []
+        let paginaWeb: PaginaAvisos? = try? await estado.api.get("/v1/avisos", query: [.init(name: "vista", value: "para_hacer"), .init(name: "tipo", value: "consulta"), .init(name: "limite", value: "30")])
+        let web = paginaWeb?.avisos ?? []
+        var o: [FilaBandeja] = preguntas.map { p in
+            FilaBandeja(id: "ml" + p.id, canal: "ml", nombre: p.compradorApodo ?? "Mercado Libre", texto: p.texto ?? "", cuando: p.creadaEn, propiedad: p.propiedad,
+                        nuevo: p.estado == "sin_responder" || p.estado == "UNANSWERED", mio: true, sinDueno: false, fuera: false, ir: APreguntaML(id: p.id))
+        }
+        o += web.map { a in
+            FilaBandeja(id: "web" + a.id, canal: "web", nombre: a.titulo ?? "Consulta desde tu web", texto: a.cuerpo ?? "", cuando: a.creadoEn, propiedad: nil,
+                        nuevo: !a.estaHecho, mio: false, sinDueno: true, fuera: false,
+                        ir: a.url.flatMap { Ruta(texto: $0)?.destino } ?? AnyHashable(AAvisos()),
+                        contactoId: a.url.flatMap { Ruta(texto: $0)?.destino as? AFichaContacto }?.id)
+        }
+        otras = o
+        if numero?.conectado == true, plantillas.isEmpty { plantillas = (try? await estado.api.get("/v1/whatsapp/plantillas")) ?? [] }
+        ml = try? await estado.api.get("/v1/mercadolibre")
+        await Insignias.compartidas.refrescar(estado)
+    }
+}
+
+/// El número caído en Meta (desconectado, restringido o limitado), con el motivo, cuándo y la salida
+/// para el dueño (web: lib/mensajes/NumeroCaido.svelte).
+struct NumeroCaido: View {
+    @Environment(Estado.self) private var estado
+    var numero: NumeroWA
+
+    private var cuando: String {
+        guard let f = numero.estadoEn else { return "" }
+        let cal = Formato.calendario
+        if cal.isDateInToday(f) { return "a las \(Formato.horaDe(f))" }
+        if cal.isDateInYesterday(f) { return "ayer a las \(Formato.horaDe(f))" }
+        return "el \(Formato.fechaLarga(f))"
+    }
+
+    private var pieza: (icono: String, titulo: String, texto: String, boton: String, oro: Bool) {
+        switch numero.estado {
+        case "restringido":
+            return ("nosign", "Meta restringió el WhatsApp\(cuando.isEmpty ? "" : " " + cuando)",
+                    "Lo que mandes no sale hasta que Meta lo resuelva; lo que te escriban entra igual.", "Revisar", false)
+        case "limitado":
+            let desde = cuando.isEmpty ? "" : " desde " + (cuando.hasPrefix("a las") ? "las" + cuando.dropFirst(5) : cuando)
+            return ("gauge.with.dots.needle.33percent", "WhatsApp está limitado\(desde)",
+                    "Por ahora salen menos mensajes por día. Contestá a tiempo y sin repetir plantillas para que vuelva a la normalidad.", "Ver el número", true)
+        default:
+            return ("link", "WhatsApp se desconectó\(cuando.isEmpty ? "" : " " + cuando)",
+                    "Los mensajes que lleguen mientras tanto no se pierden: entran cuando reconectes.", "Reconectar", false)
+        }
+    }
+
+    var body: some View {
+        let p = pieza
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: p.icono).font(.system(size: 20, weight: .semibold)).foregroundStyle(p.oro ? C.avisoTinta : C.errorTinta)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(p.titulo).estilo(.subheadFuerte).foregroundStyle(C.texto)
+                Text(Formato.sinViudas((numero.estadoMotivo.map { "\($0) " } ?? "") + p.texto)).estilo(.texto14).foregroundStyle(C.texto2)
+                if estado.esDuenio {
+                    Button(p.boton) { estado.abrir(ASeccion(clave: "integraciones")) }.buttonStyle(BotonTonal()).padding(.top, 4)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(p.oro ? C.avisoFondo : C.errorFondo, in: .rect(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// Sin WhatsApp conectado (web: lib/mensajes/SinWhatsApp.svelte): la conversación fantasma y la salida.
+struct SinWhatsApp: View {
+    @Environment(Estado.self) private var estado
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Hola, ¿sigue disponible el 3 amb?").estilo(.texto14).foregroundStyle(C.texto2)
+                    .padding(.horizontal, 12).padding(.vertical, 8).background(C.hundida, in: .rect(cornerRadius: 14))
+                Text("vinculada a la propiedad").estilo(.footnote).foregroundStyle(C.texto3)
+            }
+            .padding(12).frame(maxWidth: .infinity, alignment: .leading)
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(C.linea2, style: StrokeStyle(lineWidth: 1.5, dash: [5, 4])))
+            .accessibilityHidden(true)
+            Text("Las consultas van a entrar acá, ordenadas por propiedad").estilo(.headline).foregroundStyle(C.texto)
+            Text(Formato.sinViudas("El número sigue andando en tu teléfono. El equipo lo comparte acá.")).estilo(.subhead).foregroundStyle(C.texto2)
+            if estado.esDuenio {
+                Button { estado.abrir(ASeccion(clave: "integraciones")) } label: {
+                    HStack(spacing: 8) { Image("LogoWhatsApp").resizable().frame(width: 18, height: 18); Text("Conectar WhatsApp") }
+                }
+                .buttonStyle(BotonPrincipal())
+            }
+        }
+        .padding(20).tarjeta()
     }
 }
 
@@ -213,6 +528,13 @@ struct MensajeNuevo: View {
                     VStack(alignment: .leading) { Text(r.titulo).estilo(.filaLista); if let s = r.subtitulo { Text(s).estilo(.footnote).foregroundStyle(C.texto2) } }
                 }
             }
+            .overlay {
+                if q.count >= 2 && res.isEmpty {
+                    EstadoVacio(icono: "person.crop.circle.badge.questionmark", titulo: "No encontramos «\(q)»", texto: "Probá con el nombre o el teléfono.")
+                } else if q.count < 2 {
+                    EstadoVacio(icono: "magnifyingglass", titulo: "¿A quién le escribís?", texto: "Buscá el contacto por nombre o teléfono.")
+                }
+            }
             .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Nombre o teléfono")
             .navigationTitle("Mensaje nuevo").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } } }
@@ -225,27 +547,35 @@ struct MensajeNuevo: View {
     }
 }
 
-/// Un mensaje de WhatsApp.
+/// Un mensaje de WhatsApp (whatsapp.Mensaje).
 struct MensajeWA: Codable, Identifiable, Hashable {
+    struct PlantillaUsada: Codable, Hashable { var nombre: String?; var parametros: [String]? }
     var id: String
+    var conversacionId: String?
     var direccion: String
     var tipo: String?
     var texto: String?
+    var plantilla: PlantillaUsada?
     var mediaTipo: String?
     var archivoId: String?
     var archivoUrl: String?
     var estado: String?
     var error: String?
+    var autorId: String?
     var ocurrioEn: Date
     var saliente: Bool { direccion == "saliente" || direccion == "out" }
+    /// Mandado desde acá y todavía sin respuesta de la API.
+    var local: Bool { id.hasPrefix("tmp-") }
 }
 
+/// Una plantilla aprobada en Meta, con cuántas veces se mandó.
 struct PlantillaWA: Codable, Identifiable, Hashable {
     var nombre: String
     var idioma: String?
     var categoria: String?
     var cuerpo: String?
     var parametros: Int?
+    var usos: Int?
     var id: String { nombre }
 }
 
@@ -253,318 +583,76 @@ struct RespuestaGuardada: Codable, Identifiable, Hashable {
     var id: String
     var titulo: String
     var texto: String
+    var usos: Int?
 }
 
-/// 6B–6C Chat de WhatsApp: la propiedad vinculada, los mensajes (texto, foto, voz), respuestas guardadas
-/// y, fuera de las 24 h, sólo plantillas aprobadas.
-struct Chat: View {
-    @Environment(Estado.self) private var estado
-    var id: String
-    @State private var conv: Conversacion?
-    @State private var mensajes: [MensajeWA] = []
-    @State private var texto = ""
-    @State private var plantillas: [PlantillaWA] = []
-    @State private var respuestas: [RespuestaGuardada] = []
-    @State private var foto: PhotosPickerItem?
-    @State private var vincular = false
-    @State private var grabadora = Grabadora()
-    @State private var enviando = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            if let c = conv {
-                Button { vincular = true } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "house").foregroundStyle(C.accion).frame(width: 40, height: 40).background(C.hundida, in: .rect(cornerRadius: 9))
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(c.propiedadTitulo == nil ? "Sin propiedad vinculada" : "Vinculada a").font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto2)
-                            Text(c.propiedadTitulo ?? "Vincular una propiedad").estilo(.label).foregroundStyle(C.texto)
-                        }
-                        Spacer()
-                        Text(c.propiedadTitulo == nil ? "Vincular" : "Cambiar").font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font)
-                            .foregroundStyle(C.accion).padding(.horizontal, 10).frame(height: 32).background(C.hundida, in: Capsule())
-                    }
-                    .padding(8).tarjeta(14)
-                }
-                .buttonStyle(Presionable())
-                .padding(.horizontal, 12).padding(.top, 10)
-            }
-            ScrollViewReader { lector in
-                ScrollView {
-                    LazyVStack(spacing: 8) {
-                        ForEach(mensajes) { m in burbuja(m).id(m.id) }
-                    }
-                    .padding(.horizontal, 12).padding(.vertical, 14)
-                }
-                .onChange(of: mensajes.count) { _, _ in if let u = mensajes.last { withAnimation { lector.scrollTo(u.id, anchor: .bottom) } } }
-            }
-            if conv?.enVentana == false { fueraDeVentana } else { entrada }
-        }
-        .background(FondoApp())
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Button { if let c = conv?.contactoId { estado.abrir(AFichaContacto(id: c)) } } label: {
-                    HStack(spacing: 8) {
-                        Text(Formato.iniciales(conv?.quien ?? "")).font(Estilo(tamano: 14, peso: .bold, relativo: .footnote).font).foregroundStyle(C.texto)
-                            .frame(width: 34, height: 34).background(C.hundida, in: Circle())
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(conv?.quien ?? "").font(Estilo(tamano: 16, peso: .bold, relativo: .headline).font).foregroundStyle(C.texto)
-                            Text(conv?.agenteNombre.map { "Lo atiende \($0)" } ?? (conv?.waId.map { "+\($0)" } ?? "")).font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto2)
-                        }
-                    }
-                }
-                .buttonStyle(Presionable())
-            }
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Button { Afuera.llamar(conv?.waId.map { "+" + $0 }) } label: { Label("Llamar", systemImage: "phone") }
-                    if estado.escribe {
-                        Button { Task { await tomar() } } label: { Label("Atenderla yo", systemImage: "person.crop.circle.badge.checkmark") }
-                        Button { Task { await archivar() } } label: { Label("Archivar", systemImage: "archivebox") }
-                    }
-                } label: { Image(systemName: "phone") } primaryAction: { Afuera.llamar(conv?.waId.map { "+" + $0 }) }
-                .accessibilityLabel("Llamar")
-            }
-        }
-        .task(id: estado.version) { await cargar() }
-        .task {
-            // Respaldo: en vivo los mensajes llegan por el stream; si está caído, se consulta cada 8 s.
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(8))
-                if !estado.enVivo { await cargarMensajes() }
-            }
-        }
-        .onChange(of: foto) { _, i in
-            guard let i else { return }
-            Task {
-                if let d = try? await i.loadTransferable(type: Data.self) { await mandarArchivo(UIImage(data: d)?.jpegData(compressionQuality: 0.85) ?? d, tipo: "image/jpeg", uso: "adjunto", nombre: "foto.jpg") }
-                foto = nil
-            }
-        }
-        .sheet(isPresented: $vincular) {
-            ElegirPropiedad { p in
-                Task {
-                    struct Cuerpo: Encodable { var propiedadId: String }
-                    try? await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(id)", Cuerpo(propiedadId: p.id))
-                    await cargar()
-                }
-            }
-            .presentationDetents([.large])
-        }
-    }
-
-    private func burbuja(_ m: MensajeWA) -> some View {
-        let sal = m.saliente
-        return HStack {
-            if sal { Spacer(minLength: 60) }
-            VStack(alignment: sal ? .trailing : .leading, spacing: 2) {
-                Group {
-                    if let u = m.archivoUrl, m.mediaTipo?.hasPrefix("image") == true || m.tipo == "image" {
-                        AsyncImage(url: URL(string: u)) { $0.resizable().scaledToFill() } placeholder: { C.hundida }
-                            .frame(width: 220, height: 220).clipShape(.rect(cornerRadius: 14))
-                    } else if let u = m.archivoUrl, m.mediaTipo?.hasPrefix("audio") == true || m.tipo == "audio" {
-                        AudioMensaje(url: URL(string: u))
-                    } else {
-                        Text(m.texto ?? "").estilo(.body16).foregroundStyle(C.texto)
-                    }
-                }
-                .padding(.horizontal, 12).padding(.vertical, 9)
-                .background(sal ? Color.tema(0xDCEBE3, 0x1F3B33) : C.superficie,
-                            in: UnevenRoundedRectangle(topLeadingRadius: 18, bottomLeadingRadius: sal ? 18 : 6, bottomTrailingRadius: sal ? 6 : 18, topTrailingRadius: 18, style: .continuous))
-                .sombraE1()
-                HStack(spacing: 4) {
-                    Text(Formato.horaDe(m.ocurrioEn))
-                    if sal { Image(systemName: m.estado == "leido" ? "checkmark.circle.fill" : m.estado == "fallido" ? "exclamationmark.circle" : "checkmark") }
-                }
-                .font(Estilo(tamano: 11, peso: .regular, relativo: .caption2).font).foregroundStyle(m.estado == "fallido" ? C.error : C.texto3)
-                if m.estado == "fallido" {
-                    Button("Reintentar") { Task { try? await estado.api.hacer("POST", "/v1/whatsapp/mensajes/\(m.id)/reintentar"); await cargarMensajes() } }
-                        .font(Estilo.footnoteFuerte.font).foregroundStyle(C.error)
-                }
-            }
-            if !sal { Spacer(minLength: 60) }
-        }
-    }
-
-    private var entrada: some View {
-        VStack(spacing: 8) {
-            if !respuestas.isEmpty && texto.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(respuestas) { r in
-                            Button(r.titulo) {
-                                texto = r.texto
-                                Task { try? await estado.api.hacer("POST", "/v1/respuestas-guardadas/\(r.id)/uso") }
-                            }
-                            .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.texto)
-                            .padding(.horizontal, 10).frame(height: 30).background(C.hundida, in: Capsule())
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                }
-            }
-            HStack(spacing: 6) {
-                PhotosPicker(selection: $foto, matching: .images) {
-                    Image(systemName: "plus").font(.system(size: 24)).foregroundStyle(C.accion).frame(width: 40, height: 40)
-                }
-                .accessibilityLabel("Adjuntar una foto")
-                TextField("Mensaje", text: $texto, axis: .vertical).estilo(.body16).lineLimit(1...5)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(C.superficie, in: .rect(cornerRadius: 19))
-                    .overlay(RoundedRectangle(cornerRadius: 19).strokeBorder(C.linea2, lineWidth: 0.5))
-                if texto.isEmpty {
-                    Image(systemName: grabadora.grabando ? "waveform" : "mic").font(.system(size: 22)).foregroundStyle(grabadora.grabando ? C.error : C.accion)
-                        .frame(width: 40, height: 40)
-                        .gesture(DragGesture(minimumDistance: 0)
-                            .onChanged { _ in if !grabadora.grabando { grabadora.empezar() } }
-                            .onEnded { _ in if let u = grabadora.terminar(), let d = try? Data(contentsOf: u) { Task { await mandarArchivo(d, tipo: "audio/mp4", uso: "audio", nombre: "nota.m4a") } } })
-                        .accessibilityLabel("Nota de voz: mantené apretado para grabar")
-                } else {
-                    Button { Task { await mandar() } } label: {
-                        Image(systemName: "arrow.up").font(.system(size: 17, weight: .bold)).foregroundStyle(C.sobreAccion)
-                            .frame(width: 36, height: 36).background(C.accion, in: Circle())
-                    }
-                    .disabled(enviando)
-                    .accessibilityLabel("Mandar")
-                }
-            }
-            .padding(.horizontal, 8)
-        }
-        .padding(.vertical, 8)
-        .background(.bar)
-    }
-
-    private var fueraDeVentana: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "clock").font(.system(size: 20)).foregroundStyle(C.avisoTinta)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Pasaron más de 24 h desde su último mensaje").estilo(.subheadFuerte).foregroundStyle(C.texto)
-                    Text("WhatsApp sólo deja mandar una plantilla aprobada. Cuando responda, seguís escribiendo libre.").estilo(.texto14).foregroundStyle(C.texto2)
-                }
-            }
-            VStack(spacing: 6) {
-                ForEach(plantillas.prefix(4)) { p in
-                    Button { Task { await mandarPlantilla(p) } } label: {
-                        HStack {
-                            Text(p.nombre.replacingOccurrences(of: "_", with: " ").capitalized).font(Estilo(tamano: 15, peso: .semibold, relativo: .subheadline).font).foregroundStyle(C.texto)
-                            Spacer()
-                            Image(systemName: "paperplane").foregroundStyle(C.accion)
-                        }
-                        .padding(.horizontal, 14).frame(height: 44).background(C.superficie, in: .rect(cornerRadius: 12, style: .continuous))
-                    }
-                    .buttonStyle(Presionable())
-                }
-                if plantillas.isEmpty { Text("Todavía no tenés plantillas aprobadas en Meta.").estilo(.footnote).foregroundStyle(C.texto2) }
-            }
-        }
-        .padding(14)
-        .background(C.avisoFondo, in: .rect(cornerRadius: 18, style: .continuous))
-        .padding(.horizontal, 12).padding(.bottom, 24)
-    }
-
-    // MARK: Datos
-
-    private func cargar() async {
-        conv = try? await estado.api.get("/v1/whatsapp/conversaciones/\(id)")
-        await cargarMensajes()
-        try? await estado.api.hacer("POST", "/v1/whatsapp/conversaciones/\(id)/leida")
-        if plantillas.isEmpty { plantillas = (try? await estado.api.get("/v1/whatsapp/plantillas")) ?? [] }
-        if respuestas.isEmpty { respuestas = (try? await estado.api.get("/v1/respuestas-guardadas")) ?? [] }
-    }
-
-    private func cargarMensajes() async {
-        if let m: [MensajeWA] = try? await estado.api.get("/v1/whatsapp/conversaciones/\(id)/mensajes", query: [.init(name: "limite", value: "200")]) {
-            mensajes = m.sorted { $0.ocurrioEn < $1.ocurrioEn }
-        }
-    }
-
-    private func mandar() async {
-        let t = texto.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !t.isEmpty else { return }
-        enviando = true
-        defer { enviando = false }
-        struct Cuerpo: Encodable { var texto: String }
-        texto = ""
-        do {
-            let subio = try await estado.cola.enviar("POST", "/v1/whatsapp/conversaciones/\(id)/mensajes", Cuerpo(texto: t), etiqueta: "Mensaje a \(conv?.quien ?? "")")
-            if !subio { estado.avisar("Sin señal · el mensaje sale cuando vuelva") }
-            await cargarMensajes()
-        } catch {
-            texto = t
-            estado.avisar(error)
-        }
-    }
-
-    private func mandarArchivo(_ d: Data, tipo: String, uso: String, nombre: String) async {
-        do {
-            let a = try await estado.api.subir(d, nombre: nombre, tipo: tipo, uso: uso)
-            struct Cuerpo: Encodable { var texto = ""; var archivoId: String }
-            try await estado.api.hacer("POST", "/v1/whatsapp/conversaciones/\(id)/mensajes", Cuerpo(archivoId: a.id))
-            await cargarMensajes()
-        } catch { estado.avisar(error) }
-    }
-
-    private func mandarPlantilla(_ p: PlantillaWA) async {
-        struct Datos: Encodable { var nombre: String; var idioma: String; var parametros: [String] }
-        struct Cuerpo: Encodable { var texto = ""; var plantilla: Datos }
-        let params = Array(repeating: conv?.quien.split(separator: " ").first.map(String.init) ?? "", count: p.parametros ?? 0)
-        do {
-            try await estado.api.hacer("POST", "/v1/whatsapp/conversaciones/\(id)/mensajes", Cuerpo(plantilla: Datos(nombre: p.nombre, idioma: p.idioma ?? "es_AR", parametros: params)))
-            estado.avisar("Plantilla enviada. Cuando responda, se reabre la conversación.")
-            await cargarMensajes()
-        } catch { estado.avisar(error) }
-    }
-
-    private func tomar() async {
-        struct Cuerpo: Encodable { var agenteId: String }
-        guard let yo = estado.usuario?.id else { return }
-        try? await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(id)", Cuerpo(agenteId: yo))
-        estado.avisar("La atendés vos")
-        await cargar()
-    }
-
-    private func archivar() async {
-        struct Cuerpo: Encodable { var archivada = true }
-        try? await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(id)", Cuerpo())
-        estado.version += 1
-        estado.avisar("Conversación archivada") {
-            Task {
-                struct Volver: Encodable { var archivada = false }
-                try? await estado.api.hacer("PATCH", "/v1/whatsapp/conversaciones/\(id)", Volver())
-                estado.version += 1
-            }
-        }
-    }
-}
-
-/// Elegir una propiedad de la cartera (vincular un chat, una visita, un contrato).
+/// Elegir una propiedad de la cartera (vincular un chat, una visita, un contrato): las últimas
+/// tocadas y, al escribir, la búsqueda del servidor (calle, barrio o código).
 struct ElegirPropiedad: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     var alElegir: (Propiedad) -> Void
     @State private var q = ""
     @State private var props: [Propiedad] = []
+    @State private var encontradas: [Resultado] = []
+    @State private var cargando = true
 
     var body: some View {
         NavigationStack {
-            List(props.filter { q.isEmpty || $0.nombre.localizedCaseInsensitiveContains(q) || ($0.barrio ?? "").localizedCaseInsensitiveContains(q) }) { p in
-                Button {
-                    alElegir(p)
-                    cerrar()
-                } label: {
-                    HStack(spacing: 10) {
-                        Foto(url: p.miniatura).frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
-                        VStack(alignment: .leading) { Text(p.nombre).estilo(.filaLista).foregroundStyle(C.texto); Text(p.precioTexto).estilo(.footnote).foregroundStyle(C.texto2) }
+            List {
+                if q.count >= 2 {
+                    ForEach(encontradas) { r in
+                        Button { Task { await elegir(r) } } label: {
+                            VStack(alignment: .leading) { Text(r.titulo).estilo(.filaLista).foregroundStyle(C.texto); if let s = r.subtitulo { Text(s).estilo(.footnote).foregroundStyle(C.texto2) } }
+                        }
+                    }
+                } else {
+                    ForEach(props) { p in
+                        Button {
+                            alElegir(p)
+                            cerrar()
+                        } label: {
+                            HStack(spacing: 10) {
+                                Foto(url: p.miniatura).frame(width: 44, height: 44).clipShape(.rect(cornerRadius: 8))
+                                VStack(alignment: .leading) { Text(p.nombre).estilo(.filaLista).foregroundStyle(C.texto); Text(p.precioTexto).estilo(.footnote).foregroundStyle(C.texto2) }
+                            }
+                        }
                     }
                 }
             }
-            .searchable(text: $q, prompt: "Calle o barrio")
+            .overlay {
+                if q.count >= 2 && encontradas.isEmpty && !cargando {
+                    EstadoVacio(icono: "magnifyingglass", titulo: "No encontramos nada con «\(q)».")
+                } else if q.count < 2 && props.isEmpty && !cargando {
+                    EstadoVacio(icono: "building.2", titulo: "Todavía no hay propiedades", texto: "Cargá la primera y la vinculás acá.",
+                                accion: ("Cargar propiedad", { cerrar(); estado.abrir(AAltaPropiedad()) }))
+                }
+            }
+            .searchable(text: $q, prompt: "Calle, barrio o código…")
             .navigationTitle("Elegí la propiedad").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } } }
-            .task { props = (try? await estado.api.todas("/v1/propiedades", query: [])) ?? [] }
+            .task {
+                props = (try? await estado.api.get("/v1/propiedades", query: [.init(name: "limite", value: "200"), .init(name: "orden", value: "actualizada")])) ?? []
+                cargando = false
+            }
+            .task(id: q) {
+                guard q.count >= 2 else { encontradas = []; return }
+                try? await Task.sleep(for: .milliseconds(200))
+                if Task.isCancelled { return }
+                cargando = true
+                let r: [Resultado] = (try? await estado.api.get("/v1/buscar", query: [.init(name: "tipo", value: "propiedad"), .init(name: "q", value: q)])) ?? []
+                encontradas = r.filter { $0.tipo == "propiedad" }
+                cargando = false
+            }
         }
+    }
+
+    private func elegir(_ r: Resultado) async {
+        do {
+            let p: Propiedad = try await estado.api.get("/v1/propiedades/\(r.id)")
+            alElegir(p)
+            cerrar()
+        } catch { estado.avisar(error) }
     }
 }
 

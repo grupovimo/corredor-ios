@@ -14,6 +14,10 @@ struct MasRaiz: View {
     /// Lo que pasa en cada sección, a la derecha de su fila («3 deben», «WhatsApp sin conectar»), por clave.
     @State private var estados: [String: (String, Tono)] = [:]
     @State private var potenciar: [Potencia] = []
+    /// La web pública de la inmobiliaria («Ver la web»).
+    @State private var web: URL?
+    /// «Tus inmobiliarias» (el «Cambiar» del menú del celular).
+    @State private var cambiando = false
 
     /// Algo que el negocio todavía no usa, con su beneficio en una línea.
     struct Potencia: Identifiable {
@@ -106,6 +110,7 @@ struct MasRaiz: View {
                         .tint(C.accion)
                         .padding(14).tarjeta()
                     }
+                    if let web { verLaWeb(web) }
                     Button {
                         Consejos.reiniciar()
                         estado.pestana = .inicio
@@ -114,6 +119,7 @@ struct MasRaiz: View {
                         Label("Ver el recorrido de nuevo", systemImage: "play.circle").font(Estilo.subheadFuerte.font)
                             .foregroundStyle(C.accion).frame(maxWidth: .infinity, minHeight: 44)
                     }
+                    pie
                 } else if encontradas.isEmpty {
                     EstadoVacio(icono: "magnifyingglass", titulo: "No hay una sección «\(filtro)»", texto: "Probá con otra palabra, o buscá clientes y propiedades.",
                                 accion: ("Buscar «\(filtro)» en todo", { estado.abrir(ABuscar(texto: filtro)) }))
@@ -127,6 +133,7 @@ struct MasRaiz: View {
         .scrollDismissesKeyboard(.immediately)
         .pantallaRaiz()
         .task(id: estado.version) { await cargar() }
+        .sheet(isPresented: $cambiando) { TusInmobiliarias().presentationDetents([.medium, .large]) }
         .onChange(of: todas) { _, _ in Task { await estado.cargarEstructura() } }
     }
 
@@ -218,9 +225,9 @@ struct MasRaiz: View {
         if let n = guia?.contactos, n > 0 { e["contactos"] = ("\(n)", .neutro) }
         if estado.avisosPendientes > 0 { e["avisos"] = ("\(estado.avisosPendientes)", .rojo) }
         if let j: JSONLibre = try? await api.get("/v1/revision"), Self.cuenta(j) > 0 { e["revision"] = ("\(Self.cuenta(j)) para revisar", .oro) }
+        if let j: JSONLibre = try? await api.get("/v1/papelera"), Self.cuenta(j) > 0 { e["papelera"] = ("\(Self.cuenta(j))", .neutro) }
         var iaConectada = true, consorcios = 1
         if estado.esDuenio {
-            if let j: JSONLibre = try? await api.get("/v1/papelera"), Self.cuenta(j) > 0 { e["papelera"] = ("\(Self.cuenta(j))", .neutro) }
             if let j: JSONLibre = try? await api.get("/v1/ia/conexiones") { iaConectada = Self.cuenta(j) > 0 }
             if let j: JSONLibre = try? await api.get("/v1/consorcios") {
                 consorcios = Self.cuenta(j)
@@ -233,6 +240,25 @@ struct MasRaiz: View {
         if e["web"] == nil, pasos?.web == false { e["web"] = ("Sin estrenar", .oro) }
         if pasos?.portales == false { e["difusion"] = ("Sin publicar", .oro) }
         if pasos?.equipo == false { e["equipo"] = ("Sólo vos", .neutro) }
+        // Como el panel (lib/server/configuracion.ts): «6 · 1 invitación», «ML pide reconectar» o «ML con N
+        // errores», «2 · 30 días» en la papelera.
+        if let personas: [Miembro] = try? await api.get("/v1/equipo") {
+            var t = "\(personas.count)"
+            if estado.esDuenio, let inv: JSONLibre = try? await api.get("/v1/invitaciones"), Self.cuenta(inv) > 0 {
+                t += " · \(Formato.cantidad(Self.cuenta(inv), "invitación", "invitaciones"))"
+            }
+            e["equipo"] = (t, .neutro)
+        }
+        struct ML: Decodable { var conectada: Bool?; var reautorizar: Bool? }
+        let ml: ML? = try? await api.get("/v1/mercadolibre")
+        if ml?.conectada == true, ml?.reautorizar == true {
+            e["integraciones"] = ("ML pide reconectar", .oro)
+        } else if let j: JSONLibre = try? await api.get("/v1/publicaciones", query: [.init(name: "portal", value: "mercadolibre"), .init(name: "estado", value: "error"), .init(name: "limite", value: "50")]),
+                  Self.cuenta(j) > 0 {
+            e["integraciones"] = ("ML con \(Formato.cantidad(Self.cuenta(j), "error", "errores"))", .oro)
+        }
+        if let n = e["papelera"]?.0 { e["papelera"] = ("\(n) · 30 días", .neutro) }
+        if let i: Inmobiliaria = try? await api.get("/v1/inmobiliaria") { web = i.web.flatMap(URL.init(string:)) }
         if let sus = estado.suscripcion {
             e["plan"] = (sus.nombreEstado, sus.estado == "vencida" ? .rojo : sus.pideAtencion ? .oro : .verde)
         }
@@ -264,30 +290,76 @@ struct MasRaiz: View {
         }
     }
 
-    /// La persona y su inmobiliaria: abre el perfil (cuenta, firma, Face ID, cambiar de inmobiliaria, salir).
+    /// La persona y su inmobiliaria: abre el perfil (cuenta, firma, Face ID, salir); «Cambiar» abre «Tus
+    /// inmobiliarias» (pasar a otra, aceptar una invitación o crear otra), como el menú del celular.
     private var persona: some View {
-        Button { estado.abrir(APerfil()) } label: {
-            HStack(spacing: 12) {
-                Text(Formato.iniciales(estado.usuario?.completo ?? "C"))
-                    .font(Estilo(tamano: 16, peso: .bold, relativo: .headline).font)
-                    .foregroundStyle(C.oro)
-                    .frame(width: 48, height: 48)
-                    .background(C.verde700, in: Circle())
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(estado.usuario?.completo ?? "Tu cuenta").estilo(.filaLista).foregroundStyle(C.texto)
-                    Text([estado.inmobiliaria?.nombre, estado.esDuenio ? "Dueño" : estado.rol == "lector" ? "Sólo mira" : "Agente"]
-                        .compactMap { $0 }.joined(separator: " · "))
-                        .estilo(.footnote).foregroundStyle(C.texto2)
+        HStack(spacing: 8) {
+            Button { estado.abrir(APerfil()) } label: {
+                HStack(spacing: 12) {
+                    Text(Formato.iniciales(estado.usuario?.completo ?? "C"))
+                        .font(Estilo(tamano: 16, peso: .bold, relativo: .headline).font)
+                        .foregroundStyle(C.oro)
+                        .frame(width: 48, height: 48)
+                        .background(C.verde700, in: Circle())
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(estado.usuario?.completo ?? "Tu cuenta").estilo(.filaLista).foregroundStyle(C.texto)
+                        Text([estado.inmobiliaria?.nombre, ElegirInmobiliaria.rol(estado.rol)].compactMap { $0 }.joined(separator: " · "))
+                            .estilo(.footnote).foregroundStyle(C.texto2).lineLimit(1)
+                    }
+                    Spacer(minLength: 0)
                 }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundStyle(C.texto3)
+                .contentShape(Rectangle())
             }
-            .padding(14)
-            .contentShape(Rectangle())
-            .tarjeta()
+            .buttonStyle(Presionable())
+            .accessibilityLabel("Mi perfil y avisos")
+            Button("Cambiar") { cambiando = true }
+                .font(Estilo.footnoteFuerte.font).foregroundStyle(C.accion)
+                .padding(.horizontal, 12).frame(height: 34).background(C.hundida, in: Capsule())
+                .frame(minHeight: 44)
+                .accessibilityLabel("Cambiar de inmobiliaria")
         }
-        .buttonStyle(Presionable())
-        .accessibilityLabel("Tu perfil")
+        .padding(14)
+        .tarjeta()
+    }
+
+    /// «Ver la web»: la web pública de la inmobiliaria, se abre aparte.
+    private func verLaWeb(_ u: URL) -> some View {
+        Link(destination: u) {
+            HStack(spacing: 12) {
+                Image(systemName: "globe").font(.system(size: 18, weight: .medium)).foregroundStyle(C.accion).frame(width: 28)
+                Text("Ver la web").estilo(.filaLista).foregroundStyle(C.texto)
+                Spacer(minLength: 0)
+                Image(systemName: "arrow.up.right.square").font(.system(size: 15, weight: .semibold)).foregroundStyle(C.texto3)
+            }
+            .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
+        }
+        .tarjeta()
+        .accessibilityLabel("Ver la web (se abre aparte)")
+    }
+
+    /// El pie del menú: quiénes están en la calle y si todo está guardado (o sin señal, en cola).
+    private var pie: some View {
+        let ins = Insignias.compartidas
+        return VStack(alignment: .leading, spacing: 8) {
+            if !ins.enLaCalle.isEmpty {
+                HStack(spacing: 8) {
+                    HStack(spacing: -8) {
+                        ForEach(ins.enLaCalle.prefix(3)) { p in
+                            AvatarIniciales(nombre: p.nombre, tam: 26).overlay(Circle().stroke(C.fondo, lineWidth: 2))
+                        }
+                    }
+                    Text("\(ins.enLaCalle.count) en la calle").estilo(.footnoteFuerte).foregroundStyle(C.texto2)
+                }
+                .accessibilityElement(children: .combine)
+            }
+            if ins.sinRed || !estado.cola.cambios.isEmpty {
+                Label("Sin señal · se envía al volver", systemImage: "icloud.slash").estilo(.footnote).foregroundStyle(C.avisoTinta)
+            } else {
+                Label("Todo guardado\(ins.guardadoEn.map { " · " + Formato.hace($0) } ?? "")", systemImage: "checkmark.icloud").estilo(.footnote).foregroundStyle(C.texto3)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
     }
 
     private func fila(_ it: Estructura.Item, icono: String) -> some View {
@@ -312,4 +384,65 @@ struct Borrador: Codable, Equatable {
     var marca: [String: JSONLibre]
     var hayBorrador: Bool
     var en: String?
+}
+
+/// «Tus inmobiliarias»: la actual con el tilde, las otras para pasar con un toque («Estás en …») y abajo
+/// aceptar una invitación o crear otra (lib/ui/shell/CambioInmobiliaria.svelte).
+struct TusInmobiliarias: View {
+    @Environment(Estado.self) private var estado
+    @Environment(\.dismiss) private var cerrar
+    @State private var enviando = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(estado.sesion?.inmobiliarias ?? []) { m in
+                        let esta = m.id == estado.sesion?.inmobiliariaId
+                        Button { elegir(m, esta: esta) } label: {
+                            HStack(spacing: 12) {
+                                Text(String(m.nombre.prefix(1)).uppercased()).font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font)
+                                    .foregroundStyle(esta ? C.oro : C.texto)
+                                    .frame(width: 38, height: 38).background(esta ? C.verde700 : C.hundida, in: .rect(cornerRadius: 10, style: .continuous))
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(m.nombre).estilo(.filaLista).foregroundStyle(C.texto)
+                                    Text("\(ElegirInmobiliaria.rol(m.rol)) · \(m.slug).\(Api.web().host ?? "corredor.com.ar")").estilo(.footnote).foregroundStyle(C.texto2).lineLimit(1)
+                                }
+                                Spacer()
+                                if esta { Image(systemName: "checkmark.circle.fill").foregroundStyle(C.accion) }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .disabled(enviando)
+                        .accessibilityAddTraits(esta ? .isSelected : [])
+                    }
+                }
+                Section {
+                    Button { ir(ASeccion(clave: "invitaciones")) } label: { Label("Aceptar una invitación", systemImage: "envelope") }
+                    Button { ir(ASeccion(clave: "empezar")) } label: { Label("Crear otra inmobiliaria", systemImage: "plus.square.on.square") }
+                }
+            }
+            .navigationTitle("Tus inmobiliarias")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cerrar") { cerrar() } } }
+        }
+    }
+
+    private func ir(_ d: AnyHashable) {
+        cerrar()
+        estado.abrir(d)
+    }
+
+    private func elegir(_ m: Sesion.Membresia, esta: Bool) {
+        guard !esta else { return cerrar() }
+        enviando = true
+        Task {
+            defer { enviando = false }
+            do {
+                try await estado.elegir(m)
+                cerrar()
+                estado.avisar("Estás en \(m.nombre)")
+            } catch { estado.avisar(error) }
+        }
+    }
 }

@@ -1,5 +1,6 @@
 import SwiftUI
 import TipKit
+import UserNotifications
 
 /// Una fila de «Para hacer ahora»: ícono en su tono, qué es, de dónde viene y la acción.
 struct Pendiente2A: Identifiable {
@@ -13,98 +14,71 @@ struct Pendiente2A: Identifiable {
     var hacer: (() -> Void)? = nil
 }
 
-/// Lo que trae el Inicio (todo de una, para pintar una sola vez).
-struct DatosInicio {
-    var panel: Panel?
-    var guia: Guia?
-    var conversaciones: [Conversacion] = []
-    var preguntas: [PreguntaML] = []
-    var deudas: [Deuda] = []
-    var equipo: [Miembro] = []
-    var licencias: [Licencia] = []
-    var avisos = 0
-    var cobradoMes: Double?
-    var esperadoMes: Double?
-    /// La inmobiliaria con su marca (logo, portada, web): el Inicio es de ella, no genérico.
-    var inmo: Inmobiliaria?
-    /// Las propiedades recién movidas, para «Tu cartera».
-    var props: [Propiedad] = []
-}
-
-/// 2A Inicio del agente y 2B de la dueña (handoff · «Hoy»): la próxima visita, para hacer ahora,
-/// «Encontramos por vos», el objetivo del mes y los accesos. Nunca queda vacío: sin nada urgente
-/// muestra los primeros pasos y las acciones rápidas.
+/// 2A Inicio del agente y 2B de la dueña (handoff · «Hoy»; panel web 01 · 7E, 7C): lo urgente con su
+/// acción ahí mismo, «Tu día», la agenda de hoy, las sugerencias, cómo viene el mes, las cobranzas, el
+/// equipo y «Tu web». La dueña elige «Yo» o «Equipo». De noche mira a mañana. Nunca queda vacío: sin
+/// nada urgente propone el próximo paso, y las acciones rápidas están siempre.
 struct InicioRaiz: View {
     @Environment(Estado.self) private var estado
     @State private var datos: DatosInicio?
     @State private var error: ErrorApi?
-    @State private var aprobadas: Set<String> = []
     @State private var eligiendoQueCargar = false
     @State private var franja = false
     @State private var cargando: Cargar?
+    /// «Yo» o «Equipo» (la dueña o el dueño).
+    @AppStorage("inicioVista") private var vista = "equipo"
+    // Lo optimista, antes de que vuelva la API: consultas asignadas, sugerencias resueltas, citas
+    // tildadas, pasos hechos y los primeros pasos ocultos.
+    @State private var asignadas: [String: String] = [:]
+    @State private var ocultas: Set<String> = []
+    @State private var tildadas: [String: Bool] = [:]
+    @State private var marcados: Set<String> = []
+    @State private var pasosOcultos: Bool?
+    /// Lo que entró desde la última vez (se resalta).
+    @State private var nuevas: Set<String> = []
 
     /// Lo que se puede cargar desde el «+» del Inicio (lo mismo que en cada sección, juntado).
     enum Cargar: String, Identifiable { case contacto, visita, operacion, contrato; var id: String { rawValue } }
 
-    /// «Buen día, Nahuel»: según la hora, con el nombre de quien la usa.
-    private var saludo: String {
-        let h = Calendar.current.component(.hour, from: Date())
-        let s = h < 6 ? "Buenas noches" : h < 13 ? "Buen día" : h < 20 ? "Buenas tardes" : "Buenas noches"
-        return estado.usuario?.nombre.nonEmpty.map { "\(s), \($0)" } ?? s
-    }
+    private var yo: String? { estado.usuario?.id }
+    private var noche: Bool { CuentasInicio.deNoche() }
+    private var equipoVista: Bool { estado.esDuenio && vista == "equipo" }
+    private var nombre: String { estado.usuario?.nombre.split(separator: " ").first.map(String.init) ?? "" }
 
-    /// «Tenés 2 visitas, 3 consultas y 1 cobro para hoy.»
-    private var resumen: String {
-        guard let d = datos else { return " " }
-        let visitas = d.panel?.numeros?.citasHoy ?? 0, consultas = d.conversaciones.count + d.preguntas.count, cobros = d.deudas.count
-        let partes = [visitas > 0 ? Formato.cantidad(visitas, "visita", "visitas") : nil,
-                      consultas > 0 ? Formato.cantidad(consultas, "consulta", "consultas") : nil,
-                      cobros > 0 ? Formato.cantidad(cobros, "cobro", "cobros") : nil].compactMap { $0 }
-        guard !partes.isEmpty else { return "Hoy viene tranquilo. Buen momento para captar." }
-        let lista = partes.count == 1 ? partes[0] : partes.dropLast().joined(separator: ", ") + " y " + partes.last!
-        return "Tenés \(lista) para hoy."
-    }
+    /// La vista «Yo» de la dueña deja sólo lo suyo; el agente ve todo lo que le da la API.
+    private func deQuien(_ agente: String?) -> Bool { equipoVista || !estado.esDuenio || agente == yo }
 
     var body: some View {
         // La franja de la hora va en un ZStack que respeta la parte de arriba (el ScrollView la ignora para
         // que la portada llegue hasta arriba): así su fondo cubre la hora cuando la portada ya pasó.
         ZStack(alignment: .top) {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                PortadaInicio(inmo: datos?.inmo, saludo: saludo, resumen: resumen) { eligiendoQueCargar = true }
-                    .padding(.bottom, 6)
-                    .background(GeometryReader { g in Color.clear.preference(key: AlturaPortada.self, value: g.frame(in: .global).minY) })
-                Group {
-                    if estado.escribe { TipView(ConsejoCargar()) }
-                    TipView(ConsejoMas())
-                }
-                .tipBackground(C.superficie)
-                .padding(.horizontal, 16).padding(.bottom, 8)
-                if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
-                AvisoPlan().padding(.horizontal, 16).padding(.bottom, 12)
-                Group {
-                    if let datos {
-                        Group { if estado.esDuenio { duena(datos) } else { agente(datos) } }
-                            .transition(.opacity.combined(with: .offset(y: 16)))
-                    } else if let error {
-                        EstadoError(que: "tu día", error: error) { Task { await cargar() } }.padding(.top, 40)
-                    } else {
-                        EsqueletoFilas(filas: 5).padding(.horizontal, 16)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    PortadaInicio(inmo: datos?.inmo, saludo: saludo, resumen: resumen, clima: datos?.clima, noche: noche) { eligiendoQueCargar = true }
+                        .padding(.bottom, 6)
+                        .background(GeometryReader { g in Color.clear.preference(key: AlturaPortada.self, value: g.frame(in: .global).minY) })
+                    Group {
+                        if estado.escribe { TipView(ConsejoCargar()) }
+                        TipView(ConsejoMas())
                     }
+                    .tipBackground(C.superficie)
+                    .padding(.horizontal, 16).padding(.bottom, 8)
+                    if !estado.cola.cambios.isEmpty { ColaVisible().padding(.horizontal, 16).padding(.bottom, 12) }
+                    AvisoPlan().padding(.horizontal, 16).padding(.bottom, 12)
+                    contenido
+                        .padding(.top, 6)
+                        .animation(.easeOut(duration: 0.35), value: datos != nil)
                 }
-                .padding(.top, 6)
-                .animation(.easeOut(duration: 0.35), value: datos != nil)
+                .padding(.bottom, 32)
             }
-            .padding(.bottom, 32)
-        }
-        .refreshable { await cargar() }
-        .ignoresSafeArea(edges: .top)
-        // Cuando la portada sale de la pantalla aparece la franja de la hora, para que lo que sube no se
-        // monte sobre la hora y la batería.
-        .onPreferenceChange(AlturaPortada.self) { y in
-            let ver = y < -200
-            if ver != franja { withAnimation(.easeOut(duration: 0.15)) { franja = ver } }
-        }
+            .refreshable { await cargar() }
+            .ignoresSafeArea(edges: .top)
+            // Cuando la portada sale de la pantalla aparece la franja de la hora, para que lo que sube no se
+            // monte sobre la hora y la batería.
+            .onPreferenceChange(AlturaPortada.self) { y in
+                let ver = y < -200
+                if ver != franja { withAnimation(.easeOut(duration: 0.15)) { franja = ver } }
+            }
             if franja {
                 Color.clear.frame(height: 0)
                     .background(.ultraThinMaterial, ignoresSafeAreaEdges: .top)
@@ -114,6 +88,7 @@ struct InicioRaiz: View {
         .background(FondoApp())
         .toolbar(.hidden, for: .navigationBar)
         .task(id: estado.version) { await cargar() }
+        .onChange(of: vista) { _, _ in nuevas = [] }
         .confirmationDialog("Cargar", isPresented: $eligiendoQueCargar, titleVisibility: .visible) {
             Button("Propiedad") { estado.abrir(AAltaPropiedad()) }
             Button("Captar un cartel con MIRA") { estado.miraAbierta = true }
@@ -121,7 +96,7 @@ struct InicioRaiz: View {
             Button("Visita") { cargando = .visita }
             Button("Operación") { cargando = .operacion }
             Button("Contrato de alquiler") { cargando = .contrato }
-            Button("Cobro") { estado.abrir(ACobranzas()) }
+            Button("Cobro") { estado.abrir(ARegistrarCobro()) }
             Button("Cancelar", role: .cancel) {}
         }
         .sheet(item: $cargando) { c in
@@ -134,231 +109,510 @@ struct InicioRaiz: View {
         }
     }
 
-    // MARK: 2A Agente
-
     @ViewBuilder
-    private func agente(_ d: DatosInicio) -> some View {
-        VStack(alignment: .leading, spacing: 22) {
-            if let c = proximaVisita(d) { TarjetaProximaVisita(cita: c) }
-            let hoy = paraHacer(d)
-            if !hoy.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    TituloBloque(texto: "Para hacer ahora", cuenta: "\(hoy.count)")
-                    ListaPendientes(filas: hoy)
-                }
-            }
-            if let s = d.panel?.sugerencias?.first(where: { $0.estado != "descartada" }) { TarjetaSugerencia(s: s) }
-            if !d.props.isEmpty { CarteraVisual(props: d.props, total: d.panel?.numeros?.propiedadesDisponibles ?? 0) }
-            if let o = d.panel?.objetivos?.first(where: { $0.agenteId == estado.usuario?.id || $0.agenteId == nil }) { TarjetaObjetivo(o: o) }
-            TodoCorredor()
-            if hoy.isEmpty, let g = d.guia { PrimerosPasos(guia: g) }
+    private var contenido: some View {
+        if let datos {
+            Group { if estado.esDuenio { duena(datos) } else { agente(datos) } }
+                .transition(.opacity.combined(with: .offset(y: 16)))
+        } else if let error {
+            EstadoError(que: "tu día", error: error) { Task { await cargar() } }.padding(.top, 40)
+        } else {
+            EsqueletoFilas(filas: 5).padding(.horizontal, 16)
         }
-        .padding(.horizontal, 16)
+    }
+
+    // MARK: Saludo
+
+    /// «Buen día, Nahuel» (la dueña, o de noche); el agente de día, «Hola, Martín».
+    private var saludo: String {
+        let s = estado.esDuenio || noche ? CuentasInicio.saludo() : "Hola"
+        return nombre.isEmpty ? s : "\(s), \(nombre)"
+    }
+
+    /// «4 cosas no esperan», «Jueves 12 · 2 visitas y 3 mensajes esperando», «Falta tu primera propiedad»…
+    private var resumen: String {
+        guard let d = datos else { return " " }
+        if d.sinRed { return "Actualizado a las \(Formato.horaDe(d.actualizado))" }
+        if d.guia?.propiedades == 0 { return "Falta tu primera propiedad" }
+        let urgentes = self.urgentes(d)
+        if estado.esDuenio {
+            guard !urgentes.isEmpty else { return "Hoy no hay nada urgente" }
+            return urgentes.count == 1 ? "1 cosa no espera" : "\(urgentes.count) cosas no esperan"
+        }
+        if noche {
+            if let c = citas(d).filter({ !Formato.calendario.isDateInToday($0.empiezaEn) }).first {
+                return "Mañana arrancás a las \(CuentasInicio.horaCorta(c.empiezaEn))"
+            }
+            return "Mañana no tenés nada agendado"
+        }
+        let visitas = deHoy(d).filter { $0.tipo == "visita" && $0.estado == "pendiente" }.count
+        let esperan = charlas(d).count + consultas(d).count
+        return "\(CuentasInicio.diaCorto()) · \(Formato.cantidad(visitas, "visita", "visitas"))"
+            + (esperan > 0 ? " y \(Formato.cantidad(esperan, "mensaje esperando", "mensajes esperando"))" : "")
     }
 
     // MARK: 2B Dueña
 
     @ViewBuilder
     private func duena(_ d: DatosInicio) -> some View {
+        let urgentes = self.urgentes(d)
+        let sugerencias = self.sugerencias(d)
+        let nadaUrgente = urgentes.isEmpty && sugerencias.isEmpty && d.numero?.caido != true
         VStack(alignment: .leading, spacing: 22) {
-            if let c = proximaVisita(d) { TarjetaProximaVisita(cita: c) }
-            let hoy = paraHacer(d)
-            if !hoy.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                    TituloBloque(texto: "Para hacer ahora", cuenta: "\(hoy.count)")
-                    ListaPendientes(filas: hoy)
-                }
+            Segmentado(opciones: [("yo", "Yo"), ("equipo", "Equipo")], elegido: $vista).accessibilityLabel("Ver")
+            if let p = d.proxima { TarjetaProximaVisita(p: p, noche: noche) }
+            if estado.escribe || d.inmo?.web != nil { AccionesInicio(acciones: acciones(d), hacer: hacerAccion) }
+            if let n = d.numero, n.caido { NumeroCaidoInicio(numero: n) }
+            if !urgentes.isEmpty { bloqueUrgentes(d, urgentes) }
+            if d.fallo.contains("mensajes") { errorMensajes }
+            if !sugerencias.isEmpty { SugerenciasInicio(sugerencias: sugerencias, aplicar: aplicar, descartar: descartar) }
+            if nadaUrgente { ProximoPasoInicio(proximos: proximos(d), noche: noche, hacer: hacerProximo) }
+            agendaBloque(d)
+            if let w = d.inmo?.web { CompartirWebInicio(web: w, nombre: d.inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "", alAbrir: vioLaWeb) }
+            pasosBloque(d)
+            if d.guia?.propiedades != 0 || !ritmos(d).isEmpty { ComoVieneInicio(ritmos: ritmos(d), cerradas: d.panel?.numeros?.cerradasMes ?? 0) }
+            cobranzasBloque(d)
+            if equipoVista && !noche {
+                let personas = equipoHoy(d)
+                if !personas.isEmpty { EquipoHoyInicio(personas: personas) }
             }
-            let aprob = paraAprobar(d).filter { !aprobadas.contains($0.id) }
-            if !aprob.isEmpty {
-                VStack(alignment: .leading, spacing: 8) {
-                TituloBloque(texto: "Para aprobar")
-                    ForEach(aprob) { x in
-                        VStack(alignment: .leading, spacing: 10) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(x.titulo).font(Estilo(tamano: 16, peso: .bold, relativo: .headline).font).foregroundStyle(C.texto)
-                                Text(x.detalle).estilo(.footnote).foregroundStyle(C.texto2)
-                            }
-                            HStack(spacing: 8) {
-                                Button(x.accion) { x.hacer?() }.buttonStyle(BotonAccion())
-                                if let ir = x.ir {
-                                    Button("Ver detalle") { estado.abrir(ir) }.buttonStyle(BotonHundido())
-                                }
-                            }
-                        }
-                        .padding(14).tarjeta()
-                    }
-                }
-            }
-            PlataDelMes(d: d)
             if !d.props.isEmpty { CarteraVisual(props: d.props, total: d.panel?.numeros?.propiedadesDisponibles ?? 0) }
-            EsteMes(n: d.panel?.numeros, objetivo: d.panel?.objetivos?.first { $0.agenteId == nil })
-            if !d.equipo.isEmpty { EquipoAhora(equipo: d.equipo, licencias: d.licencias, citas: d.panel?.agendaHoy ?? []) }
+            EsteMes(n: d.panel?.numeros, objetivo: nil)
             TodoCorredor()
-            if let g = d.guia { PrimerosPasos(guia: g) }
+            if d.sinRed { notaSinRed }
         }
         .padding(.horizontal, 16)
     }
 
+    // MARK: 2A Agente
+
+    @ViewBuilder
+    private func agente(_ d: DatosInicio) -> some View {
+        let urgentes = self.urgentes(d)
+        let dia = tuDia(d)
+        let sugerencias = self.sugerencias(d)
+        VStack(alignment: .leading, spacing: 22) {
+            if let p = d.proxima { TarjetaProximaVisita(p: p, noche: noche) }
+            if estado.escribe || d.inmo?.web != nil { AccionesInicio(acciones: acciones(d), hacer: hacerAccion) }
+            if let n = d.numero, n.caido { NumeroCaidoInicio(numero: n) }
+            if d.fallo.contains("mensajes") { errorMensajes } else if !urgentes.isEmpty { bloqueUrgentes(d, urgentes) }
+            if !dia.isEmpty {
+                TuDiaInicio(titulo: noche ? "Quedó pendiente de hoy" : "Tu día", citas: dia,
+                            hechas: Set(dia.filter { tildadas[$0.id] ?? ($0.estado == "hecha") }.map(\.id)), tildar: tildar)
+            }
+            if d.proxima == nil && urgentes.isEmpty && dia.isEmpty { ProximoPasoInicio(proximos: proximos(d), noche: noche, hacer: hacerProximo) }
+            pasosBloque(d)
+            if !sugerencias.isEmpty { SugerenciasInicio(sugerencias: sugerencias, aplicar: aplicar, descartar: descartar) }
+            agendaBloque(d)
+            if let w = d.inmo?.web { CompartirWebInicio(web: w, nombre: d.inmo?.nombre ?? estado.inmobiliaria?.nombre ?? "", alAbrir: vioLaWeb) }
+            if d.guia?.propiedades != 0 || !ritmos(d).isEmpty { ComoVieneInicio(ritmos: ritmos(d), cerradas: d.panel?.numeros?.cerradasMes ?? 0) }
+            cobranzasBloque(d)
+            if !d.props.isEmpty { CarteraVisual(props: d.props, total: d.panel?.numeros?.propiedadesDisponibles ?? 0) }
+            TodoCorredor()
+            if d.sinRed { notaSinRed }
+        }
+        .padding(.horizontal, 16)
+    }
+
+    // MARK: Bloques
+
+    private func bloqueUrgentes(_ d: DatosInicio, _ urgentes: [Urgente]) -> some View {
+        UrgentesInicio(urgentes: urgentes, titulo: noche ? "Para mañana" : "Lo urgente", nuevas: nuevas,
+                       personas: estado.esDuenio ? asignables(d) : nil, asignar: asignar, cobrar: cobrar, recordar: recordar)
+    }
+
+    private var errorMensajes: some View {
+        ErrorBloque(titulo: "No pudimos traer tus mensajes", texto: "WhatsApp no respondió. Es sólo esta vista.",
+                    salida: ("Abrir Mensajes", { estado.pestana = .mensajes })) { Task { await cargar() } }
+    }
+
+    @ViewBuilder
+    private func agendaBloque(_ d: DatosInicio) -> some View {
+        if d.fallo.contains("agenda") {
+            ErrorBloque(titulo: "No pudimos traer la agenda", salida: ("Abrir Agenda", { estado.abrir(AAgendaDia()) })) { Task { await cargar() } }
+        } else {
+            let lista = noche ? citas(d).filter { !Formato.calendario.isDateInToday($0.empiezaEn) } : deHoy(d)
+            if !lista.isEmpty {
+                let titulo = noche ? (equipoVista ? "Mañana en la agenda del equipo" : "Mañana en tu agenda")
+                    : (equipoVista ? "Hoy en la agenda del equipo" : "Hoy en tu agenda")
+                AgendaHoyInicio(titulo: titulo, citas: lista)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func pasosBloque(_ d: DatosInicio) -> some View {
+        if let g = d.guia {
+            let pasos = CuentasInicio.primerosPasos(g, duenio: estado.esDuenio).map { p -> PasoInicio in
+                var x = p
+                x.hecho = x.hecho || marcados.contains(x.clave)
+                return x
+            }
+            if !(pasosOcultos ?? g.pasosOcultos ?? false) && !pasos.isEmpty {
+                PrimerosPasos(pasos: pasos, hacer: hacerPaso, ocultar: ocultarPasos)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func cobranzasBloque(_ d: DatosInicio) -> some View {
+        let cm = cobranzasMes(d)
+        let cobradas = cm.0, pendientes = cm.1
+        if !cobradas.isEmpty || !pendientes.isEmpty {
+            let n = d.panel?.numeros?.rendicionesListas ?? 0
+            CobranzasMesInicio(cobradas: cobradas, pendientes: pendientes,
+                               rendiciones: estado.esDuenio ? (n, d.panelExtra?.numeros?.primeraRendicion) : nil)
+        } else if estado.esDuenio && !d.fallo.contains("cobranzas") {
+            // Todavía sin alquileres: que se sepa que la cobranza también se lleva desde acá.
+            Button { estado.abrir(AContratos()) } label: {
+                HStack(spacing: 12) {
+                    IconoTono(icono: "dollarsign.circle", tono: .verde, tam: 44)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Cobrá los alquileres desde acá").estilo(.filaLista).foregroundStyle(C.texto)
+                        Text(Formato.sinViudas("Cargá un contrato: te avisamos quién debe, mandás el recibo y le rendís al dueño."))
+                            .estilo(.footnote).foregroundStyle(C.texto2).multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: 0)
+                    Chevron()
+                }
+                .padding(14).tarjeta()
+            }
+            .buttonStyle(Presionable())
+        }
+    }
+
+    private var notaSinRed: some View {
+        Text(Formato.sinViudas("Llamar y WhatsApp siguen andando: abren el teléfono, no necesitan Corredor."))
+            .estilo(.footnote).foregroundStyle(C.texto2).frame(maxWidth: .infinity, alignment: .center).multilineTextAlignment(.center)
+    }
+
+    // MARK: Cuentas sobre los datos
+
+    private func citas(_ d: DatosInicio) -> [Cita] {
+        d.agenda.filter { $0.estado != "cancelada" && deQuien($0.agenteId) }.sorted { $0.empiezaEn < $1.empiezaEn }
+    }
+
+    private func deHoy(_ d: DatosInicio) -> [Cita] { citas(d).filter { Formato.calendario.isDateInToday($0.empiezaEn) } }
+
+    private func tuDia(_ d: DatosInicio) -> [Cita] {
+        deHoy(d).filter { $0.id != d.proxima?.cita.id && (noche || $0.estado == "pendiente" || tildadas[$0.id] != nil) }
+    }
+
+    private func consultas(_ d: DatosInicio) -> [AvisoConsulta] {
+        d.consultas.filter { !estado.esDuenio || equipoVista || $0.responsableId == yo }.map { a in
+            var x = a
+            if let c = a.contactoId, let n = asignadas[c] {
+                x.responsableId = "asignada"
+                x.responsableNombre = n
+            }
+            return x
+        }
+    }
+
+    private func charlas(_ d: DatosInicio) -> [Conversacion] { d.conversaciones.filter { deQuien($0.agenteId) } }
+
+    private func fila(_ f: FilaCobranza) -> CobranzaInicio {
+        CobranzaInicio(contratoId: f.contratoId, propiedadTitulo: f.propiedadTitulo, contactoNombre: f.contactoNombre, agenteId: f.agenteId,
+                       monto: f.monto, moneda: f.moneda, vence: f.vence ?? Formato.diaISO(Date()), estado: f.estado ?? "pendiente")
+    }
+
+    /// Cada alquiler que debe, una vez: desde el mes más viejo, con el total (la regla de la API).
+    private func deben(_ d: DatosInicio) -> [CobranzaInicio]? {
+        d.deudas.map { l in
+            l.map { x in
+                CobranzaInicio(contratoId: x.contratoId, propiedadTitulo: x.propiedadTitulo, contactoNombre: x.contactoNombre, agenteId: x.agenteId,
+                               monto: x.total ?? 0, moneda: x.moneda ?? "ARS", vence: x.meses?.first?.vence ?? Formato.diaISO(Date()),
+                               estado: "atrasado", montoMes: x.meses?.first?.esperado)
+            }
+        }
+    }
+
+    private func urgentes(_ d: DatosInicio) -> [Urgente] {
+        let pend = (d.cobranzas?.pendientes ?? []).map(fila)
+        let atrasadas = (deben(d) ?? pend.filter { $0.estado == "atrasado" }).filter { deQuien($0.agenteId) }
+        var us: [Urgente] = atrasadas.map { CuentasInicio.cobroUrgente($0) }
+        us += consultas(d).map { CuentasInicio.consultaUrgente($0) }
+        if !(estado.esDuenio && !equipoVista) {
+            us += d.reservas.map { CuentasInicio.reservaUrgente($0) }
+            us += d.preguntas.map { CuentasInicio.preguntaUrgente($0) }
+        }
+        if !(estado.esDuenio && equipoVista) { us += charlas(d).map { CuentasInicio.whatsappUrgente($0) } }
+        return CuentasInicio.ordenar(us)
+    }
+
+    private func cobranzasMes(_ d: DatosInicio) -> ([CobranzaInicio], [CobranzaInicio]) {
+        guard let c = d.cobranzas else { return ([], []) }
+        let cobradas = c.cobradas.map(fila).filter { deQuien($0.agenteId) }
+        var pendientes = c.pendientes.map(fila)
+        if let deben = deben(d) { pendientes = pendientes.filter { $0.estado != "atrasado" } + deben }
+        return (cobradas, pendientes.filter { deQuien($0.agenteId) })
+    }
+
+    private func sugerencias(_ d: DatosInicio) -> [SugerenciaInicio] {
+        (d.panelExtra?.sugerencias ?? []).filter { deQuien($0.agenteId) && !ocultas.contains($0.id) && $0.estado != "descartada" && $0.estado != "aplicada" }
+    }
+
+    private func ritmos(_ d: DatosInicio) -> [Ritmo] {
+        (d.panel?.objetivos ?? [])
+            .filter { estado.esDuenio && equipoVista ? $0.agenteId == nil : $0.agenteId == yo }
+            .sorted { CuentasInicio.ordenMetrica($0.metrica) < CuentasInicio.ordenMetrica($1.metrica) }
+            .map { CuentasInicio.ritmo($0) }
+    }
+
+    private func deLicencia(_ d: DatosInicio, _ id: String) -> Licencia? {
+        let hoy = Formato.diaISO(Date())
+        return d.licencias.first { $0.usuarioId == id && $0.desde <= hoy && $0.hasta >= hoy }
+    }
+
+    /// A quién se le puede dar una consulta: agentes y dueños que no están de licencia hoy.
+    private func asignables(_ d: DatosInicio) -> [(String, String)] {
+        d.equipo.filter { $0.rol != "lector" && deLicencia(d, $0.usuarioId) == nil }.map { ($0.usuarioId, $0.completo) }
+    }
+
+    /// El equipo hoy: cada persona (menos quien mira y los lectores) con sus citas y lo que tiene sin responder.
+    private func equipoHoy(_ d: DatosInicio) -> [PersonaHoy] {
+        let hoy = d.agenda.filter { $0.estado == "pendiente" && Formato.calendario.isDateInToday($0.empiezaEn) }
+        return d.equipo.filter { $0.usuarioId != yo && $0.rol != "lector" }.map { m in
+            let suyas = hoy.filter { $0.agenteId == m.usuarioId }
+            var porTipo: [(String, Int)] = []
+            for c in suyas {
+                let t = c.tipo ?? "otro"
+                if let i = porTipo.firstIndex(where: { $0.0 == t }) { porTipo[i].1 += 1 } else { porTipo.append((t, 1)) }
+            }
+            let sin = d.conversaciones.filter { $0.agenteId == m.usuarioId }
+            let desde = sin.compactMap { $0.ultimoEntranteEn ?? $0.ultimoMensajeEn }.min()
+            let lic = deLicencia(d, m.usuarioId).map { (tipo: $0.tipo ?? "licencia", vuelve: CuentasInicio.vuelveDe($0.hasta)) }
+            return PersonaHoy(id: m.usuarioId, nombre: m.completo, foto: m.foto, telefono: m.telefono, citas: porTipo,
+                              sinResponder: sin.count, desde: desde, licencia: lic)
+        }
+    }
+
+    private func pasosVisibles(_ d: DatosInicio) -> Bool {
+        guard let g = d.guia else { return false }
+        return !(pasosOcultos ?? g.pasosOcultos ?? false) && !CuentasInicio.primerosPasos(g, duenio: estado.esDuenio).isEmpty
+    }
+
+    private func proximos(_ d: DatosInicio) -> [ProximoInicio] {
+        CuentasInicio.proximosPasos(d.guia, duenio: estado.esDuenio, pasosVisibles: pasosVisibles(d),
+                                    libres: consultas(d).filter { $0.responsableId == nil }.count)
+    }
+
+    private func acciones(_ d: DatosInicio) -> [AccionInicio] {
+        let todas = CuentasInicio.accionesRapidas(d.guia, web: d.inmo?.web != nil)
+        return estado.escribe ? todas : todas.filter { $0.clave == "web" }
+    }
+
+    // MARK: Acciones
+
+    private func hacerAccion(_ clave: String) {
+        switch clave {
+        case "captar": estado.miraAbierta = true
+        case "propiedad": estado.abrir(AAltaPropiedad())
+        case "contacto": cargando = .contacto
+        case "visita": cargando = .visita
+        case "cobro": estado.abrir(ARegistrarCobro())
+        case "web": abrirWeb()
+        default: break
+        }
+    }
+
+    private func abrirWeb() {
+        vioLaWeb()
+        if let w = datos?.inmo?.web, let u = URL(string: w) { UIApplication.shared.open(u) }
+    }
+
+    /// «Mirá tu web» queda hecho al abrirla desde el Inicio.
+    private func vioLaWeb() {
+        guard datos?.guia?.pasos?.web != true, !marcados.contains("web") else { return }
+        marcados.insert("web")
+        struct C: Encodable { var webVista = true }
+        Task {
+            do { try await estado.api.hacer("PATCH", "/v1/panel/guia", C()) } catch { marcados.remove("web") }
+        }
+    }
+
+    private func hacerPaso(_ p: PasoInicio) {
+        switch p.clave {
+        case "propiedad": estado.miraAbierta = true
+        case "web": abrirWeb()
+        case "datos": estado.abrir(ASeccion(clave: "web"))
+        case "whatsapp", "portales": estado.abrir(ASeccion(clave: "integraciones"))
+        case "equipo": estado.abrir(ASeccion(clave: "equipo"))
+        case "avisos": Task { await activarAvisos() }
+        default: estado.altaAbierta = PasoAlta(clave: p.clave)
+        }
+    }
+
+    /// «Activá los avisos»: pide el permiso ahí mismo; si estaba negado, lleva a Ajustes.
+    private func activarAvisos() async {
+        let c = UNUserNotificationCenter.current()
+        if await c.notificationSettings().authorizationStatus == .denied {
+            if let u = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(u) }
+            return
+        }
+        await estado.pedirPermisoPush()
+        let s = await c.notificationSettings().authorizationStatus
+        if s == .authorized || s == .provisional || s == .ephemeral {
+            marcados.insert("avisos")
+            estado.avisar("Listo: te van a llegar los avisos")
+        }
+    }
+
+    /// «Ocultar» (o se ocultan solos al completarlos): se guarda en la API, con «Deshacer».
+    private func ocultarPasos(_ completo: Bool) {
+        struct C: Encodable { var pasosOcultos: Bool }
+        pasosOcultos = true
+        Task {
+            do {
+                try await estado.api.hacer("PATCH", "/v1/panel/guia", C(pasosOcultos: true))
+            } catch {
+                pasosOcultos = false
+                if !completo { estado.avisar(error) }
+                return
+            }
+            if completo { return }
+            estado.avisar("Ocultaste los primeros pasos") {
+                pasosOcultos = false
+                Task {
+                    do { try await estado.api.hacer("PATCH", "/v1/panel/guia", C(pasosOcultos: false)) } catch {
+                        pasosOcultos = true
+                        estado.avisar(error)
+                    }
+                }
+            }
+        }
+    }
+
+    private func hacerProximo(_ clave: String) {
+        switch clave {
+        case "libres": estado.abrir(AContactos())
+        case "propiedad": estado.miraAbierta = true
+        case "nueva", "mas": estado.abrir(AAltaPropiedad())
+        case "contacto": cargando = .contacto
+        case "importar": estado.abrir(ASeccion(clave: "importar"))
+        case "alta": estado.altaAbierta = PasoAlta(clave: datos?.guia?.alta?.faltan.first)
+        case "whatsapp", "portales": estado.abrir(ASeccion(clave: "integraciones"))
+        case "equipo": estado.abrir(ASeccion(clave: "equipo"))
+        case "datos": estado.abrir(ASeccion(clave: "web"))
+        case "visita": cargando = .visita
+        default: estado.pestana = .propiedades
+        }
+    }
+
+    /// «Asignar» (la dueña elige a quién) o «Tomarla» (el agente): al toque, con «Deshacer» que la devuelve.
+    private func asignar(_ u: Urgente, _ a: (String, String)?) {
+        guard let contacto = u.consultaContacto, let yo else { return }
+        let quien = a ?? (yo, estado.usuario?.completo ?? "")
+        let propia = quien.0 == yo
+        struct C: Encodable { var agenteId: String? }
+        struct R: Decodable { var antesId: String? }
+        asignadas[contacto] = propia ? "tuya" : quien.1
+        Task {
+            let r: R
+            do {
+                r = try await estado.api.enviar("POST", "/v1/consultas/\(contacto)/asignar", C(agenteId: quien.0))
+            } catch {
+                asignadas[contacto] = nil
+                estado.avisar(error)
+                return
+            }
+            estado.avisar(propia ? "La consulta es tuya" : "Le pasaste la consulta a \(quien.1)") {
+                asignadas[contacto] = nil
+                Task {
+                    do {
+                        try await estado.api.hacer("POST", "/v1/consultas/\(contacto)/asignar", C(agenteId: r.antesId))
+                        estado.version += 1
+                    } catch {
+                        asignadas[contacto] = propia ? "tuya" : quien.1
+                        estado.avisar(error)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Tildar una cita de «Tu día» (la marca hecha; «Deshacer» la vuelve a pendiente).
+    private func tildar(_ c: Cita, _ si: Bool) {
+        struct C: Encodable { var estado: String }
+        tildadas[c.id] = si
+        Task {
+            do {
+                try await estado.api.hacer("PATCH", "/v1/agenda/\(c.id)", C(estado: si ? "hecha" : "pendiente"))
+            } catch {
+                tildadas[c.id] = !si
+                estado.avisar(error)
+                return
+            }
+            if si { estado.avisar("Listo: \(c.titulo ?? c.donde)") { tildar(c, false) } }
+        }
+    }
+
+    /// El botón de una sugerencia: la aplica y lleva a la cosa.
+    private func aplicar(_ s: SugerenciaInicio) {
+        ocultas.insert(s.id)
+        Task {
+            do { try await estado.api.hacer("POST", "/v1/sugerencias/\(s.id)/aplicar") } catch let e as ErrorApi where e.estado == 409 {
+                // Ya la resolvió otra persona: da lo mismo.
+            } catch {
+                ocultas.remove(s.id)
+                estado.avisar(error)
+            }
+        }
+        if let ir = s.boton.1 { estado.abrir(ir) }
+    }
+
+    /// La cruz: el descarte sale cuando vence el «Deshacer» (6 s), así deshacer no vuelve atrás en la API.
+    private func descartar(_ s: SugerenciaInicio) {
+        ocultas.insert(s.id)
+        let t = Task {
+            try? await Task.sleep(for: .seconds(6))
+            if Task.isCancelled { return }
+            do { try await estado.api.hacer("POST", "/v1/sugerencias/\(s.id)/descartar") } catch let e as ErrorApi where e.estado == 409 {
+            } catch {
+                ocultas.remove(s.id)
+                estado.avisar(error)
+            }
+        }
+        estado.avisar("Descartaste la sugerencia") {
+            t.cancel()
+            ocultas.remove(s.id)
+        }
+    }
+
+    /// «Registrar cobro» (la hoja de Cobranzas con ese contrato, como `/cobranzas?registrar=1&contrato=`).
+    private func cobrar(_ c: CobranzaInicio) { estado.abrir(ARegistrarCobro(contrato: c.contratoId)) }
+
+    /// «Recordar»: la ficha del contrato con el recordatorio del mes que se debe (`?recordar=AAAA-MM`).
+    private func recordar(_ c: CobranzaInicio) { estado.abrir(ARecordarMes(contrato: c.contratoId, periodo: String(c.vence.prefix(7)))) }
+
     // MARK: Datos
+
+    private func ids(_ d: DatosInicio) -> Set<String> { Set(urgentes(d).map(\.id)) }
 
     private func cargar() async {
         do {
-            var d = DatosInicio()
-            let api = estado.api
-            d.panel = try await api.get("/v1/panel")
-            d.guia = try? await api.get("/v1/panel/guia")
-            d.conversaciones = (try? await api.get("/v1/whatsapp/conversaciones", query: [.init(name: "noLeidas", value: "si"), .init(name: "limite", value: "20")])) ?? []
-            d.preguntas = (try? await api.get("/v1/mercadolibre/preguntas", query: [.init(name: "estado", value: "sin_responder"), .init(name: "limite", value: "10")])) ?? []
-            d.deudas = (try? await api.get("/v1/contratos/deudas")) ?? []
-            d.inmo = try? await api.get("/v1/inmobiliaria")
-            d.props = (try? await api.get("/v1/propiedades", query: [.init(name: "orden", value: "actualizada"), .init(name: "limite", value: "10")])) ?? []
-            struct Contador: Decodable { var noLeidos: Int?; var paraHacer: Int? }
-            if let c: Contador = try? await api.get("/v1/avisos/contador") { d.avisos = (c.noLeidos ?? 0); estado.avisosPendientes = d.avisos }
-            if estado.esDuenio {
-                d.equipo = (try? await api.get("/v1/equipo")) ?? []
-                let hoy = Formato.diaISO(Date())
-                d.licencias = (try? await api.get("/v1/licencias", query: [.init(name: "desde", value: hoy), .init(name: "hasta", value: hoy)])) ?? []
-                struct Mes: Decodable { var totalCobrado: [String: Double]?; var totalPendiente: [String: Double]? }
-                if let r: Mes = try? await api.get("/v1/cobranzas") {
-                    d.cobradoMes = r.totalCobrado?["ARS"] ?? 0
-                    d.esperadoMes = (r.totalCobrado?["ARS"] ?? 0) + (r.totalPendiente?["ARS"] ?? 0)
-                }
-            }
-            estado.sinLeer = d.conversaciones.reduce(0) { $0 + ($1.noLeidos ?? 0) }
+            let d = try await CuentasInicio.traer(estado)
+            if let antes = datos { nuevas = ids(d).subtracting(ids(antes)) }
             datos = d
-            ActividadVisita.actualizar(proximaVisita(d))
+            asignadas = [:]
+            tildadas = [:]
+            pasosOcultos = nil
             error = nil
+            estado.avisosPendientes = d.avisos
+            ActividadVisita.actualizar(d.proxima?.cita)
             Guardado.guardar(d.panel, clave: "panel")
         } catch let e as ErrorApi {
-            if datos == nil, let p = Guardado.leer(Panel.self, clave: "panel")?.0 { datos = DatosInicio(panel: p) }
+            if datos == nil, let p = Guardado.leer(Panel.self, clave: "panel") {
+                datos = DatosInicio(panel: p.0, actualizado: p.1, sinRed: e.sinConexion)
+            } else if e.sinConexion {
+                datos?.sinRed = true
+            }
             if datos == nil { error = e }
         } catch {}
-    }
-
-    private func proximaVisita(_ d: DatosInicio) -> Cita? {
-        (d.panel?.agendaHoy ?? [])
-            .filter { $0.terminaEn > Date() && $0.estado != "cancelada" && ($0.agenteId == nil || $0.agenteId == estado.usuario?.id || !estado.esDuenio) }
-            .sorted { $0.empiezaEn < $1.empiezaEn }.first
-    }
-
-    private func paraHacer(_ d: DatosInicio) -> [Pendiente2A] {
-        var f: [Pendiente2A] = []
-        for c in d.conversaciones.prefix(3) {
-            f.append(Pendiente2A(id: "wa" + c.id, icono: "bubble.left", tono: .verde,
-                                 titulo: c.propiedadTitulo.map { "\(c.quien) preguntó por \($0)" } ?? "\(c.quien) te escribió",
-                                 detalle: "WhatsApp · \(c.ultimoMensajeEn.map { Formato.hace($0) } ?? "")", accion: "Responder", ir: AChat(id: c.id)))
-        }
-        for p in d.preguntas.prefix(2) {
-            f.append(Pendiente2A(id: "ml" + p.id, icono: "storefront", tono: .oro,
-                                 titulo: "\(p.texto ?? "Pregunta")\(p.propiedad.map { " · \($0)" } ?? "")",
-                                 detalle: "Mercado Libre · \(p.creadaEn.map { Formato.hace($0) } ?? "")", accion: "Responder", ir: APreguntaML(id: p.id)))
-        }
-        for x in d.deudas.filter({ estado.esDuenio || $0.agenteId == nil || $0.agenteId == estado.usuario?.id }).prefix(2) {
-            let dias = x.meses?.first?.vencio.flatMap(Fecha.dia).map { max(0, Calendar.current.dateComponents([.day], from: $0, to: Date()).day ?? 0) }
-            f.append(Pendiente2A(id: "co" + x.contratoId, icono: "dollarsign.circle", tono: .rojo,
-                                 titulo: "\(x.contactoNombre ?? x.propiedadTitulo ?? "Cobro") · \(Formato.plata(x.total ?? 0, x.moneda ?? "ARS"))",
-                                 detalle: dias.map { $0 > 0 ? "Cobro vencido hace \(Formato.cantidad($0, "día", "días"))" : "Vence hoy" } ?? "Cobro pendiente",
-                                 accion: "Cobrar", ir: AFichaContrato(id: x.contratoId)))
-        }
-        if let n = d.panel?.numeros?.rendicionesListas, n > 0, estado.esDuenio {
-            f.append(Pendiente2A(id: "rend", icono: "doc.text", tono: .azul, titulo: Formato.cantidad(n, "rendición lista para mandar", "rendiciones listas para mandar"),
-                                 detalle: "Revisalas y emitilas", accion: "Revisar", ir: AContratos()))
-        }
-        return f
-    }
-
-    private func paraAprobar(_ d: DatosInicio) -> [Pendiente2A] {
-        var f: [Pendiente2A] = []
-        for s in (d.panel?.sugerencias ?? []).filter({ $0.estado != "descartada" && $0.estado != "aplicada" }).prefix(3) {
-            f.append(Pendiente2A(id: s.id, icono: "checkmark", tono: .verde, titulo: s.destacado ?? s.accion ?? "Para aprobar", detalle: s.motivo ?? "",
-                                 accion: "Aprobar", ir: s.operacionId.map { AnyHashable(AFichaOperacion(id: $0)) }
-                                     ?? s.propiedadId.map { AnyHashable(AFichaPropiedad(id: $0)) }
-                                     ?? s.contactoId.map { AnyHashable(AFichaContacto(id: $0)) }) {
-                // Deshacer en vez de confirmar: se aplica a los 5 s si no se arrepiente.
-                aprobadas.insert(s.id)
-                let tarea = Task {
-                    try? await Task.sleep(for: .seconds(5))
-                    if Task.isCancelled { return }
-                    try? await estado.api.hacer("POST", "/v1/sugerencias/\(s.id)/aplicar")
-                    estado.version += 1
-                }
-                estado.avisar("Aprobado · ya le avisamos") {
-                    tarea.cancel()
-                    aprobadas.remove(s.id)
-                }
-            })
-        }
-        return f
     }
 }
 
 // MARK: - Piezas del Inicio
-
-/// La tarjeta verde de la próxima visita (rayado, grano, rr de marca de agua, Cómo llegar y Estoy llegando).
-struct TarjetaProximaVisita: View {
-    @Environment(\.colorScheme) private var esquema
-    @Environment(Estado.self) private var estado
-    var cita: Cita
-
-    var body: some View {
-        let min = Int(cita.empiezaEn.timeIntervalSinceNow / 60)
-        VStack(alignment: .leading, spacing: 4) {
-            Label(min > 0 ? "Próxima visita · en \(min < 60 ? "\(min) min" : Formato.horaDe(cita.empiezaEn))" : "Visita en curso", systemImage: "clock")
-                .font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).foregroundStyle(C.oro)
-            Text(cita.donde).font(Estilo(tamano: 24, peso: .bold, tracking: -0.02, relativo: .title2).font).foregroundStyle(.white)
-                .padding(.top, 4)
-            Text("\(Formato.horaDe(cita.empiezaEn))\(cita.contactoNombre.map { " · con \($0)" } ?? "")")
-                .estilo(.subhead).foregroundStyle(Color(hex: 0xCFE0D8))
-            HStack(spacing: 8) {
-                Button { Afuera.mapas(cita.lugar ?? cita.propiedadTitulo ?? "") } label: {
-                    Label("Cómo llegar", systemImage: "location.fill")
-                        .font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font)
-                        .foregroundStyle(Color(hex: 0x1A1405))
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .background(LinearGradient(stops: [.init(color: Color(hex: 0xF7CB73), location: 0), .init(color: Color(hex: 0xF2BB57), location: 0.55),
-                                                           .init(color: Color(hex: 0xE9AD44), location: 1)], startPoint: .top, endPoint: .bottom),
-                                    in: .rect(cornerRadius: 13, style: .continuous))
-                }
-                Button { llegando() } label: {
-                    HStack(spacing: 6) {
-                        Image("LogoWhatsApp").resizable().scaledToFit().frame(width: 18, height: 18)
-                        Text("Estoy llegando").font(Estilo(tamano: 15, peso: .semibold, relativo: .subheadline).font)
-                    }
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(.white.opacity(0.12), in: .rect(cornerRadius: 13, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 13, style: .continuous).strokeBorder(.white.opacity(0.22)))
-                }
-            }
-            .padding(.top, 10)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // De noche, grafito con el borde oro (propuesta A): el verde lleno teñía todo el Inicio.
-        .background {
-            if esquema == .dark {
-                RoundedRectangle(cornerRadius: M.rDestacada, style: .continuous).fill(C.superficie)
-                    .overlay(RoundedRectangle(cornerRadius: M.rDestacada, style: .continuous).strokeBorder(C.oro.opacity(0.4), lineWidth: 1))
-            } else {
-                FondoTarjetaVerde()
-            }
-        }
-        .clipShape(.rect(cornerRadius: M.rDestacada, style: .continuous))
-        .sombraE3()
-        .onTapGesture { estado.abrir(ACita(id: cita.id)) }
-    }
-
-    private func llegando() {
-        guard let id = cita.contactoId else { return estado.avisar("La visita no tiene un contacto cargado.", ok: false) }
-        Task {
-            struct C: Decodable { var nombre: String?; var telefono: String? }
-            let c: C? = try? await estado.api.get("/v1/contactos/\(id)")
-            let nombre = c?.nombre?.split(separator: " ").first.map(String.init) ?? ""
-            Afuera.whatsapp(c?.telefono, texto: "Hola \(nombre), estoy llegando a \(cita.donde).")
-        }
-    }
-}
 
 /// El fondo de las tarjetas verdes destacadas: 0f3530, dos rayados finos, grano y la rr de marca de agua.
 struct FondoTarjetaVerde: View {
@@ -422,32 +676,6 @@ struct ListaPendientes: View {
             }
         }
         .tarjeta()
-    }
-}
-
-/// «Encontramos por vos»: la sugerencia del día en oro, con su acción.
-struct TarjetaSugerencia: View {
-    @Environment(Estado.self) private var estado
-    var s: Sugerencia
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Encontramos por vos", systemImage: "sparkles")
-                .font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).foregroundStyle(C.avisoTinta)
-            Text(Formato.sinViudas(s.destacado ?? s.motivo ?? "")).font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font)
-                .foregroundStyle(C.texto)
-            Button {
-                if let p = s.propiedadId { estado.abrir(AFichaPropiedad(id: p)) } else if let c = s.contactoId { estado.abrir(AFichaContacto(id: c)) }
-                else if let o = s.operacionId { estado.abrir(AFichaOperacion(id: o)) } else if let c = s.contratoId { estado.abrir(AFichaContrato(id: c)) }
-            } label: {
-                Label(s.accion ?? "Ver", systemImage: "paperplane").font(Estilo(tamano: 15, peso: .semibold, relativo: .subheadline).font)
-                    .foregroundStyle(C.sobreAccion).padding(.horizontal, 16).frame(height: 44)
-                    .background(C.accion, in: .rect(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(Presionable())
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(C.avisoFondo, in: .rect(cornerRadius: M.rTarjeta, style: .continuous))
     }
 }
 
@@ -519,185 +747,6 @@ struct Cifra: View {
     }
 }
 
-/// «La plata del mes», arriba del Inicio de la dueña: cuánto se cobró de lo esperado y lo que falta hacer
-/// con la plata (quién debe, qué rendir, los alquileres), cada cosa a un toque. Sin alquileres cargados
-/// invita a cargar el primero: así nadie se pierde que la app maneja la cobranza.
-struct PlataDelMes: View {
-    @Environment(Estado.self) private var estado
-    var d: DatosInicio
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let e = d.esperadoMes, e > 0 {
-                let cobrado = d.cobradoMes ?? 0
-                let falta = max(0, e - cobrado)
-                Button { estado.abrir(ACobranzas()) } label: {
-                    TarjetaAvance(titulo: "La plata de \(Formato.mesDe(Date()))", cifra: "\(Int((cobrado / e * 100).rounded())) %",
-                                  avance: min(1, cobrado / e), color: Color(hex: 0x2F9E6F),
-                                  pie: falta > 0 ? "Cobraste \(Formato.plata(cobrado)) · faltan \(Formato.plata(falta))" : "Cobraste todo el mes: \(Formato.plata(cobrado))")
-                }
-                .buttonStyle(Presionable())
-                HStack(spacing: 8) {
-                    chip("\(d.deudas.count)", d.deudas.count == 1 ? "debe" : "deben", d.deudas.isEmpty ? .verde : .rojo, ACobranzas())
-                    chip("\(d.panel?.numeros?.rendicionesListas ?? 0)", "para rendir", (d.panel?.numeros?.rendicionesListas ?? 0) > 0 ? .azul : .neutro, ASeccion(clave: "rendiciones"))
-                    chip("\(d.panel?.numeros?.alquileresVigentes ?? 0)", "alquileres", .neutro, AContratos())
-                }
-            } else if estado.esDuenio {
-                // Todavía sin alquileres: que se sepa que la cobranza también se lleva desde acá.
-                Button { estado.abrir(AContratos()) } label: {
-                    HStack(spacing: 12) {
-                        IconoTono(icono: "dollarsign.circle", tono: .verde, tam: 44)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Cobrá los alquileres desde acá").estilo(.filaLista).foregroundStyle(C.texto)
-                            Text(Formato.sinViudas("Cargá un contrato: te avisamos quién debe, mandás el recibo y le rendís al dueño."))
-                                .estilo(.footnote).foregroundStyle(C.texto2).multilineTextAlignment(.leading)
-                        }
-                        Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold)).foregroundStyle(C.texto3)
-                    }
-                    .padding(14).tarjeta()
-                }
-                .buttonStyle(Presionable())
-            }
-        }
-    }
-
-    private func chip(_ n: String, _ texto: String, _ tono: Tono, _ destino: AnyHashable) -> some View {
-        Button { estado.abrir(destino) } label: {
-            VStack(alignment: .leading, spacing: 0) {
-                Text(n).font(Estilo(tamano: 20, peso: .bold, relativo: .title3).font).foregroundStyle(tono == .neutro ? C.texto : tono.tinta)
-                    .contentTransition(.numericText()).animation(.snappy, value: n)
-                Text(texto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1)
-            }
-            .padding(.horizontal, 12).padding(.vertical, 10)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .tarjeta(14)
-        }
-        .buttonStyle(Presionable())
-    }
-}
-
-/// «El equipo, ahora»: cada persona con dónde está (su próxima cita o su licencia) y WhatsApp.
-struct EquipoAhora: View {
-    var equipo: [Miembro]
-    var licencias: [Licencia]
-    var citas: [Cita]
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TituloBloque(texto: "El equipo, ahora")
-            VStack(spacing: 0) {
-                ForEach(Array(equipo.enumerated()), id: \.element.id) { i, m in
-                    let (texto, color) = estadoDe(m)
-                    HStack(spacing: 12) {
-                        Text(Formato.iniciales(m.completo)).font(Estilo(tamano: 14, peso: .bold, relativo: .footnote).font)
-                            .foregroundStyle(C.texto)
-                            .frame(width: 40, height: 40).background(C.hundida, in: Circle())
-                            .overlay(alignment: .bottomTrailing) {
-                                Circle().fill(color).frame(width: 12, height: 12).overlay(Circle().stroke(C.superficie, lineWidth: 2))
-                            }
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text(m.completo).estilo(.filaLista).foregroundStyle(C.texto)
-                            Text(texto).estilo(.footnote).foregroundStyle(C.texto2)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        if m.telefono != nil {
-                            Button { Afuera.whatsapp(m.telefono) } label: {
-                                Image("LogoWhatsApp").resizable().scaledToFit().frame(width: 22, height: 22).frame(width: 44, height: 44)
-                            }
-                            .accessibilityLabel("WhatsApp con \(m.nombre ?? "")")
-                        }
-                    }
-                    .padding(.leading, 14).padding(.trailing, 6).padding(.vertical, 8)
-                    .frame(minHeight: 60)
-                    .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
-                }
-            }
-            .tarjeta()
-        }
-    }
-
-    private func estadoDe(_ m: Miembro) -> (String, Color) {
-        if let l = licencias.first(where: { $0.usuarioId == m.usuarioId }) {
-            let vuelve = Fecha.dia(l.hasta).map { Formato.diaCompleto($0.addingTimeInterval(86400)) } ?? ""
-            return ("De \(l.tipo == "vacaciones" ? "vacaciones" : "licencia") · vuelve el \(vuelve)", C.linea2)
-        }
-        let suyas = citas.filter { $0.agenteId == m.usuarioId }.sorted { $0.empiezaEn < $1.empiezaEn }
-        if let ahora = suyas.first(where: { $0.empiezaEn <= Date() && $0.terminaEn > Date() }) {
-            return ("En \(ahora.tipoTexto.lowercased()) · \(ahora.donde)", C.oro)
-        }
-        if let sig = suyas.first(where: { $0.empiezaEn > Date() }) {
-            return ("\(sig.tipoTexto) a las \(Formato.horaDe(sig.empiezaEn)) · \(sig.donde)", Color(hex: 0x2F9E6F))
-        }
-        return ("Sin actividad hoy", C.linea2)
-    }
-}
-
-/// «Primeros pasos» (lo que todavía no hizo), para que el Inicio nunca quede vacío.
-struct PrimerosPasos: View {
-    @Environment(Estado.self) private var estado
-    var guia: Guia
-    /// Los pasos del alta que van en el Inicio (nombre, arranque y publicar ya están en otros pasos).
-    static let pasosAlta: [String: String] = ["logo": "photo.badge.plus", "marca": "paintpalette", "portada": "photo", "contacto": "phone",
-                                              "legales": "checkmark.seal", "rubros": "square.grid.2x2"]
-
-    /// Los pasos de la guía de la API y, para el dueño, los del alta (cada uno abre su paso del
-    /// asistente) y el de la cobranza.
-    private var pasos: [(Bool, String, String, AnyHashable?)] {
-        let p = guia.pasos
-        let propiedad: Bool = p?.propiedad ?? false
-        var pasos: [(Bool, String, String, AnyHashable?)] = [(propiedad, "house", "Cargá tu primera propiedad", AnyHashable(AAltaPropiedad()))]
-        if estado.esDuenio, let alta = estado.estructura?.alta {
-            for x in alta.pasos {
-                if let icono = Self.pasosAlta[x.clave] { pasos.append((x.hecho, icono, x.titulo, nil)) }
-            }
-        } else {
-            let datos: Bool = p?.datos ?? false
-            pasos.append((datos, "paintpalette", "Poné tu logo y tus colores", AnyHashable(ASeccion(clave: "web"))))
-        }
-        // De a uno: todo junto en un literal, el compilador no llegaba a tiparlo.
-        let whatsapp: Bool = p?.whatsapp ?? false, equipo: Bool = p?.equipo ?? false
-        let portales: Bool = p?.portales ?? false, web: Bool = p?.web ?? false
-        pasos.append((whatsapp, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", AnyHashable(ASeccion(clave: "integraciones"))))
-        pasos.append((equipo, "person.badge.plus", "Sumá a tu equipo", AnyHashable(ASeccion(clave: "equipo"))))
-        pasos.append((portales, "storefront", "Publicá en Mercado Libre y portales", AnyHashable(ASeccion(clave: "integraciones"))))
-        pasos.append((web, "globe", "Mirá tu web", AnyHashable(ASeccion(clave: "web"))))
-        if estado.esDuenio {
-            let cobra: Bool = (guia.contratos ?? 0) > 0
-            pasos.insert((cobra, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AnyHashable(AContratos())), at: 1)
-        }
-        return pasos
-    }
-
-    var body: some View {
-        let pasos = pasos
-        let faltan = pasos.filter { !$0.0 }
-        let alta = estado.esDuenio ? estado.estructura?.alta : nil
-        if !faltan.isEmpty && guia.pasosOcultos != true {
-            VStack(alignment: .leading, spacing: 8) {
-                // Con el alta, el porcentaje de la inmobiliaria; si no, cuántos pasos van.
-                TituloBloque(texto: "Primeros pasos", cuenta: alta.map { "Tu inmobiliaria al \($0.completo) %" } ?? "\(pasos.count - faltan.count) de \(pasos.count)")
-                ListaPendientes(filas: faltan.prefix(4).enumerated().map { i, x -> Pendiente2A in
-                    // Los del alta no tienen destino: abren el asistente en su paso.
-                    let clave = alta?.pasos.first(where: { $0.titulo == x.2 && Self.pasosAlta[$0.clave] != nil })?.clave
-                    var hacer: (() -> Void)?
-                    if x.3 == nil { hacer = { estado.altaAbierta = PasoAlta(clave: clave) } }
-                    return Pendiente2A(id: x.2, icono: x.1, tono: .verde, titulo: x.2, detalle: i == 0 ? "Lo que sigue" : "Cuando quieras",
-                                       accion: x.3 == nil ? "Completar" : "Hacer", ir: x.3, hacer: hacer)
-                })
-            }
-        } else if estado.escribe {
-            VStack(alignment: .leading, spacing: 8) {
-                TituloBloque(texto: "Acciones rápidas")
-                ListaPendientes(filas: [
-                    Pendiente2A(id: "mira", icono: "viewfinder", tono: .oro, titulo: "Captá un cartel con MIRA", detalle: "Fotografiá sólo el cartel", accion: "Abrir", ir: nil) { estado.miraAbierta = true },
-                    Pendiente2A(id: "alta", icono: "house", tono: .verde, titulo: "Cargá una propiedad", detalle: "En un minuto, con fotos", accion: "Cargar", ir: AAltaPropiedad()),
-                    Pendiente2A(id: "visita", icono: "calendar.badge.plus", tono: .azul, titulo: "Agendá una visita", detalle: "Le avisamos al cliente", accion: "Agendar", ir: AAgendaDia()),
-                ])
-            }
-        }
-    }
-}
-
 /// «2 cambios en cola»: lo cargado sin señal que todavía no subió.
 struct ColaVisible: View {
     @Environment(Cola.self) private var cola
@@ -746,7 +795,17 @@ struct PortadaInicio: View {
     var inmo: Inmobiliaria?
     var saludo: String
     var resumen: String
+    /// «BELGRANO 22°» al lado de la fecha (GET /v1/clima) y, de noche, la hora.
+    var clima: Clima? = nil
+    var noche = false
     var cargar: () -> Void
+
+    private var fecha: String {
+        var t = Formato.mayuscula(Formato.diaCompleto(Date()))
+        if let c = clima { t += " · \(c.zona.uppercased()) \(c.temperatura)°" }
+        if noche { t += " · \(Formato.horaDe(Date()))" }
+        return t
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -786,7 +845,7 @@ struct PortadaInicio: View {
                     boton("bell", "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) }
                 }
                 Spacer(minLength: 0)
-                Text(Formato.mayuscula(Formato.diaCompleto(Date()))).estilo(.subhead).foregroundStyle(C.texto2)
+                Text(fecha).estilo(.subhead).foregroundStyle(C.texto2)
                 Text(saludo).font(Estilo(tamano: 32, peso: .extrabold, tracking: -0.03, relativo: .largeTitle).font)
                     .foregroundStyle(C.texto).lineLimit(2).minimumScaleFactor(0.8)
                     .accessibilityAddTraits(.isHeader)

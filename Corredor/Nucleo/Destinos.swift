@@ -71,7 +71,9 @@ struct Ruta: Equatable {
     /// panel web (`/propiedades/123`, `/mensajes/abc`), que son las que manda la API en los avisos.
     /// `/propiedades/nueva?borrador=<id>` sigue ese borrador.
     init?(texto: String) {
-        let borrador = URLComponents(string: texto)?.queryItems?.first { $0.name == "borrador" }?.value
+        let items = URLComponents(string: texto)?.queryItems ?? []
+        func param(_ n: String) -> String? { items.first { $0.name == n }?.value?.nonEmpty }
+        let borrador = param("borrador")
         var t = texto
         if let q = t.firstIndex(of: "?") { t = String(t[..<q]) }
         if let u = URL(string: texto), u.scheme == "corredor" {
@@ -85,20 +87,82 @@ struct Ruta: Equatable {
         switch a {
         case "inicio": self.init(.inicio)
         case "propiedad", "propiedades":
-            self.init(.propiedades, id.map { $0 == "nueva" ? AnyHashable(AAltaPropiedad(borrador: borrador)) : AnyHashable(AFichaPropiedad(id: $0)) })
+            if id == "nueva" {
+                self.init(.propiedades, AAltaPropiedad(borrador: borrador))
+            } else if let id, param("arreglar") != nil {
+                // `?arreglar=<portal>`: la ficha con la hoja de «Arreglar» abierta.
+                self.init(.propiedades, AArreglarPropiedad(id: id))
+            } else if let id, param("compartir") == "whatsapp" {
+                // `?compartir=whatsapp&contacto=<id>`: la ficha con la hoja de mandar abierta.
+                self.init(.propiedades, AMandarPropiedad(id: id, contacto: param("contacto")))
+            } else {
+                self.init(.propiedades, id.map { AnyHashable(AFichaPropiedad(id: $0)) })
+            }
         case "mira": self.init(.mira, id == "captadas" ? AnyHashable(ACaptadas()) : nil)
         case "chat", "mensajes", "whatsapp": self.init(.mensajes, id.map { AnyHashable(AChat(id: $0)) })
-        case "ml", "mercadolibre": self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })
+        case "ml", "mercadolibre":
+            // `/mercadolibre/preguntas?pregunta=<id>` (los avisos) o `ml/<id>` (el push).
+            if id == "preguntas" || id == nil {
+                self.init(.mensajes, param("pregunta").map { AnyHashable(APreguntaML(id: $0)) } ?? AnyHashable(AMercadoLibre()))
+            } else {
+                self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })
+            }
         case "agenda": self.init(.inicio, id.map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
         case "mas": self.init(.mas)
         case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos()))
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
-        case "cobranzas": self.init(.inicio, ACobranzas())
-        case "contrato", "contratos": self.init(.inicio, id.map { AnyHashable(AFichaContrato(id: $0)) } ?? AnyHashable(AContratos()))
-        case "inventario", "inventarios": self.init(.inicio, id.map { AnyHashable(AInventario(id: $0)) })
+        case "cobranzas":
+            // `/cobranzas?registrar=1&contrato=<id>`: la hoja de «Registrar cobro» abierta.
+            if param("registrar") == "1" { self.init(.inicio, ARegistrarCobro(contrato: param("contrato"))) } else { self.init(.inicio, ACobranzas()) }
+        case "contrato", "contratos":
+            if id == "nuevo" {
+                self.init(.inicio, AAltaContrato(borrador: borrador, renovar: param("renovar")))
+            } else if let id, let mes = param("recordar") {
+                // `/contratos/<id>?recordar=AAAA-MM`: el recordatorio de ese mes.
+                self.init(.inicio, ARecordarMes(contrato: id, periodo: mes))
+            } else if let id {
+                self.init(.inicio, AFichaContrato(id: id))
+            } else if param("vista") != nil || param("indice") != nil {
+                self.init(.inicio, AContratosFiltro(vista: param("vista"), indice: param("indice")))
+            } else {
+                self.init(.inicio, AContratos())
+            }
+        case "rendicion", "rendiciones":
+            // `/rendiciones/<id>?contrato=<c>` (y `&vista=1`, como la ve el propietario).
+            if let id, let c = param("contrato") {
+                self.init(.inicio, param("vista") == "1" ? AnyHashable(ARendicionVista(contrato: c, id: id)) : AnyHashable(ARendicion(contrato: c, id: id)))
+            } else {
+                self.init(.mas, ASeccion(clave: "rendiciones"))
+            }
+        case "inventario", "inventarios":
+            // `/inventarios/<prop>/actas/<acta>` (las firmas), `/inventarios/<prop>/devolucion`,
+            // `/inventarios/<prop>?tipo=entrega|devolucion` (la recorrida en ese modo) o la recorrida.
+            if let id, p.count > 3, p[2] == "actas" {
+                self.init(.inicio, AFirmas(id: "\(id)/\(p[3])"))
+            } else if let id, p.count > 2, p[2] == "devolucion" {
+                self.init(.inicio, ADevolucion(id: id))
+            } else if let id, let tipo = param("tipo") {
+                self.init(.inicio, ARecorrida(id: id, tipo: tipo))
+            } else if let id {
+                self.init(.inicio, AInventario(id: id))
+            } else {
+                self.init(.mas, ASeccion(clave: "inventarios"))
+            }
         case "avisos": self.init(.inicio, AAvisos())
         case "perfil": self.init(.inicio, APerfil())
-        case "buscar": self.init(.inicio, ABuscar())
+        case "buscar": self.init(.inicio, ABuscar(texto: param("q") ?? ""))
+        case "reserva", "reservas": self.init(.mas, id.map { AnyHashable(AReserva(id: $0)) } ?? AnyHashable(ASeccion(clave: "reservas")))
+        case "temporada":
+            if id == "reservas", p.count > 2 { self.init(.mas, AReservaTemporada(id: p[2])) } else { self.init(.mas, ASeccion(clave: "temporada")) }
+        // Configuración: cada sección por su nombre (`/configuracion/equipo`, `/configuracion/ia`…).
+        case "configuracion":
+            let sub = id.flatMap { ["equipo", "integraciones", "ia", "proveedores", "respuestas"].contains($0) ? $0 : nil }
+            self.init(.mas, ASeccion(clave: sub ?? "configuracion"))
+        // `/invitacion/<token>`: la invitación para ver antes de aceptar.
+        case "invitacion": self.init(.mas, ASeccion(clave: id == nil ? "invitaciones" : "invitacion", id: id))
+        // `/conectar-ia/autorizar?solicitud=<id>`: el permiso que pide el asistente.
+        case "conectar-ia":
+            if let s = param("solicitud") { self.init(.mas, ASeccion(clave: "autorizar-ia", id: s)) } else { self.init(.mas, ASeccion(clave: "ia")) }
         // Rutas del panel con id (los avisos traen las de la web): la ficha, no la lista.
         case "consorcios", "consorcio": self.init(.mas, ASeccion(clave: id == nil ? "consorcios" : "consorcio", id: id))
         case "emprendimientos", "emprendimiento": self.init(.mas, ASeccion(clave: id == nil ? "emprendimientos" : "emprendimiento", id: id))

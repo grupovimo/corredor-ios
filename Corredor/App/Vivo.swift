@@ -63,14 +63,38 @@ extension Estado {
         case "cambio", "resync":
             // La marca (logo, colores) o el alta cambiaron (se publicó la web, se completó un paso):
             // la estructura se vuelve a pedir enseguida, así el acento y el porcentaje quedan al día.
-            struct C: Decodable { var tabla: String? }
-            if evento == "resync" || (try? JSONDecoder().decode(C.self, from: Data(datos.utf8)))?.tabla == "inmobiliarias" {
+            struct C: Decodable { var tabla: String?; var op: String?; var id: String? }
+            let c = try? JSONDecoder().decode(C.self, from: Data(datos.utf8))
+            if evento == "resync" || c?.tabla == "inmobiliarias" {
                 Task { await cargarEstructura() }
             }
+            // Otra persona movió una operación: «Sofía pasó Mendoza 2350 a Visita · recién», con «Ver».
+            if c?.tabla == "operaciones", c?.op == "update", let id = c?.id { Task { await avisarMovida(id) } }
             cambio()
         default:
             break
         }
+    }
+
+    /// La última movida de la operación (operaciones/[id]/movida del panel): quién la pasó y a qué etapa,
+    /// si fue un cambio de etapa del último minuto y no lo hizo quien mira.
+    private func avisarMovida(_ id: String) async {
+        struct Evento: Decodable {
+            struct Datos: Decodable { var hasta: String? }
+            var tipo: String?
+            var datos: Datos?
+            var autorId: String?
+            var autorNombre: String?
+            var creadoEn: Date?
+        }
+        struct Op: Decodable { var titulo: String?; var propiedadTitulo: String? }
+        guard let historial: [Evento] = try? await api.get("/v1/operaciones/\(id)/historial"), let e = historial.first,
+              e.tipo == "etapa", let hasta = e.datos?.hasta, let autor = e.autorId, autor != usuario?.id,
+              let en = e.creadoEn, Date().timeIntervalSince(en) <= 60,
+              let op: Op = try? await api.get("/v1/operaciones/\(id)") else { return }
+        let quien = (e.autorNombre ?? "").split(separator: " ").first.map(String.init) ?? ""
+        let que = (op.propiedadTitulo ?? op.titulo ?? "").split(separator: ",").first.map(String.init) ?? ""
+        sugerir("\(quien) pasó \(que) a \(Operacion.etapaTexto(hasta)) · recién", "Ver", AFichaOperacion(id: id))
     }
 
     /// Junta los cambios que llegan seguidos (una importación, un lote de cobros) en una sola recarga.
