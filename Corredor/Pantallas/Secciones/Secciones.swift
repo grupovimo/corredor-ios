@@ -154,6 +154,7 @@ struct ConfigInmobiliaria: View {
     @State private var zona = "America/Argentina/Buenos_Aires"
     @State private var legales: [String: String] = [:]
     @State private var guardando = false
+    @State private var rubrosTexto = ""
 
     private static let camposLegales = [("razonSocial", "Razón social"), ("cuit", "CUIT"), ("corredorResponsable", "Corredor responsable"), ("matricula", "Matrícula"), ("colegio", "Colegio")]
 
@@ -174,6 +175,11 @@ struct ConfigInmobiliaria: View {
                         .keyboardType(k == "cuit" || k == "matricula" ? .numbersAndPunctuation : .default)
                 }
             }
+            Section(header: Text("Qué hacen y dónde"), footer: Text("Así la app te muestra sólo lo que usás.")) {
+                Button { estado.altaAbierta = PasoAlta(clave: "rubros") } label: {
+                    LabeledContent("Rubros y zonas", value: rubrosTexto)
+                }
+            }
             Section { Button("Mi web: logo, colores y dominio") { estado.abrir(ASeccion(clave: "web")) } }
         }
         .disabled(!estado.esDuenio)
@@ -181,8 +187,12 @@ struct ConfigInmobiliaria: View {
         .pantallaApilada("Inmobiliaria")
         .toolbar { if estado.esDuenio { Button("Guardar") { Task { await guardar() } }.disabled(guardando) } }
         .task {
-            struct I: Decodable { var nombre: String?; var cbu: String?; var zonaHoraria: String?; var legales: [String: String?]? }
+            struct P: Decodable { var rubros: [String]?; var zonas: [String]? }
+            struct I: Decodable { var nombre: String?; var cbu: String?; var zonaHoraria: String?; var legales: [String: String?]?; var perfil: P? }
             if let i: I = try? await estado.api.get("/v1/inmobiliaria") {
+                let nombres = ["ventas": "Ventas", "alquileres": "Alquileres", "temporada": "Temporada", "emprendimientos": "Emprendimientos", "consorcios": "Consorcios"]
+                let r = (i.perfil?.rubros ?? []).compactMap { nombres[$0] }
+                rubrosTexto = r.isEmpty ? "Sin elegir" : r.joined(separator: ", ")
                 nombre = i.nombre ?? ""
                 cbu = i.cbu ?? ""
                 zona = i.zonaHoraria ?? zona
