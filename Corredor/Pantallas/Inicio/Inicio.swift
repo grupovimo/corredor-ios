@@ -636,29 +636,45 @@ struct EquipoAhora: View {
 struct PrimerosPasos: View {
     @Environment(Estado.self) private var estado
     var guia: Guia
-    /// Los pasos de la guía de la API, más el de la cobranza para la dueña (también se lleva desde acá).
-    private var pasos: [(Bool, String, String, AnyHashable)] {
+    /// Los pasos del alta que van en el Inicio (nombre, arranque y publicar ya están en otros pasos).
+    static let pasosAlta: [String: String] = ["logo": "photo.badge.plus", "marca": "paintpalette", "portada": "photo", "contacto": "phone",
+                                              "legales": "checkmark.seal", "rubros": "square.grid.2x2"]
+
+    /// Los pasos de la guía de la API y, para el dueño, los del alta (cada uno abre su paso del
+    /// asistente) y el de la cobranza.
+    private var pasos: [(Bool, String, String, AnyHashable?)] {
         let p = guia.pasos
-        var pasos: [(Bool, String, String, AnyHashable)] = [
-            (p?.propiedad ?? false, "house", "Cargá tu primera propiedad", AAltaPropiedad()),
-            (p?.datos ?? false, "paintpalette", "Poné tu logo y tus colores", ASeccion(clave: "web")),
-            (p?.whatsapp ?? false, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", ASeccion(clave: "integraciones")),
-            (p?.equipo ?? false, "person.badge.plus", "Sumá a tu equipo", ASeccion(clave: "equipo")),
-            (p?.portales ?? false, "storefront", "Publicá en Mercado Libre y portales", ASeccion(clave: "integraciones")),
-            (p?.web ?? false, "globe", "Mirá tu web", ASeccion(clave: "web")),
+        var pasos: [(Bool, String, String, AnyHashable?)] = [(p?.propiedad ?? false, "house", "Cargá tu primera propiedad", AnyHashable(AAltaPropiedad()))]
+        if estado.esDuenio, let alta = estado.estructura?.alta {
+            pasos += alta.pasos.compactMap { x in Self.pasosAlta[x.clave].map { (x.hecho, $0, x.titulo, AnyHashable?.none) } }
+        } else {
+            pasos.append((p?.datos ?? false, "paintpalette", "Poné tu logo y tus colores", AnyHashable(ASeccion(clave: "web"))))
+        }
+        pasos += [
+            (p?.whatsapp ?? false, "bubble.left.and.bubble.right", "Conectá tu WhatsApp", AnyHashable(ASeccion(clave: "integraciones"))),
+            (p?.equipo ?? false, "person.badge.plus", "Sumá a tu equipo", AnyHashable(ASeccion(clave: "equipo"))),
+            (p?.portales ?? false, "storefront", "Publicá en Mercado Libre y portales", AnyHashable(ASeccion(clave: "integraciones"))),
+            (p?.web ?? false, "globe", "Mirá tu web", AnyHashable(ASeccion(clave: "web"))),
         ]
-        if estado.esDuenio { pasos.insert(((guia.contratos ?? 0) > 0, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AContratos()), at: 1) }
+        if estado.esDuenio { pasos.insert(((guia.contratos ?? 0) > 0, "dollarsign.circle", "Cargá un contrato y cobrá desde el celular", AnyHashable(AContratos())), at: 1) }
         return pasos
     }
 
     var body: some View {
         let pasos = pasos
         let faltan = pasos.filter { !$0.0 }
+        let alta = estado.esDuenio ? estado.estructura?.alta : nil
         if !faltan.isEmpty && guia.pasosOcultos != true {
             VStack(alignment: .leading, spacing: 8) {
-                TituloBloque(texto: "Primeros pasos", cuenta: "\(pasos.count - faltan.count) de \(pasos.count)")
-                ListaPendientes(filas: faltan.prefix(4).enumerated().map { i, x in
-                    Pendiente2A(id: x.2, icono: x.1, tono: .verde, titulo: x.2, detalle: i == 0 ? "Lo que sigue" : "Cuando quieras", accion: "Hacer", ir: x.3)
+                // Con el alta, el porcentaje de la inmobiliaria; si no, cuántos pasos van.
+                TituloBloque(texto: "Primeros pasos", cuenta: alta.map { "Tu inmobiliaria al \($0.completo) %" } ?? "\(pasos.count - faltan.count) de \(pasos.count)")
+                ListaPendientes(filas: faltan.prefix(4).enumerated().map { i, x -> Pendiente2A in
+                    // Los del alta no tienen destino: abren el asistente en su paso.
+                    let clave = alta?.pasos.first(where: { $0.titulo == x.2 && Self.pasosAlta[$0.clave] != nil })?.clave
+                    var hacer: (() -> Void)?
+                    if x.3 == nil { hacer = { estado.altaAbierta = PasoAlta(clave: clave) } }
+                    return Pendiente2A(id: x.2, icono: x.1, tono: .verde, titulo: x.2, detalle: i == 0 ? "Lo que sigue" : "Cuando quieras",
+                                       accion: x.3 == nil ? "Completar" : "Hacer", ir: x.3, hacer: hacer)
                 })
             }
         } else if estado.escribe {
@@ -717,6 +733,8 @@ struct BotonHundido: ButtonStyle {
 /// logo, el nombre, los botones, el saludo y el resumen del día encima.
 struct PortadaInicio: View {
     @Environment(Estado.self) private var estado
+    @Environment(\.colorScheme) private var esquema
+    @AppStorage("tema") private var tema = "sistema"
     var inmo: Inmobiliaria?
     var saludo: String
     var resumen: String
@@ -751,6 +769,11 @@ struct PortadaInicio: View {
                         .foregroundStyle(.white.opacity(0.9)).lineLimit(1)
                     Spacer(minLength: 4)
                     if estado.escribe { boton("plus", "Cargar", cargar) }
+                    // Claro / oscuro en un toque (también arriba de «Más», con «Automático»).
+                    boton(esquema == .dark ? "sun.max" : "moon", esquema == .dark ? "Pasar a modo claro" : "Pasar a modo oscuro") {
+                        Haptico.seleccion()
+                        tema = esquema == .dark ? "claro" : "oscuro"
+                    }
                     boton("magnifyingglass", "Buscar") { estado.abrir(ABuscar()) }
                     boton("bell", "Avisos", insignia: estado.avisosPendientes) { estado.abrir(AAvisos()) }
                 }

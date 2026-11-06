@@ -40,17 +40,17 @@ struct Buscar: View {
                 VStack(alignment: .leading, spacing: 18) {
                     // Secciones y acciones («cobrar», «expensas», «dominio»): lo que la app hace, también se busca.
                     let f = MasRaiz.normal(texto)
-                    let secciones = f.count < 2 ? [] : MasRaiz.grupos(duenio: estado.esDuenio, avisos: 0).flatMap(\.1).filter { MasRaiz.coincide($0, f) }
+                    let secciones = f.count < 2 ? [] : MasRaiz.secciones(estado.estructura, duenio: estado.esDuenio).filter { MasRaiz.coincide($0, f) }
                     if !secciones.isEmpty {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("EN LA APP").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font)
                                 .tracking(0.5).foregroundStyle(C.texto2).padding(.horizontal, 4)
                             VStack(spacing: 0) {
                                 ForEach(Array(secciones.prefix(6).enumerated()), id: \.element.id) { i, it in
-                                    Button { estado.abrir(it.destino) } label: {
+                                    Button { if let d = Lugares.secciones[it.clave]?.1 { estado.abrir(d) } } label: {
                                         HStack(spacing: 12) {
-                                            Image(systemName: it.icono).font(.system(size: 19)).foregroundStyle(C.accion).frame(width: 24)
-                                            Text(it.texto).estilo(.filaLista).foregroundStyle(C.texto)
+                                            Image(systemName: Lugares.secciones[it.clave]?.0 ?? "square.grid.2x2").font(.system(size: 19)).foregroundStyle(C.accion).frame(width: 24)
+                                            Text(it.nombre).estilo(.filaLista).foregroundStyle(C.texto)
                                             Spacer()
                                             Chevron()
                                         }

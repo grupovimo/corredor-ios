@@ -41,6 +41,10 @@ struct Principal: View {
         .fullScreenCover(isPresented: $estado.miraAbierta) {
             MiraRaiz().environment(estado).environment(estado.cola)
         }
+        // El alta de la inmobiliaria: la primera vez (sin logo ni WhatsApp no se entra) y desde «Completar».
+        .fullScreenCover(item: $estado.altaAbierta) { p in
+            AltaInmobiliaria(inicial: p.clave).environment(estado).environment(estado.cola)
+        }
         .overlay(alignment: .bottom) {
             if let a = estado.aviso {
                 VistaAviso(aviso: a) { estado.aviso = nil }
@@ -253,7 +257,8 @@ enum HojaRapida: String, Identifiable {
 }
 
 /// El abanico del botón del medio: círculos en arco con las acciones rápidas (MIRA es una más). Llega a
-/// cosas que no están a mano en las pestañas, como editar la web.
+/// cosas que no están a mano en las pestañas, como editar la web. Las acciones las da la API (las
+/// mismas que el panel, sin las de rubros que la inmobiliaria no usa).
 struct AccionesRapidas: View {
     @Environment(Estado.self) private var estado
     @State private var visible = false
@@ -266,23 +271,72 @@ struct AccionesRapidas: View {
         var id: String { nombre }
     }
 
-    private var acciones: [Accion] {
+    /// Qué hace cada clave de la API.
+    private func accion(_ clave: String, _ nombre: String) -> Accion? {
         let e = estado
         func ir(_ d: AnyHashable) -> () -> Void { { e.abrir(d) } }
-        guard e.escribe else {
-            return [Accion(icono: "magnifyingglass", nombre: "Buscar", hacer: ir(ABuscar())),
-                    Accion(icono: "calendar", nombre: "Agenda", hacer: ir(AAgendaDia())),
-                    Accion(icono: "bell", nombre: "Avisos", hacer: ir(AAvisos()))]
+        let icono = Lugares.rapidas[clave] ?? "circle"
+        switch clave {
+        case "captar": return Accion(icono: icono, nombre: nombre, destacada: true) { e.miraAbierta = true }
+        case "propiedad": return Accion(icono: icono, nombre: nombre, hacer: ir(AAltaPropiedad()))
+        case "contacto": return Accion(icono: icono, nombre: nombre) { e.hojaRapida = .contacto }
+        case "visita": return Accion(icono: icono, nombre: nombre) { e.hojaRapida = .visita }
+        case "contrato": return Accion(icono: icono, nombre: nombre) { e.hojaRapida = .contrato }
+        case "cobrar": return Accion(icono: icono, nombre: nombre, hacer: ir(ACobranzas()))
+        case "web": return Accion(icono: icono, nombre: nombre, hacer: ir(ASeccion(clave: "web")))
+        case "buscar": return Accion(icono: icono, nombre: nombre, hacer: ir(ABuscar()))
+        case "agenda": return Accion(icono: icono, nombre: nombre, hacer: ir(AAgendaDia()))
+        case "avisos": return Accion(icono: icono, nombre: nombre, hacer: ir(AAvisos()))
+        default: return nil
         }
-        var a = [Accion(icono: "viewfinder", nombre: "Captar", destacada: true) { e.miraAbierta = true },
-                 Accion(icono: "house", nombre: "Propiedad", hacer: ir(AAltaPropiedad())),
-                 Accion(icono: "person.badge.plus", nombre: "Contacto") { e.hojaRapida = .contacto },
-                 Accion(icono: "calendar.badge.plus", nombre: "Visita") { e.hojaRapida = .visita },
-                 Accion(icono: "doc.badge.plus", nombre: "Contrato") { e.hojaRapida = .contrato },
-                 Accion(icono: "dollarsign.circle", nombre: "Cobrar", hacer: ir(ACobranzas()))]
-        if e.esDuenio { a.append(Accion(icono: "paintbrush", nombre: "Mi web", hacer: ir(ASeccion(clave: "web")))) }
-        return a
     }
+
+    private var acciones: [Accion] {
+        let e = estado
+        // Las de la API; sin ella todavía, las de siempre según el rol.
+        var rapidas: [(String, String)]
+        if let r = e.estructura?.rapidas {
+            rapidas = r.map { ($0.clave, $0.nombre) }
+        } else if e.escribe {
+            rapidas = [("captar", "Captar"), ("propiedad", "Propiedad"), ("contacto", "Contacto"), ("visita", "Visita"), ("contrato", "Contrato"), ("cobrar", "Cobrar")]
+            if e.esDuenio { rapidas.append(("web", "Mi web")) }
+        } else {
+            rapidas = [("buscar", "Buscar"), ("agenda", "Agenda"), ("avisos", "Avisos")]
+        }
+        return rapidas.compactMap { accion($0.0, $0.1) }
+    }
+
+    /// Dónde va cada acción (el centro de su círculo con el nombre), sobre el botón del medio. `alto` es
+    /// lo que queda arriba de la barra. Hasta cuatro, en arco de 160° a 20° (no de 180° a 0°: en las
+    /// puntas el nombre caía debajo de la barra y no se leía). Con más no entran en un arco sin
+    /// pisarse a 375: van en dos filas apenas curvas (la de abajo con la mitad más uno).
+    static func posiciones(cantidad n: Int, ancho: CGFloat, alto: CGFloat) -> [CGPoint] {
+        guard n > 0 else { return [] }
+        let base = alto - 20 - tamanoAccion.height / 2
+        if n <= 4 {
+            let radio = min(ancho / 2 - tamanoAccion.width / 2 - 12, 140)
+            let centro = CGPoint(x: ancho / 2, y: base + radio * 0.34)
+            return (0..<n).map { i in
+                let t = n > 1 ? Double(i) / Double(n - 1) : 0.5
+                let angulo = (160 - 140 * t) * .pi / 180
+                return CGPoint(x: centro.x + cos(angulo) * radio, y: centro.y - sin(angulo) * radio)
+            }
+        }
+        let abajo = (n + 1) / 2
+        let paso = min((ancho - 24) / CGFloat(abajo), 88)
+        func fila(_ cuantos: Int, _ y: CGFloat) -> [CGPoint] {
+            (0..<cuantos).map { i in
+                let x = ancho / 2 + (CGFloat(i) - CGFloat(cuantos - 1) / 2) * paso
+                // Apenas curva: las del medio un poco más arriba.
+                let d = abs(x - ancho / 2) / max(ancho / 2, 1)
+                return CGPoint(x: x, y: y - 12 * (1 - d * d))
+            }
+        }
+        return fila(n - abajo, base - tamanoAccion.height - 18) + fila(abajo, base)
+    }
+
+    /// El tamaño de cada acción: el círculo de 56 y el nombre abajo (para las pruebas de que entra).
+    static let tamanoAccion = CGSize(width: 76, height: 56 + 6 + 16)
 
     var body: some View {
         let lista = acciones
@@ -293,14 +347,9 @@ struct AccionesRapidas: View {
                     .onTapGesture { cerrar() }
                     .accessibilityLabel("Cerrar las acciones rápidas")
                     .accessibilityAddTraits(.isButton)
-                // En arco sobre el botón del medio: de izquierda a derecha.
-                let centro = CGPoint(x: g.size.width / 2, y: g.size.height + 6)
-                let radio = min(g.size.width / 2 - 44, 150.0)
+                let puntos = Self.posiciones(cantidad: lista.count, ancho: g.size.width, alto: g.size.height)
+                let origen = CGPoint(x: g.size.width / 2, y: g.size.height + 6)
                 ForEach(Array(lista.enumerated()), id: \.element.id) { i, a in
-                    let paso = lista.count > 1 ? 180.0 / Double(lista.count - 1) : 0
-                    let angulo = (180 - Double(i) * paso) * .pi / 180
-                    let x = centro.x + cos(angulo) * radio * (lista.count > 4 ? 1 : 0.75)
-                    let y = centro.y - sin(angulo) * radio * (lista.count > 4 ? 1 : 0.75) - 34
                     Button {
                         Haptico.seleccion()
                         cerrar()
@@ -313,13 +362,14 @@ struct AccionesRapidas: View {
                                 .background(a.destacada ? AnyShapeStyle(C.oro) : AnyShapeStyle(C.superficie), in: Circle())
                                 .shadow(color: .black.opacity(0.3), radius: 10, y: 6)
                             Text(a.nombre).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(.white)
+                                .lineLimit(1).fixedSize()
                                 .shadow(color: .black.opacity(0.5), radius: 3)
                         }
                     }
                     .buttonStyle(Presionable())
                     .scaleEffect(visible ? 1 : 0.3)
                     .opacity(visible ? 1 : 0)
-                    .position(x: visible ? x : centro.x, y: visible ? y : centro.y)
+                    .position(visible ? puntos[i] : origen)
                     .animation(.spring(duration: 0.4, bounce: 0.35).delay(Double(i) * 0.025), value: visible)
                 }
             }

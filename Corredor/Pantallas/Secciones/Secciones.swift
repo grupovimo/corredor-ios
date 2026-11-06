@@ -810,8 +810,10 @@ struct Indices: View {
 
 // MARK: - Mi web
 
-/// Mi web: el link para compartir, la plantilla, los colores, la frase, nosotros, contacto y los
-/// textos de cada barrio. Se guarda solo: guardar es publicar.
+/// Mi web: arriba la web real con los cambios (tocás una parte y se abre su editor), el logo y la
+/// portada, el link para compartir, la plantilla, los colores, la frase, nosotros, contacto y los
+/// textos de cada barrio. Todo se guarda solo en el borrador (el mismo que el panel web) y sale a la
+/// web con «Publicar»; los barrios y el dominio, al instante (no son de la marca).
 struct MiWeb: View {
     @Environment(Estado.self) private var estado
     @State private var web: String?
@@ -828,6 +830,17 @@ struct MiWeb: View {
     @State private var paginaNueva = false
     @State private var tituloPagina = ""
     @State private var editandoSeccion: Int?
+    /// El borrador: el `en` del último guardado (para no pisar lo de otro), si hay cambios sin publicar,
+    /// la vista previa y lo que se tocó en ella.
+    @State private var en: String?
+    @State private var hayBorrador = false
+    @State private var previa: URL?
+    @State private var recarga = 0
+    @State private var zona: ZonaWeb?
+    @State private var publicando = false
+
+    /// Una parte de la web tocada en la vista previa.
+    struct ZonaWeb: Identifiable { var clave: String; var id: String { clave } }
 
     struct BarrioWeb: Codable, Identifiable { var nombre: String; var cantidad: Int?; var texto: String?; var id: String { nombre } }
 
@@ -836,6 +849,17 @@ struct MiWeb: View {
 
     var body: some View {
         Form {
+            Section {
+                MarcoPrevia(url: previa, recarga: recarga) { tocar($0) }
+                    .listRowInsets(EdgeInsets(top: 12, leading: 24, bottom: 12, trailing: 24))
+                    .listRowBackground(Color.clear)
+            }
+            Section(header: Text("Logo y portada"), footer: Text("El logo va en tu web, en los recibos y en la app.")) {
+                SubirImagenMarca(titulo: "Subí tu logo", url: marca["logoUrl"]) { u, _ in marca["logoUrl"] = u; programar(ya: true) }
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                SubirImagenMarca(titulo: "Subí la foto de portada", url: marca["portadaUrl"], ancha: true) { u, _ in marca["portadaUrl"] = u; programar(ya: true) }
+                    .listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+            }
             if let w = web, let u = URL(string: w) {
                 Section {
                     Link(destination: u) { Label(w.replacingOccurrences(of: "https://", with: ""), systemImage: "globe") }
@@ -935,13 +959,18 @@ struct MiWeb: View {
         .environment(\.editMode, .constant(.active))
         .scrollContentBackground(.hidden).background(FondoApp())
         .pantallaApilada("Mi web")
+        .safeAreaInset(edge: .bottom) { if estado.esDuenio { barraPublicar } }
+        .sheet(item: $zona) { z in
+            EditorZonaWeb(zona: z.clave, marca: $marca) { programar(ya: true) }
+                .presentationDetents([.medium, .large])
+        }
+        // Lo cambiado desde la computadora (o el alta) se trae, si acá no hay nada esperando guardarse.
+        .task(id: estado.version) { if guardado == nil, !publicando { await traerBorrador() } }
         .task {
-            struct I: Decodable { var web: String?; var marca: [String: JSONLibre]? }
-            if let i: I = try? await estado.api.get("/v1/inmobiliaria") {
-                web = i.web
-                completa = i.marca ?? [:]
-                marca = (i.marca ?? [:]).compactMapValues { $0.texto }
-            }
+            struct I: Decodable { var web: String? }
+            if let i: I = try? await estado.api.get("/v1/inmobiliaria") { web = i.web }
+            await traerBorrador()
+            if estado.esDuenio { previa = try? await BorradorWeb.urlPrevia(estado.api, slug: estado.inmobiliaria?.slug ?? "") }
             barrios = (try? await estado.api.get("/v1/web/barrios")) ?? []
             guardadas = try? await estado.api.get("/v1/web/guardadas", query: [.init(name: "dias", value: "7")])
             await cargarDominio()
@@ -1101,19 +1130,99 @@ struct MiWeb: View {
         })
     }
 
-    private func programar() {
+    /// Guarda el borrador (no publica): enseguida con `ya`, o un ratito después de dejar de escribir.
+    private func programar(ya: Bool = false) {
         guardado?.cancel()
+        hayBorrador = true
         guardado = Task {
-            try? await Task.sleep(for: .milliseconds(900))
+            if !ya { try? await Task.sleep(for: .milliseconds(900)) }
             if Task.isCancelled { return }
-            struct Cuerpo: Encodable { var marca: [String: JSONLibre] }
             var m = completa
-            for (k, v) in marca { m[k] = .texto(v) }
+            for (k, v) in marca { m.poner(k, v) }
+            // Lo que se borró del todo (un texto vaciado) también sale.
+            for k in completa.keys where completa[k]?.texto != nil && marca[k] == nil { m[k] = nil }
             do {
-                try await estado.api.hacer("PATCH", "/v1/inmobiliaria", Cuerpo(marca: m))
-                completa = m
+                let b = try await BorradorWeb.guardar(estado.api, marca: m, si: en)
+                completa = b.marca
+                en = b.en
+                hayBorrador = b.hayBorrador
+                recarga += 1
+            } catch let e as ErrorApi where e.codigo == "borrador_cambiado" {
+                estado.avisar("Tu web se cambió desde otro lado. Trajimos lo último.", ok: false)
+                await traerBorrador()
             } catch { estado.avisar(error) }
+            guardado = nil
         }
+    }
+
+    private func traerBorrador() async {
+        guard let b = try? await BorradorWeb.leer(estado.api) else { return }
+        guard b.en != en || b.hayBorrador != hayBorrador || completa.isEmpty else { return }
+        completa = b.marca
+        marca = b.marca.compactMapValues { $0.texto }
+        en = b.en
+        hayBorrador = b.hayBorrador
+        recarga += 1
+    }
+
+    /// Lo tocado en la vista previa: su editor (o, una sección, la de «Página de inicio»).
+    private func tocar(_ z: String) {
+        if z.hasPrefix("seccion:") {
+            let id = String(z.dropFirst(8))
+            guard let i = secciones.firstIndex(where: { $0["id"]?.texto == id }) else { return }
+            switch secciones[i]["tipo"]?.texto {
+            case "texto", "testimonios": editandoSeccion = i
+            case "portada": zona = ZonaWeb(clave: "portada")
+            default: estado.avisar("Esa sección se ordena o se apaga en «Página de inicio», más abajo.")
+            }
+        } else {
+            zona = ZonaWeb(clave: z)
+        }
+    }
+
+    /// «Publicar cambios» y «Descartar», siempre a mano mientras haya cambios sin publicar.
+    private var barraPublicar: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(hayBorrador ? "Cambios sin publicar" : "Igual a la publicada").estilo(.subheadFuerte).foregroundStyle(C.texto)
+                Text(hayBorrador ? "Se guardan solos; salen con «Publicar»" : "Lo que cambies se guarda aparte").estilo(.footnote).foregroundStyle(C.texto2)
+            }
+            Spacer(minLength: 0)
+            if hayBorrador {
+                Button("Descartar") { Task { await descartar() } }
+                    .font(Estilo.subheadFuerte.font).foregroundStyle(C.texto2).disabled(publicando)
+                Button { Task { await publicar() } } label: { Text(publicando ? "Publicando…" : "Publicar").padding(.horizontal, 16) }
+                    .buttonStyle(BotonPrincipal(alto: 44)).fixedSize().disabled(publicando)
+            }
+        }
+        .padding(.horizontal, 16).padding(.vertical, 10)
+        .background(.ultraThinMaterial)
+    }
+
+    private func publicar() async {
+        publicando = true
+        defer { publicando = false }
+        if let g = guardado { await g.value }
+        do {
+            try await BorradorWeb.publicar(estado.api)
+            hayBorrador = false
+            en = nil
+            Haptico.exito()
+            estado.avisar("Cambios publicados en tu web")
+            await estado.cargarEstructura()
+        } catch { estado.avisar(error) }
+    }
+
+    private func descartar() async {
+        guardado?.cancel()
+        guardado = nil
+        do {
+            try await BorradorWeb.descartar(estado.api)
+            en = nil
+            completa = [:]
+            await traerBorrador()
+            estado.avisar("Volviste a la web publicada")
+        } catch { estado.avisar(error) }
     }
 
     private func guardarBarrio(_ b: BarrioWeb) async {

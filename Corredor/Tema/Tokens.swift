@@ -41,15 +41,15 @@ enum C {
     static let texto2 = Color.tema(0x4D5853, 0xA8AEB2)
     static let texto3 = Color.tema(0x68716C, 0x8B9195)
     static let chevron = Color.tema(0xA9B1AC, 0x50585D)
-    /// Acción: verde en claro, oro en oscuro.
-    static let accion = Color.tema(0x16443B, 0xF2BB57)
+    /// Acción: el acento de la inmobiliaria (Tema/Acento.swift); sin marca, verde en claro y oro en oscuro.
+    static let accion = Color(uiColor: .accion)
     static let sobreAccion = Color.tema(0xFFFFFF, 0x1A1405)
     static let verde800 = Color(hex: 0x0F3530)
     static let verde700 = Color(hex: 0x16443B)
     static let oro = Color(hex: 0xF2BB57)
     static let oroTinta = Color.tema(0x7A5200, 0xF2BB57)
     static let acento = accion
-    static let primarioTexto = Color.tema(0x16443B, 0xF2BB57)
+    static let primarioTexto = accion
     static let primarioTinta = Color.tema(0x16443B, 0xF7CB73)
     static let crema = Color.tema(0xFBEDCC, 0xF2BB57, alfaOscuro: 0.18)
     static let crema2 = Color.tema(0xF7F3EA, 0x25292C)
@@ -247,13 +247,13 @@ enum Apariencia {
         a.largeTitleTextAttributes = [.font: grande, .kern: -0.85, .foregroundColor: UIColor.tema(0x18201D, 0xE8EFE9)]
         let boton = UIBarButtonItemAppearance()
         let fuenteBoton = UIFont(name: Peso.regular.nombre, size: 17) ?? .systemFont(ofSize: 17)
-        boton.normal.titleTextAttributes = [.font: fuenteBoton, .foregroundColor: UIColor.tema(0x16443B, 0xF2BB57)]
+        boton.normal.titleTextAttributes = [.font: fuenteBoton, .foregroundColor: UIColor.accion]
         a.buttonAppearance = boton
         a.backButtonAppearance = boton
         UINavigationBar.appearance().standardAppearance = a
         UINavigationBar.appearance().scrollEdgeAppearance = a
         UINavigationBar.appearance().compactAppearance = a
-        UINavigationBar.appearance().tintColor = .tema(0x16443B, 0xF2BB57)
+        UINavigationBar.appearance().tintColor = .accion
         UIRefreshControl.appearance().tintColor = .tema(0x68716C, 0x8A9A93)
     }
 }

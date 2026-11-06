@@ -91,6 +91,12 @@ final class Estado {
     var mostrarRecorrido = false
     /// Conectado al stream de cambios (App/Vivo.swift); sin él, el chat vuelve a consultar cada tanto.
     var enVivo = false
+    /// Mi inmobiliaria, Herramientas, el abanico y el alta, como los arma la API (Nucleo/Estructura.swift).
+    var estructura: Estructura?
+    /// Sube cuando cambia el acento de la marca: la raíz se vuelve a pintar con el color nuevo.
+    var marcaVersion = 0
+    /// El asistente del alta abierto (en un paso, o en el primero que falta).
+    var altaAbierta: PasoAlta?
     @ObservationIgnored var recargaVivo: Task<Void, Never>?
     let cola: Cola
     private(set) var tokenPush: String?
@@ -130,6 +136,11 @@ final class Estado {
         guard api.token != nil else {
             fase = .afuera
             return
+        }
+        // La marca guardada, para arrancar ya con el logo y el color de la inmobiliaria.
+        if let e = Guardado.leer(Estructura.self, clave: "estructura")?.0 {
+            estructura = e
+            ponerAcento(Acento.de(primario: e.marca?.colorPrimario, secundario: e.marca?.colorSecundario))
         }
         do {
             try await cargarSesion()
@@ -173,6 +184,7 @@ final class Estado {
         // Las compras del App Store que llegan solas (renovaciones, otro dispositivo) van a la API.
         Tienda.compartida.api = api
         Tienda.compartida.escuchar()
+        await cargarEstructura()
         await cargarSuscripcion()
         if !ModoPrueba.activo { await pedirPermisoPush() }
         cola.subir()
@@ -252,7 +264,12 @@ final class Estado {
     func elegir(_ m: Sesion.Membresia) async throws {
         struct Cuerpo: Encodable { var inmobiliariaId: String }
         let s: Sesion = try await api.enviar("PUT", "/v1/auth/inmobiliaria", Cuerpo(inmobiliariaId: m.inmobiliariaId))
-        if s.inmobiliariaId != sesion?.inmobiliariaId { Guardado.borrarTodo(); pilas = [:] }
+        if s.inmobiliariaId != sesion?.inmobiliariaId {
+            Guardado.borrarTodo()
+            pilas = [:]
+            estructura = nil
+            ponerAcento(nil)
+        }
         sesion = s
         Guardado.guardar(s, clave: "sesion")
         UserDefaults.standard.set(true, forKey: "eligio-\(s.usuario.id)")
@@ -287,6 +304,9 @@ final class Estado {
     }
 
     private func olvidarSesion() {
+        estructura = nil
+        ponerAcento(nil)
+        altaAbierta = nil
         Llavero.borrar("token")
         api.token = nil
         sesion = nil

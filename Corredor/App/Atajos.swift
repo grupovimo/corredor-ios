@@ -167,12 +167,12 @@ enum Spotlight {
     /// en el iPhone abre la sección. El identificador es la ruta que entiende `Ruta(texto:)`.
     @MainActor
     static func indexarSecciones(duenio: Bool) {
-        let items = MasRaiz.grupos(duenio: duenio, avisos: 0).flatMap(\.1).compactMap { it -> CSSearchableItem? in
-            guard let ruta = ruta(it.destino) else { return nil }
+        let items = MasRaiz.secciones(nil, duenio: duenio).compactMap { it -> CSSearchableItem? in
+            guard let d = Lugares.secciones[it.clave]?.1, let ruta = ruta(d) else { return nil }
             let a = CSSearchableItemAttributeSet(contentType: .content)
-            a.title = it.texto
+            a.title = it.nombre
             a.contentDescription = "En Corredor"
-            a.keywords = MasRaiz.claves[it.texto] ?? []
+            a.keywords = it.palabras
             return CSSearchableItem(uniqueIdentifier: ruta, domainIdentifier: "secciones", attributeSet: a)
         }
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: ["secciones"]) { _ in

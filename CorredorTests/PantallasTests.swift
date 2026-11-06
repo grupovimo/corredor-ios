@@ -120,6 +120,9 @@ final class PantallasTests: XCTestCase {
             "/v1/indices": "[{\"codigo\": \"icl\", \"ultimoPeriodo\": \"2026-11-11\", \"ultimoValor\": 23.4567}]",
             "/v1/informe": "{\"totalVistas\": 1200, \"totalContactos\": 40, \"cerradas\": 3, \"origenes\": [{\"origen\": \"Web propia\", \"cantidad\": 12}], \"masVistas\": []}",
             "/v1/web/barrios": "[{\"nombre\": \"Palermo\", \"cantidad\": 4}]",
+            "/v1/panel/estructura": #"{"partes": [{"clave": "inmobiliaria", "titulo": "Mi inmobiliaria", "grupos": [{"titulo": "", "items": [{"clave": "web", "nombre": "Mi web", "palabras": ["logo"]}, {"clave": "configuracion", "nombre": "Datos de la inmobiliaria", "palabras": []}, {"clave": "plan", "nombre": "Tu plan", "palabras": []}]}]}, {"clave": "herramientas", "titulo": "Herramientas", "grupos": [{"titulo": "Alquileres", "items": [{"clave": "cobranzas", "nombre": "Cobranzas", "palabras": ["cobrar"]}, {"clave": "contratos", "nombre": "Contratos", "palabras": []}]}]}], "rapidas": [{"clave": "captar", "nombre": "Captar"}, {"clave": "propiedad", "nombre": "Propiedad"}, {"clave": "contacto", "nombre": "Contacto"}, {"clave": "visita", "nombre": "Visita"}, {"clave": "contrato", "nombre": "Contrato"}, {"clave": "cobrar", "nombre": "Cobrar"}, {"clave": "web", "nombre": "Mi web"}], "alta": {"pasos": [{"clave": "nombre", "titulo": "Nombre y dirección", "texto": "Un texto corto.", "obligatorio": true, "peso": 10, "hecho": true}, {"clave": "logo", "titulo": "Tu logo", "texto": "Un texto corto.", "obligatorio": true, "peso": 15, "hecho": true}, {"clave": "marca", "titulo": "Colores y frase", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}, {"clave": "portada", "titulo": "Foto de portada", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}, {"clave": "contacto", "titulo": "Contacto", "texto": "Un texto corto.", "obligatorio": true, "peso": 15, "hecho": true}, {"clave": "legales", "titulo": "Datos legales", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}, {"clave": "rubros", "titulo": "Qué hacen y dónde", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}, {"clave": "arranque", "titulo": "Tu primera propiedad", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}, {"clave": "publicar", "titulo": "Así quedó tu web", "texto": "Un texto corto.", "obligatorio": false, "peso": 10, "hecho": false}], "completo": 40, "faltan": ["marca", "portada", "legales", "rubros", "arranque", "publicar"], "minimoListo": true, "terminada": false}, "rubros": ["alquileres"], "escondido": true, "marca": {"logoUrl": null, "colorPrimario": "#e53935", "colorSecundario": "#ffd54f"}}"#,
+            "/v1/web/borrador": #"{"marca": {"frase": "Hola", "whatsapp": "1155550000", "colorPrimario": "#e53935"}, "hayBorrador": true, "en": "2026-11-05T21:00:00.000000Z"}"#,
+            "/v1/web/previa": "{\"token\": \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"}",
             "/v1/buscar": "[{\"id\": \"p1\", \"tipo\": \"propiedad\", \"titulo\": \"Mendoza 2350\"}]",
         ]
     }
@@ -244,6 +247,15 @@ final class PantallasTests: XCTestCase {
     func testML() { montar(RespuestaML(id: "q1")) }
     func testAgenda() { montar(AgendaRaiz(apilada: true)) }
     func testMas() { montar(MasRaiz()) }
+    /// «Más» con la estructura de la API ya cargada (Mi inmobiliaria, Herramientas, el porcentaje).
+    func testMasConEstructura() { montar(MasConEstructura()) }
+    /// El alta en cada paso (los da la API: los mismos que el panel).
+    func testAltaInmobiliaria() {
+        for paso in ["logo", "marca", "portada", "contacto", "legales", "rubros", "arranque", "publicar"] {
+            montar(AltaInmobiliaria(inicial: paso), segundos: 1.5, nombre: "Alta-\(paso)")
+        }
+    }
+    func testMiWeb() { montar(MiWeb(), segundos: 2) }
     func testMasAgente() { montar(MasRaiz(), rol: "agente") }
     func testCita() { montar(FichaCita(id: "a1")) }
     func testNuevaCita() { montar(NuevaCita()) }
@@ -273,4 +285,12 @@ final class PantallasTests: XCTestCase {
     func testElegirInmobiliaria() { montar(ElegirInmobiliaria()) }
     func testBloqueo() { montar(Bloqueo(), segundos: 1) }
     func testPrincipal() { montar(Principal()) }
+}
+
+/// «Más» con la estructura cargada (como queda después de entrar).
+private struct MasConEstructura: View {
+    @Environment(Estado.self) private var estado
+    var body: some View {
+        MasRaiz().task { await estado.cargarEstructura() }
+    }
 }

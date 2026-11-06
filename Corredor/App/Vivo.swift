@@ -61,6 +61,12 @@ extension Estado {
             if let a = try? JSONDecoder().decode(A.self, from: Data(datos.utf8)), let n = a.noLeidos { avisosPendientes = n }
             cambio()
         case "cambio", "resync":
+            // La marca (logo, colores) o el alta cambiaron (se publicó la web, se completó un paso):
+            // la estructura se vuelve a pedir enseguida, así el acento y el porcentaje quedan al día.
+            struct C: Decodable { var tabla: String? }
+            if evento == "resync" || (try? JSONDecoder().decode(C.self, from: Data(datos.utf8)))?.tabla == "inmobiliarias" {
+                Task { await cargarEstructura() }
+            }
             cambio()
         default:
             break

@@ -89,7 +89,10 @@ struct Raiz: View {
             case .eligiendo:
                 ElegirInmobiliaria().transition(.opacity)
             case .adentro:
-                Principal().transition(.opacity)
+                // Los colores de la acción leen el acento de la inmobiliaria al pintarse: si cambia (se
+                // publicó la web con otro color), la app se pinta de nuevo. La navegación vive en
+                // `Estado`, así que no se pierde (y el arranque, acá arriba, no se repite).
+                Principal().id(estado.marcaVersion).transition(.opacity)
             }
             if estado.bloqueada {
                 Bloqueo().transition(.opacity).zIndex(2)
