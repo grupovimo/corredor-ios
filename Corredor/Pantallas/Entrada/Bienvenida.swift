@@ -19,6 +19,12 @@ struct Bienvenida: View {
     /// Cómo aparece en la web de la inmobiliaria (GET/PUT /v1/perfil/web).
     struct EnLaWeb: Codable { var fotoId: String?; var enWeb = true; var presentacion: String? }
 
+    /// «Hola, Martín. Armemos tu perfil.»
+    private var saludo: String {
+        guard let n = estado.usuario?.nombre.nonEmpty else { return "Hola. Armemos tu perfil." }
+        return "Hola, \(n). Armemos tu perfil."
+    }
+
     /// La foto subida (GET /v1/archivos/{id} da su dirección pública).
     @State private var urlFoto: URL?
 
@@ -29,7 +35,7 @@ struct Bienvenida: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text((estado.inmobiliaria?.nombre ?? "").uppercased())
                             .font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.6).foregroundStyle(C.oroTinta)
-                        Text("Hola\(estado.usuario?.nombre.nonEmpty.map { ", \($0)" } ?? ""). Armemos tu perfil.").estilo(.tituloPaso).foregroundStyle(C.texto)
+                        Text(saludo).estilo(.tituloPaso).foregroundStyle(C.texto)
                         Text(Formato.sinViudas("Así te ven los clientes en la web y en las fichas que mandás.")).estilo(.subhead).foregroundStyle(C.texto2)
                     }
                     PhotosPicker(selection: $foto, matching: .images) {
@@ -88,7 +94,7 @@ struct Bienvenida: View {
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .bottom) {
                 VStack(spacing: 2) {
-                    Button("Empezar") { Task { if !whatsapp.isEmpty, guardado != whatsapp { await guardarWhatsApp() }; cerrar() } }
+                    Button("Empezar") { Task { await empezar() } }
                         .buttonStyle(BotonPrincipal())
                     Text("Podés saltearlo: queda en tu perfil.").estilo(.footnote).foregroundStyle(C.texto2)
                 }
@@ -123,6 +129,12 @@ struct Bienvenida: View {
                 } catch { estado.avisar(error) }
             }
         }
+    }
+
+    /// Guarda el WhatsApp si quedó escrito sin guardar, y sigue (al recorrido).
+    private func empezar() async {
+        if !whatsapp.isEmpty, guardado != whatsapp { await guardarWhatsApp() }
+        cerrar()
     }
 
     private func guardarWhatsApp() async {
