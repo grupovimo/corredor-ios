@@ -31,8 +31,10 @@ jobs:
       - name: Compilar
         run: |
           set -o pipefail
+          # Que siga después del primer error, así salen todos en una vuelta.
+          defaults write com.apple.dt.Xcode IDEBuildingContinueBuildingAfterErrors -bool YES
           xcodebuild build -project Corredor.xcodeproj -scheme Corredor -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO -continueBuildingAfterErrors \
+            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
             | tee compilar.log | xcbeautify --renderer github-actions
       - if: failure()
         # Los errores, y si se cayó el compilador (sin «error:»), su pila y el archivo que compilaba.
