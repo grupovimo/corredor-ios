@@ -253,7 +253,7 @@ struct MensajeWhatsApp<Extra: View>: View {
                 estado.avisar("\(n.isEmpty ? "Esta persona" : n) no tiene teléfono cargado.", ok: false)
                 return
             }
-            UIApplication.shared.open(u)
+            UIApplication.shared.open(u, options: [:], completionHandler: nil)
             porWaMe = u
             enviadoEn = Date()
             enviado = true
@@ -263,7 +263,7 @@ struct MensajeWhatsApp<Extra: View>: View {
         defer { mandando = false }
         do {
             let u = try await WhatsAppCorredor.mandar(estado.api, contactoId: contactoId!, texto: t, para: para, parametros: parametros)
-            if let u { UIApplication.shared.open(u) }
+            if let u { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
             porWaMe = u
             enviadoEn = Date()
             enviado = true
