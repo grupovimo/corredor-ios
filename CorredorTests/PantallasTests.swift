@@ -491,6 +491,7 @@ final class PantallasTests: XCTestCase {
     /// tiene que mostrar su pantalla y no el placeholder de SwiftUI. Así se rompió el 5/11: el destino
     /// se apilaba como `AnyHashable` y ninguna pila lo encontraba.
     func testNavegacionTotal() {
+        executionTimeAllowance = 600
         let conf = URLSessionConfiguration.ephemeral
         conf.protocolClasses = [ApiFalsa.self]
         let estado = Estado(api: Api(base: URL(string: "https://api.prueba")!, token: "x", http: URLSession(configuration: conf)))
@@ -615,6 +616,7 @@ final class PantallasTests: XCTestCase {
     func testInventario() { montar(Inventario(propiedad: "p1")) }
     func testFirmas() { montar(Firmas(clave: "p1/a1")) }
     func testSecciones() {
+        executionTimeAllowance = 600
         for c in ["mas", "configuracion", "equipo", "integraciones", "respuestas", "proveedores", "objetivos", "inventarios", "rendiciones",
                   "papelera", "actividad", "revision", "informe", "indices", "web", "difusion", "consorcios", "ia", "importar", "no-existe",
                   "plan", "suscripcion", "inmobiliaria", "whatsapp", "mercadolibre", "plantillas", "editor", "invitaciones", "empezar",

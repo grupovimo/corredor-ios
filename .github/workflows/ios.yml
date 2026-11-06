@@ -17,7 +17,7 @@ concurrency:
 jobs:
   compilar:
     runs-on: ${{ vars.RUNNER_MAC || 'macos-15-intel' }}
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: .
@@ -56,6 +56,8 @@ jobs:
           xcodebuild test -project Corredor.xcodeproj -scheme Corredor -configuration Release -only-testing:CorredorTests \
             -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO ENABLE_TESTABILITY=YES \
             CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY=- PROVISIONING_PROFILE_SPECIFIER= \
+            -test-timeouts-enabled YES -default-test-execution-time-allowance 240 -maximum-test-execution-time-allowance 600 \
+            -resultBundlePath probar.xcresult \
             | tee probar.log | xcbeautify --renderer github-actions
       - if: failure()
         run: grep -E -B2 -A30 'Fatal error|crashed|Thread 0 Crashed|error:' probar.log | head -150
@@ -71,4 +73,13 @@ jobs:
         with:
           name: capturas
           path: ${{ runner.temp }}/capturas
+          if-no-files-found: ignore
+      # Si una prueba se cuelga, XCTest la corta a los 4 minutos y deja en el resultado dónde quedó trabada.
+      - if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: probar
+          path: |
+            probar.log
+            probar.xcresult
           if-no-files-found: ignore
