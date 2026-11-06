@@ -660,9 +660,7 @@ extension Api {
         do { (datos, resp) = try await http.data(for: r) } catch { throw ErrorApi.sinRed }
         guard let h = resp as? HTTPURLResponse else { throw ErrorApi.desconocido }
         if (200..<300).contains(h.statusCode) { return [:] }
-        struct Campo: Decodable { var path: String?; var message: String? }
-        struct Problema: Decodable { var code: String?; var title: String?; var detail: String?; var issues: [Campo]? }
-        let p = try? JSONDecoder().decode(Problema.self, from: datos)
+        let p = try? JSONDecoder().decode(ProblemaApi.self, from: datos)
         let campos = Dictionary((p?.issues ?? []).compactMap { c in c.path.map { ($0, c.message ?? "Revisá este dato.") } }, uniquingKeysWith: { a, _ in a })
         if (h.statusCode == 400 || h.statusCode == 422), !campos.isEmpty { return campos }
         throw ErrorApi(estado: h.statusCode, codigo: p?.code ?? "interno", titulo: p?.title ?? "Algo salió mal", detalle: p?.detail ?? "Probá de nuevo en un rato.")

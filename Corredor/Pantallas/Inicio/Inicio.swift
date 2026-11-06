@@ -352,7 +352,7 @@ struct InicioRaiz: View {
         (d.panelExtra?.sugerencias ?? []).filter { deQuien($0.agenteId) && !ocultas.contains($0.id) && $0.estado != "descartada" && $0.estado != "aplicada" }
     }
 
-    private func ritmos(_ d: DatosInicio) -> [Ritmo] {
+    private func ritmos(_ d: DatosInicio) -> [RitmoInicio] {
         (d.panel?.objetivos ?? [])
             .filter { estado.esDuenio && equipoVista ? $0.agenteId == nil : $0.agenteId == yo }
             .sorted { CuentasInicio.ordenMetrica($0.metrica) < CuentasInicio.ordenMetrica($1.metrica) }

@@ -460,10 +460,10 @@ struct SugerenciasInicio: View {
 /// días hábiles que quedan. Sin objetivos, los cierres del mes.
 struct ComoVieneInicio: View {
     @Environment(Estado.self) private var estado
-    var ritmos: [Ritmo]
+    var ritmos: [RitmoInicio]
     var cerradas: Int
 
-    private func cifra(_ r: Ritmo) -> String { r.moneda.map { Formato.plata(r.avance, $0) } ?? Formato.numero(Int(r.avance)) }
+    private func cifra(_ r: RitmoInicio) -> String { r.moneda.map { Formato.plata(r.avance, $0) } ?? Formato.numero(Int(r.avance)) }
 
     var body: some View {
         let habiles = CuentasInicio.diasHabilesRestantes()
@@ -491,7 +491,7 @@ struct ComoVieneInicio: View {
         .tarjeta()
     }
 
-    private func fila(_ r: Ritmo, primera: Bool) -> some View {
+    private func fila(_ r: RitmoInicio, primera: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(r.nombre).estilo(.subheadFuerte).foregroundStyle(C.texto)

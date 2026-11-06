@@ -34,9 +34,7 @@ extension Api {
         }
         guard let h = resp as? HTTPURLResponse else { throw ErrorCampos(api: .desconocido, campos: [:]) }
         if (200..<300).contains(h.statusCode) { return datos }
-        struct Campo: Decodable { var path: String?; var message: String? }
-        struct Problema: Decodable { var code: String?; var title: String?; var detail: String?; var issues: [Campo]? }
-        let p = (try? JSONDecoder().decode(Problema.self, from: datos)) ?? Problema()
+        let p = (try? JSONDecoder().decode(ProblemaApi.self, from: datos)) ?? ProblemaApi()
         let e = ErrorApi(estado: h.statusCode, codigo: p.code ?? "interno", titulo: p.title ?? "Algo salió mal",
                          detalle: p.detail ?? "Probá de nuevo en un rato.")
         if e.sinSesion, token != nil, let alPerderSesion { await alPerderSesion() }

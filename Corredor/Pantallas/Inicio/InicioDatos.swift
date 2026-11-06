@@ -196,7 +196,7 @@ struct Urgente: Identifiable, Hashable {
 }
 
 /// Un objetivo con su ritmo (modelo.ts · ritmo).
-struct Ritmo: Identifiable, Hashable {
+struct RitmoInicio: Identifiable, Hashable {
     var id: String
     var nombre: String
     var avance: Double
@@ -452,7 +452,7 @@ enum CuentasInicio {
 
     static func ordenMetrica(_ m: String?) -> Int { ordenMetricas.firstIndex(of: m ?? "") ?? ordenMetricas.count }
 
-    static func ritmo(_ o: Objetivo, _ ahora: Date = Date()) -> Ritmo {
+    static func ritmo(_ o: Objetivo, _ ahora: Date = Date()) -> RitmoInicio {
         let meta = o.meta ?? 0, avance = o.avance ?? 0
         let desde = o.desde.flatMap(Fecha.dia) ?? ahora, hasta = o.hasta.flatMap(Fecha.dia) ?? ahora
         let total = diasEntre(desde, hasta) + 1
@@ -460,7 +460,7 @@ enum CuentasInicio {
         let esperado = total > 0 ? meta * Double(pasados) / Double(total) : meta
         let adelante = avance >= esperado
         let moneda: String? = o.metrica == "honorarios_usd" ? "USD" : o.metrica == "honorarios_ars" ? "ARS" : nil
-        return Ritmo(id: o.id, nombre: nombresMetricas[o.metrica ?? ""] ?? (o.metrica ?? ""), avance: avance, meta: meta,
+        return RitmoInicio(id: o.id, nombre: nombresMetricas[o.metrica ?? ""] ?? (o.metrica ?? ""), avance: avance, meta: meta,
                      ancho: min(100, meta > 0 ? avance / meta * 100 : 0), raya: min(100, Double(pasados) / Double(max(1, total)) * 100),
                      adelante: adelante, falta: adelante ? 0 : max(1, Int((esperado - avance).rounded(.up))), moneda: moneda)
     }
