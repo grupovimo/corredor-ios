@@ -179,7 +179,7 @@ struct AutorizarIA: View {
         struct Vuelta: Decodable { var redireccion: String }
         do {
             let v: Vuelta = try await estado.api.enviar("POST", "/v1/ia/solicitudes/\(solicitud)/\(que)", Cuerpo(permisos: que == "aprobar" ? Array(elegidos) : []))
-            if let u = URL(string: v.redireccion) { await UIApplication.shared.open(u) }
+            if let u = URL(string: v.redireccion) { await UIApplication.shared.open(u, options: [:], completionHandler: nil) }
             estado.ir(Ruta(.inicio))
         } catch let e as ErrorApi {
             errorEnvio = e.codigo == "ia_apagada" ? "La dueña o el dueño tiene que habilitar Corredor en tu IA en Configuración." : (e.detalle.isEmpty ? e.titulo : e.detalle)

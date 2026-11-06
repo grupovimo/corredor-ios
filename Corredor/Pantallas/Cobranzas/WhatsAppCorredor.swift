@@ -237,7 +237,7 @@ struct MensajeWhatsApp<Extra: View>: View {
         Label(porWaMe == nil ? "Enviado. \(listo)" : "Lo abrimos en WhatsApp con el mensaje escrito.", systemImage: "checkmark.circle.fill")
             .estilo(.footnote).foregroundStyle(C.okTinta)
         if let porWaMe {
-            Button { UIApplication.shared.open(porWaMe) } label: { Label("Abrir WhatsApp de nuevo", systemImage: "arrow.up.right.square") }
+            Button { UIApplication.shared.open(porWaMe, options: [:], completionHandler: nil) } label: { Label("Abrir WhatsApp de nuevo", systemImage: "arrow.up.right.square") }
                 .buttonStyle(BotonHundido())
         }
         Button("Listo") { alListo() }.buttonStyle(BotonPrincipal())

@@ -533,7 +533,7 @@ struct MiraRaiz: View {
             Text("MIRA necesita la cámara").font(Estilo(tamano: 24, peso: .bold, tracking: -0.02, relativo: .title2).font)
             Text("Activala en Ajustes › Corredor › Cámara. Sólo la usamos para leer carteles.").estilo(.body16)
                 .foregroundStyle(Color(hex: 0xCFE0D8)).multilineTextAlignment(.center)
-            Button("Abrir Ajustes") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } }
+            Button("Abrir Ajustes") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u, options: [:], completionHandler: nil) } }
                 .font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font).foregroundStyle(Color(hex: 0x1A1405))
                 .padding(.horizontal, 26).frame(height: 52).background(C.oro, in: .rect(cornerRadius: 14, style: .continuous)).padding(.top, 8)
             PhotosPicker(selection: $elegida, matching: .images) { Text("Elegir una foto").font(Estilo.subheadFuerte.font).foregroundStyle(Color(hex: 0xCFE0D8)).frame(height: 44) }

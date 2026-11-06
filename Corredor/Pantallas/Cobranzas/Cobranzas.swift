@@ -794,7 +794,7 @@ struct RecordarATodos: View {
             estado.avisar("\(n.isEmpty ? "Esta persona" : n) no tiene teléfono cargado.", ok: false)
             return
         }
-        UIApplication.shared.open(u)
+        UIApplication.shared.open(u, options: [:], completionHandler: nil)
         estados[p.id] = .enviado
     }
 
@@ -810,7 +810,7 @@ struct RecordarATodos: View {
                 let u = try await WhatsAppCorredor.mandar(estado.api, contactoId: c, texto: p.texto, para: "recordatorio",
                                                           parametros: [TextosCobro.primerNombre(d.nombre), p.ds.map { TextosCobro.nombreMes($0.periodo) }.joined(separator: " y "),
                                                                        Formato.plata(total, d.moneda), TextosCobro.fechaCortita(d.vence)])
-                if let u { UIApplication.shared.open(u) }
+                if let u { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
                 estados[p.id] = .enviado
             } catch {
                 estados[p.id] = .error

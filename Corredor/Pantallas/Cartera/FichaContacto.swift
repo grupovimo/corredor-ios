@@ -156,7 +156,7 @@ struct FichaContacto: View {
             .buttonStyle(Presionable())
             accion("phone.fill", "Llamar") { Afuera.llamar(c.telefono) }.disabled(c.telefono == nil).opacity(c.telefono == nil ? 0.5 : 1)
             if estado.escribe { accion("calendar", "Agendar") { agendar = AgendarDesdeFicha(dia: Date(), hora: nil) } }
-            if let m = c.email { accion("envelope.fill", "Mail") { if let u = URL(string: "mailto:\(m)") { UIApplication.shared.open(u) } } }
+            if let m = c.email { accion("envelope.fill", "Mail") { if let u = URL(string: "mailto:\(m)") { UIApplication.shared.open(u, options: [:], completionHandler: nil) } } }
         }
     }
 
@@ -250,7 +250,7 @@ struct FichaContacto: View {
             TituloBloque(texto: "Datos")
             VStack(spacing: 0) {
                 dato("Celular", c.telefono ?? "—", primera: true) { if c.telefono != nil { Afuera.llamar(c.telefono) } }
-                dato("Mail", c.email ?? "—", primera: false) { if let m = c.email, let u = URL(string: "mailto:\(m)") { UIApplication.shared.open(u) } }
+                dato("Mail", c.email ?? "—", primera: false) { if let m = c.email, let u = URL(string: "mailto:\(m)") { UIApplication.shared.open(u, options: [:], completionHandler: nil) } }
                 dato("Etiquetas", (c.etiquetas ?? []).isEmpty ? "—" : (c.etiquetas ?? []).joined(separator: ", "), primera: false) { if estado.escribe { editando = "todo" } }
             }
             .tarjeta()

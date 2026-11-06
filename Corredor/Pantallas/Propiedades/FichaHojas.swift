@@ -115,7 +115,7 @@ struct HojaCompartir: View {
                 ShareLink(item: u, subject: Text(propiedad.nombre), message: Text(texto)) { botonApp("square.and.arrow.up", "Más", Color(hex: 0x8E8E93)) }
                 Button { Afuera.whatsapp(nil, texto: texto + "\n" + link) } label: { botonApp(nil, "WhatsApp", Color(hex: 0x25D366)) }
                 Button {
-                    if let m = URL(string: "mailto:?subject=\(propiedad.nombre.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&body=\(link)") { UIApplication.shared.open(m) }
+                    if let m = URL(string: "mailto:?subject=\(propiedad.nombre.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")&body=\(link)") { UIApplication.shared.open(m, options: [:], completionHandler: nil) }
                 } label: { botonApp("envelope.fill", "Mail", Color(hex: 0x1D7CF2)) }
             }
             Spacer()

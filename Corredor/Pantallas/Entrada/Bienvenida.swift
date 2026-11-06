@@ -182,7 +182,7 @@ struct Bienvenida: View {
         let c = UNUserNotificationCenter.current()
         if await c.notificationSettings().authorizationStatus == .denied {
             // Ya dijo que no: sólo se cambia en Ajustes.
-            if let u = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(u) }
+            if let u = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(u, options: [:], completionHandler: nil) }
             return
         }
         await estado.pedirPermisoPush()

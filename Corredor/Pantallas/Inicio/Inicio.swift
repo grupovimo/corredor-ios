@@ -418,7 +418,7 @@ struct InicioRaiz: View {
 
     private func abrirWeb() {
         vioLaWeb()
-        if let w = datos?.inmo?.web, let u = URL(string: w) { UIApplication.shared.open(u) }
+        if let w = datos?.inmo?.web, let u = URL(string: w) { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
     }
 
     /// «Mirá tu web» queda hecho al abrirla desde el Inicio.
@@ -447,7 +447,7 @@ struct InicioRaiz: View {
     private func activarAvisos() async {
         let c = UNUserNotificationCenter.current()
         if await c.notificationSettings().authorizationStatus == .denied {
-            if let u = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(u) }
+            if let u = URL(string: UIApplication.openSettingsURLString) { await UIApplication.shared.open(u, options: [:], completionHandler: nil) }
             return
         }
         await estado.pedirPermisoPush()

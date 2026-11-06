@@ -489,7 +489,7 @@ struct ConfigAvisos: View {
                 }
                 Spacer(minLength: 0)
                 if permiso == .denied {
-                    Button("Ver cómo") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } }.buttonStyle(BotonTonal())
+                    Button("Ver cómo") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u, options: [:], completionHandler: nil) } }.buttonStyle(BotonTonal())
                 } else if !activo || apagados {
                     Button("Activar") { Task { await activar() } }.buttonStyle(BotonTonal())
                 } else {

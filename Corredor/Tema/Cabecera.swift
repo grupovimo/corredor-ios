@@ -267,18 +267,18 @@ enum Afuera {
         let n = (telefono ?? "").filter(\.isNumber)
         var c = URLComponents(string: "https://wa.me/\(n)")!
         if !texto.isEmpty { c.queryItems = [URLQueryItem(name: "text", value: texto)] }
-        if let u = c.url { UIApplication.shared.open(u) }
+        if let u = c.url { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
     }
 
     static func llamar(_ telefono: String?) {
         let n = (telefono ?? "").filter { $0.isNumber || $0 == "+" }
-        if let u = URL(string: "tel://\(n)") { UIApplication.shared.open(u) }
+        if let u = URL(string: "tel://\(n)") { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
     }
 
     static func mapas(_ direccion: String) {
         var c = URLComponents(string: "http://maps.apple.com/")!
         c.queryItems = [URLQueryItem(name: "daddr", value: direccion)]
-        if let u = c.url { UIApplication.shared.open(u) }
+        if let u = c.url { UIApplication.shared.open(u, options: [:], completionHandler: nil) }
     }
 }
 

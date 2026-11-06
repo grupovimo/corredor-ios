@@ -171,7 +171,7 @@ struct RevisionIA: View {
             if let c = b.contactoId { mail = (try? await estado.api.get("/v1/contactos/\(c)") as Contacto)?.email }
             var u = URLComponents(string: "mailto:\(mail ?? "")")!
             u.queryItems = [.init(name: "subject", value: b.asunto ?? ""), .init(name: "body", value: t)]
-            if let x = u.url { await UIApplication.shared.open(x) }
+            if let x = u.url { await UIApplication.shared.open(x, options: [:], completionHandler: nil) }
             usados.insert(b.id)
             do { try await estado.api.hacer("POST", "/v1/revision/\(b.id)/usado") } catch { estado.avisar(error) }
             estado.avisar("Se abrió el mail. Quedó como usado.") { usados.remove(b.id) }

@@ -208,7 +208,7 @@ struct MiPerfil: View {
                 Spacer(minLength: 4)
                 switch push {
                 case .bloqueado:
-                    Button("Ver cómo") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u) } }
+                    Button("Ver cómo") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u, options: [:], completionHandler: nil) } }
                         .buttonStyle(BotonSecundario()).fixedSize()
                 case .inactivo:
                     Button("Activar") { Task { await activarPush() } }.buttonStyle(BotonSecundario()).fixedSize()

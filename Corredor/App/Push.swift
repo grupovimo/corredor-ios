@@ -74,7 +74,7 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
                 }
             case "llamar":
                 if let t = info["telefono"] as? String, let u = URL(string: "tel://" + t.filter { $0.isNumber || $0 == "+" }) {
-                    UIApplication.shared.open(u)
+                    UIApplication.shared.open(u, options: [:], completionHandler: nil)
                 }
             default:
                 let aviso = info["avisoId"] as? String

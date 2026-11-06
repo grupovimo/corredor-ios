@@ -833,7 +833,7 @@ struct CompartirWebInicio: View {
                     Text("Tu web").estilo(.filaLista).foregroundStyle(C.texto)
                     Button {
                         alAbrir()
-                        if let url { UIApplication.shared.open(url) }
+                        if let url { UIApplication.shared.open(url, options: [:], completionHandler: nil) }
                     } label: {
                         Text(dominio).font(.system(size: 14, weight: .medium, design: .monospaced)).foregroundStyle(C.accion).lineLimit(1).minimumScaleFactor(0.8)
                     }
