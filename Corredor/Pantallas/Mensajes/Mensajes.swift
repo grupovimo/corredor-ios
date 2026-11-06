@@ -563,7 +563,7 @@ struct ElegirPropiedad: View {
             .searchable(text: $q, prompt: "Calle o barrio")
             .navigationTitle("Elegí la propiedad").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } } }
-            .task { props = (try? await estado.api.get("/v1/propiedades", query: [.init(name: "limite", value: "500")])) ?? [] }
+            .task { props = (try? await estado.api.todas("/v1/propiedades", query: [])) ?? [] }
         }
     }
 }

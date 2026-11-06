@@ -8,11 +8,12 @@ extension View {
         self
             .navigationDestination(for: AFichaPropiedad.self) { f in FichaPropiedad(id: f.id) }
             .navigationDestination(for: AGaleria.self) { g in Galeria(id: g.id, indice: g.indice) }
-            .navigationDestination(for: AAltaPropiedad.self) { a in AltaPropiedad(editar: a.borrador) }
+            .navigationDestination(for: AAltaPropiedad.self) { a in AltaPropiedad(editar: a.editar, borrador: a.borrador) }
     }
 }
 
 /// 3A–3C Propiedades: la cartera en lista (deslizar para mandar o pausar) o en mapa, con filtros.
+/// Pausar es suspenderla (estado «suspendida»: sale de la web y de la oferta sin perder lo cargado).
 struct PropiedadesRaiz: View {
     @Environment(Estado.self) private var estado
     @State private var vista = 0
@@ -98,7 +99,7 @@ struct PropiedadesRaiz: View {
             switch filtro {
             case "todas": return true
             case "mias": return p.agenteId == estado.usuario?.id
-            case "borrador": return p.estado == "borrador"
+            case "borrador": return p.esBorrador
             case "error": return senales[p.id]?.error != nil
             default: return p.operacion == filtro || (filtro == "temporario" && p.tambienTemporario == true)
             }
@@ -108,7 +109,7 @@ struct PropiedadesRaiz: View {
     private func fila(_ p: Propiedad) -> some View {
         let (chip, tono) = Self.chip(p, senales[p.id])
         return FilaDeslizable(derecha: estado.escribe ? [
-            AccionFila(texto: p.estado == "pausada" ? "Activar" : "Pausar", simbolo: p.estado == "pausada" ? "play.circle" : "pause.circle", color: Color(hex: 0x8E8E93)) { pausar(p) },
+            AccionFila(texto: p.estado == "suspendida" ? "Activar" : "Pausar", simbolo: p.estado == "suspendida" ? "play.circle" : "pause.circle", color: Color(hex: 0x8E8E93)) { pausar(p) },
             AccionFila(texto: "Mandar", simbolo: "square.and.arrow.up", color: Color(hex: 0x25D366)) { compartir = p },
         ] : [AccionFila(texto: "Mandar", simbolo: "square.and.arrow.up", color: Color(hex: 0x25D366)) { compartir = p }], anchoAccion: 75) {
             Button { estado.abrir(AFichaPropiedad(id: p.id)) } label: {
@@ -140,8 +141,8 @@ struct PropiedadesRaiz: View {
         .contextMenu {
             Button { compartir = p } label: { Label("Mandar la ficha", systemImage: "square.and.arrow.up") }
             if estado.escribe {
-                Button { estado.abrir(AAltaPropiedad(borrador: p.id)) } label: { Label("Editar", systemImage: "pencil") }
-                Button { pausar(p) } label: { Label(p.estado == "pausada" ? "Activar" : "Pausar", systemImage: "pause.circle") }
+                Button { estado.abrir(AAltaPropiedad(editar: p.id)) } label: { Label("Editar", systemImage: "pencil") }
+                Button { pausar(p) } label: { Label(p.estado == "suspendida" ? "Activar" : "Pausar", systemImage: p.estado == "suspendida" ? "play.circle" : "pause.circle") }
             }
         }
     }
@@ -149,8 +150,8 @@ struct PropiedadesRaiz: View {
     /// El chip de estado de cada fila (3A): lo más importante que le pasa a la propiedad.
     static func chip(_ p: Propiedad, _ s: Senal?) -> (String, Tono) {
         if let e = s?.error { return ("Error en \(PublicacionPortal.nombres[e.portal ?? ""] ?? "un portal")", .rojo) }
-        if p.estado == "borrador" { return ("Borrador", .oro) }
-        if p.estado == "pausada" { return ("Pausada", .neutro) }
+        if p.esBorrador { return ("Borrador", .oro) }
+        if p.estado == "suspendida" { return ("Suspendida", .neutro) }
         if p.estado == "alquilada" { return ("Alquilada", .azul) }
         if p.estado == "vendida" { return ("Vendida", .azul) }
         if p.estado == "reservada" || s?.reserva != nil { return ("Reservada", .violeta) }
@@ -161,17 +162,19 @@ struct PropiedadesRaiz: View {
     }
 
     private func pausar(_ p: Propiedad) {
-        let nuevo = p.estado == "pausada" ? "disponible" : "pausada"
+        let nuevo = p.estado == "suspendida" ? "disponible" : "suspendida"
         let antes = p.estado ?? "disponible"
         Task {
             struct Cuerpo: Encodable { var estado: String }
             do {
-                try await estado.cola.enviar("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: nuevo), etiqueta: "\(nuevo == "pausada" ? "Pausar" : "Activar") \(p.nombre)")
+                try await estado.cola.enviar("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: nuevo), etiqueta: "\(nuevo == "suspendida" ? "Pausar" : "Activar") \(p.nombre)")
                 estado.version += 1
-                estado.avisar(nuevo == "pausada" ? "Publicación pausada" : "Publicación activa") {
+                estado.avisar(nuevo == "suspendida" ? "Suspendida: no se ofrece" : "Activa otra vez") {
                     Task {
-                        try? await estado.api.hacer("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: antes))
-                        estado.version += 1
+                        do {
+                            try await estado.api.hacer("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: antes))
+                            estado.version += 1
+                        } catch { estado.avisar(error) }
                     }
                 }
             } catch { estado.avisar(error) }
@@ -180,13 +183,13 @@ struct PropiedadesRaiz: View {
 
     private func cargar() async {
         do {
-            let l: [Propiedad] = try await estado.api.get("/v1/propiedades", query: [.init(name: "limite", value: "500"), .init(name: "orden", value: "actualizada")])
+            let l: [Propiedad] = try await estado.api.todas("/v1/propiedades", query: [.init(name: "orden", value: "actualizada")])
             props = l
             error = nil
             Spotlight.indexar(propiedades: l)
             Guardado.guardar(l, clave: "propiedades")
-            let s: [Senal] = (try? await estado.api.get("/v1/propiedades/senales")) ?? []
-            senales = Dictionary(s.map { ($0.propiedadId, $0) }, uniquingKeysWith: { a, _ in a })
+            // Las señales no tiran la cartera: si no vienen, la lista se ve igual.
+            senales = (try? await Senal.de(l.map(\.id), api: estado.api)) ?? senales
             if web == nil { web = (try? await estado.api.get("/v1/inmobiliaria") as Inmobiliaria)?.web }
         } catch let e as ErrorApi {
             if props == nil { props = Guardado.leer([Propiedad].self, clave: "propiedades")?.0 }

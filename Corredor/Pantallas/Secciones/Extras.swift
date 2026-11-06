@@ -54,7 +54,7 @@ struct DocumentosLista: View {
                         }
                     }
                 }
-                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/documentos/\(d.id)"); await cargar() } } } }
+                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/documentos/\(d.id)"); await cargar() } catch { estado.avisar(error) } } } } }
             }
             if subiendo { ProgressView() }
         }
@@ -165,7 +165,7 @@ struct BienesConsorcio: View {
                             .padding(.horizontal, 9).frame(height: 24).background(t.fondo, in: Capsule())
                     }
                 }
-                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/consorcios/\(consorcio)/bienes/\(b.id)"); await cargar() } } } }
+                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/consorcios/\(consorcio)/bienes/\(b.id)"); await cargar() } catch { estado.avisar(error) } } } } }
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -250,7 +250,7 @@ struct ReglamentoConsorcio: View {
                     }
                 }
                 if estado.esDuenio {
-                    Section { Button("Guardar los de hoy como reglamento") { Task { try? await estado.api.hacer("PUT", "/v1/consorcios/\(consorcio)/reglamento"); await cargar(); estado.avisar("Reglamento guardado") } } }
+                    Section { Button("Guardar los de hoy como reglamento") { Task { do { try await estado.api.hacer("PUT", "/v1/consorcios/\(consorcio)/reglamento"); await cargar(); estado.avisar("Reglamento guardado") } catch { estado.avisar(error) } } } }
                 }
             } else { ProgressView() }
         }
@@ -322,6 +322,9 @@ struct MasterplanVista: View {
     var imagen: String?
     var unidades: [Propiedad]
     @State private var marcas: [(String, Double, Double)] = []
+    /// El archivo del plano como lo guarda la API: el PUT reemplaza el masterplan entero, así que
+    /// va siempre (si no, mover una marca borraba el plano).
+    @State private var imagenId: String?
     @State private var ubicando: String?
     @State private var plano: PhotosPickerItem?
 
@@ -365,8 +368,11 @@ struct MasterplanVista: View {
             }
         }
         .task {
-            struct E: Decodable { struct M: Decodable { struct Marca: Decodable { var propiedadId: String; var x: Double; var y: Double }; var lotes: [Marca]? }; var masterplan: M? }
-            if let e: E = try? await estado.api.get("/v1/emprendimientos/\(emprendimiento)") { marcas = (e.masterplan?.lotes ?? []).map { ($0.propiedadId, $0.x, $0.y) } }
+            struct E: Decodable { struct M: Decodable { struct Marca: Decodable { var propiedadId: String; var x: Double; var y: Double }; var imagen: String?; var lotes: [Marca]? }; var masterplan: M? }
+            if let e: E = try? await estado.api.get("/v1/emprendimientos/\(emprendimiento)") {
+                marcas = (e.masterplan?.lotes ?? []).map { ($0.propiedadId, $0.x, $0.y) }
+                imagenId = e.masterplan?.imagen
+            }
         }
         .onChange(of: plano) { _, i in
             guard let i else { return }
@@ -393,7 +399,8 @@ struct MasterplanVista: View {
         struct Marca: Encodable { var propiedadId: String; var x: Double; var y: Double }
         struct C: Encodable { var imagen: String?; var lotes: [Marca] }
         do {
-            try await estado.api.hacer("PUT", "/v1/emprendimientos/\(emprendimiento)/masterplan", C(imagen: nueva, lotes: marcas.map { Marca(propiedadId: $0.0, x: $0.1, y: $0.2) }))
+            try await estado.api.hacer("PUT", "/v1/emprendimientos/\(emprendimiento)/masterplan", C(imagen: nueva ?? imagenId, lotes: marcas.map { Marca(propiedadId: $0.0, x: $0.1, y: $0.2) }))
+            if let nueva { imagenId = nueva }
         } catch { estado.avisar(error) }
     }
 }

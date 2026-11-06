@@ -196,11 +196,14 @@ struct Licencia: Codable, Identifiable, Hashable {
 
 /// Un aviso del centro de avisos (GET /v1/avisos).
 struct AvisoCentro: Codable, Identifiable, Hashable {
+    /// Un botón del aviso (avisos.Accion). Con `ruta`, llama a la API con `metodo` (POST si falta) y
+    /// `cuerpo`; con `entrada` "texto", primero pide el texto y manda {"texto": …}. Sin ruta, abre `url`.
     struct Accion: Codable, Hashable {
         var accion: String?
         var titulo: String?
         var metodo: String?
         var ruta: String?
+        var cuerpo: JSONLibre?
         var url: String?
         var entrada: String?
     }
@@ -209,6 +212,8 @@ struct AvisoCentro: Codable, Identifiable, Hashable {
     var titulo: String?
     var cuerpo: String?
     var url: String?
+    /// Pide algo (responder, cobrar): al hacerlo queda hecho, no sólo leído.
+    var accionable: Bool?
     var leidoEn: Date?
     var hechoEn: Date?
     var creadoEn: Date?

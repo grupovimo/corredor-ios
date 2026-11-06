@@ -53,10 +53,15 @@ struct Propiedad: Codable, Identifiable, Hashable {
     var miniatura: URL? { fotosUrl?.first.flatMap { URL(string: $0 + ($0.contains("?") ? "&" : "?") + "tam=chica") } }
 
     static let operaciones = [("venta", "Venta"), ("alquiler", "Alquiler"), ("temporario", "Temporada")]
-    static let tipos = [("departamento", "Departamento"), ("casa", "Casa"), ("ph", "PH"), ("terreno", "Lote"), ("local", "Local"),
-                        ("oficina", "Oficina"), ("cochera", "Cochera"), ("galpon", "Galpón"), ("campo", "Campo")]
+    /// Los que acepta la API (propiedades.Tipos).
+    static let tipos = [("departamento", "Departamento"), ("casa", "Casa"), ("ph", "PH"), ("duplex", "Dúplex"), ("lote", "Lote"), ("local", "Local"),
+                        ("oficina", "Oficina"), ("cochera", "Cochera"), ("galpon", "Galpón")]
+    /// Los que acepta la API (propiedades.Estados). «Borrador» no es un estado: es disponible y sin publicar.
     static let estados = [("disponible", "Disponible"), ("reservada", "Reservada"), ("vendida", "Vendida"), ("alquilada", "Alquilada"),
-                          ("pausada", "Pausada"), ("borrador", "Borrador")]
+                          ("suspendida", "Suspendida")]
+
+    /// Borrador, como en la web (lib/propiedades/propiedad.ts): disponible y fuera de la web.
+    var esBorrador: Bool { (estado ?? "disponible") == "disponible" && publicada == false }
 
     var operacionTexto: String { Propiedad.operaciones.first { $0.0 == operacion }?.1.lowercased() ?? (operacion ?? "") }
     var tipoTexto: String { Propiedad.tipos.first { $0.0 == tipo }?.1 ?? (tipo?.capitalized ?? "") }
@@ -99,6 +104,18 @@ struct Senal: Codable, Hashable {
     var cargadaPor: String?
 
     var publicadaEn: Int { (portales ?? [:]).values.filter { $0 == "publicada" || $0 == "activa" }.count }
+
+    /// Las señales de esas propiedades. La API pide `?ids=` (hasta 200 por pedido; sin ids contesta
+    /// vacío): van de a 100, como en la web.
+    static func de(_ ids: [String], api: Api) async throws -> [String: Senal] {
+        var todas: [Senal] = []
+        for i in stride(from: 0, to: ids.count, by: 100) {
+            let tanda = ids[i..<min(i + 100, ids.count)]
+            let s: [Senal] = try await api.get("/v1/propiedades/senales", query: [.init(name: "ids", value: tanda.joined(separator: ","))])
+            todas += s
+        }
+        return Dictionary(todas.map { ($0.propiedadId, $0) }, uniquingKeysWith: { a, _ in a })
+    }
 }
 
 /// Un interesado en una propiedad (GET /v1/propiedades/{id}/interesados).

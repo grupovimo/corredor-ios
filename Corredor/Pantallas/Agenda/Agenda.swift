@@ -227,8 +227,7 @@ struct AgendaRaiz: View {
         let desde = Calendar.current.date(byAdding: .day, value: -1, to: lunes)!
         let hasta = Calendar.current.date(byAdding: .day, value: 8, to: lunes)!
         do {
-            citas = try await estado.api.get("/v1/agenda", query: [.init(name: "desde", value: Formato.diaISO(desde)), .init(name: "hasta", value: Formato.diaISO(hasta)),
-                                                                  .init(name: "limite", value: "500")])
+            citas = try await estado.api.todas("/v1/agenda", query: [.init(name: "desde", value: Formato.diaISO(desde)), .init(name: "hasta", value: Formato.diaISO(hasta))])
             error = nil
         } catch let e as ErrorApi { if citas == nil { error = e } } catch {}
     }

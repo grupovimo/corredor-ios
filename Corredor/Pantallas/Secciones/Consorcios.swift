@@ -18,7 +18,14 @@ struct ConsorcioAPI: Codable, Identifiable, Hashable {
     var cuit: String?
     var cbu: String?
     var diaVencimiento: Int?
+    var diaSegundoVencimiento: Int?
     var interesMensual: Double?
+    // Lo que la app no edita pero el PUT pisa: viaja tal como vino.
+    var modoExpensas: String?
+    var fondoTipo: String?
+    var fondoValor: Double?
+    var notas: String?
+    var agenteId: String?
     var fotoUrl: String?
     var metricas: Metricas?
 }
@@ -172,8 +179,14 @@ struct EditarConsorcio: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Guardar") {
                         Task {
-                            struct Cuerpo: Encodable { var nombre: String; var direccion: String?; var cuit: String?; var cbu: String?; var diaVencimiento: Int?; var interesMensual: Double? }
-                            let b = Cuerpo(nombre: x.nombre, direccion: x.direccion?.nonEmpty, cuit: x.cuit?.nonEmpty, cbu: x.cbu?.nonEmpty, diaVencimiento: x.diaVencimiento, interesMensual: x.interesMensual)
+                            // El PUT reemplaza todo: se parte del consorcio entero y se cambia sólo lo editado (como datos.ts de la web).
+                            struct Cuerpo: Encodable {
+                                var nombre: String; var direccion: String?; var cuit: String?; var cbu: String?; var diaVencimiento: Int?; var diaSegundoVencimiento: Int?
+                                var interesMensual: Double; var modoExpensas: String; var fondoTipo: String; var fondoValor: Double; var notas: String?; var agenteId: String?
+                            }
+                            let b = Cuerpo(nombre: x.nombre, direccion: x.direccion?.nonEmpty, cuit: x.cuit?.nonEmpty, cbu: x.cbu?.nonEmpty, diaVencimiento: x.diaVencimiento,
+                                           diaSegundoVencimiento: x.diaSegundoVencimiento, interesMensual: x.interesMensual ?? 0, modoExpensas: x.modoExpensas ?? "prorrateo",
+                                           fondoTipo: x.fondoTipo ?? "ninguno", fondoValor: x.fondoValor ?? 0, notas: x.notas, agenteId: x.agenteId)
                             do {
                                 if let c { try await estado.api.hacer("PUT", "/v1/consorcios/\(c.id)", b) } else { try await estado.api.hacer("POST", "/v1/consorcios", b) }
                                 estado.version += 1
@@ -348,7 +361,8 @@ struct FichaConsorcio: View {
 
     static func estadoTexto(_ e: String?) -> String {
         ["pendiente": "Pendiente", "aprobado": "Aprobado", "en_curso": "En curso", "hecho": "Hecho", "cancelado": "Cancelado", "abierto": "Abierta",
-         "resuelto": "Resuelta", "abierta": "Abierta", "resuelta": "Resuelta"][e ?? ""] ?? (e?.capitalized ?? "")
+         "resuelto": "Resuelta", "abierta": "Abierta", "resuelta": "Resuelta",
+         "borrador": "Cargando gastos", "liquidada": "Liquidada", "cerrada": "Cerrada"][e ?? ""] ?? (e?.capitalized ?? "")
     }
 
     static func tituloNuevo(_ t: String?) -> String {
@@ -476,19 +490,32 @@ struct TarjetaPeriodo: View {
             }
             .buttonStyle(Presionable())
             if abierto {
+                // Los gastos sólo se tocan en borrador (la API rechaza cambios en un período liquidado).
+                let editable = (detalle?.estado ?? p.estado) == "borrador" && estado.escribe
                 ForEach(detalle?.gastos ?? []) { g in
-                    HStack { Text(g.descripcion ?? g.proveedor ?? "Gasto").estilo(.texto14); Spacer(); Text(Formato.plata(g.monto ?? 0)).estilo(.texto14) }
-                        .swipeActions { Button("Sacar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/consorcios/\(consorcio)/periodos/\(p.id)/gastos/\(g.id)"); await cargar() } } }
+                    HStack {
+                        Text(g.descripcion ?? g.proveedor ?? "Gasto").estilo(.texto14)
+                        Spacer()
+                        Text(Formato.plata(g.monto ?? 0)).estilo(.texto14)
+                        if editable {
+                            Button { Task { await sacar(g) } } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(C.texto3) }
+                                .accessibilityLabel("Sacar \(g.descripcion ?? "el gasto")")
+                        }
+                    }
+                    .contextMenu { if editable { Button("Sacar", systemImage: "trash", role: .destructive) { Task { await sacar(g) } } } }
                 }
-                if p.estado != "cerrado" && estado.escribe {
+                if editable {
                     HStack {
                         TextField("Gasto (limpieza, luz…)", text: $gasto).estilo(.texto14)
                         TextField("Monto", value: $monto, format: .number).keyboardType(.decimalPad).frame(width: 90).estilo(.texto14)
                         Button { Task { await sumar() } } label: { Image(systemName: "plus.circle.fill").font(.system(size: 22)).foregroundStyle(C.accion) }.accessibilityLabel("Sumar").disabled(gasto.isEmpty || monto == nil)
                     }
+                    Button("Liquidar") { Task { await accion("liquidar", "Expensas liquidadas") } }.buttonStyle(BotonAccion())
+                }
+                // Liquidado: se manda a los propietarios y se cierra. Cerrado: sólo el PDF.
+                if (detalle?.estado ?? p.estado) == "liquidada" && estado.escribe {
                     HStack(spacing: 8) {
-                        Button("Liquidar") { Task { await accion("liquidar", "Expensas liquidadas") } }.buttonStyle(BotonAccion())
-                        Button("Mandar") { Task { await accion("enviar", "Expensas mandadas a los propietarios") } }.buttonStyle(BotonHundido())
+                        Button("Mandar") { Task { await accion("enviar", "Expensas mandadas a los propietarios") } }.buttonStyle(BotonAccion())
                         Button("Cerrar") { Task { await accion("cerrar", "Período cerrado") } }.buttonStyle(BotonHundido())
                     }
                 }
@@ -511,10 +538,22 @@ struct TarjetaPeriodo: View {
 
     private func sumar() async {
         struct G: Encodable { var descripcion: String; var monto: Double; var tipo = "ordinaria"; var fecha: String }
-        try? await estado.api.hacer("POST", "/v1/consorcios/\(consorcio)/periodos/\(p.id)/gastos", G(descripcion: gasto, monto: monto ?? 0, fecha: Formato.diaISO(Date())))
-        gasto = ""
-        monto = nil
-        await cargar()
+        do {
+            try await estado.api.hacer("POST", "/v1/consorcios/\(consorcio)/periodos/\(p.id)/gastos", G(descripcion: gasto, monto: monto ?? 0, fecha: Formato.diaISO(Date())))
+            gasto = ""
+            monto = nil
+            await cargar()
+            estado.version += 1
+        } catch { estado.avisar(error) }
+    }
+
+    private func sacar(_ g: PeriodoAPI.Gasto) async {
+        do {
+            try await estado.api.hacer("DELETE", "/v1/consorcios/\(consorcio)/periodos/\(p.id)/gastos/\(g.id)")
+            estado.avisar("Sacaste «\(g.descripcion ?? "el gasto")»")
+            await cargar()
+            estado.version += 1
+        } catch { estado.avisar(error) }
     }
 
     private func accion(_ a: String, _ ok: String) async {

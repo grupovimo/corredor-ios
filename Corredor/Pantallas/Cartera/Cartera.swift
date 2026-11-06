@@ -30,7 +30,8 @@ struct Contacto: Codable, Identifiable, Hashable {
     var buscaHasta: Double?
     var buscaAmbientes: Int?
     var buscaBarrios: [String]?
-    var buscaDetalles: String?
+    /// Lo que pide además («Con balcón», «Apto crédito»): una lista, como los chips de la web.
+    var buscaDetalles: [String]?
     var etiquetas: [String]?
     var creadoEn: Date?
 
@@ -51,7 +52,7 @@ struct Contacto: Codable, Identifiable, Hashable {
         case let (d?, nil): b.append("Desde \(Formato.plata(d, m))")
         default: break
         }
-        if let d = buscaDetalles?.nonEmpty { b.append(d) }
+        b += (buscaDetalles ?? []).compactMap(\.nonEmpty)
         return b
     }
 }
@@ -62,6 +63,42 @@ struct NotaContacto: Codable, Identifiable, Hashable {
     var texto: String
     var ocurrioEn: Date
     var autorId: String?
+}
+
+/// Una propiedad que le puede interesar a un contacto (GET /v1/contactos/{id}/propiedades): las que
+/// ya mira (con operación o visita) y las de la cartera que coinciden con lo que busca.
+struct PropiedadDeContacto: Codable, Identifiable, Hashable {
+    var propiedadId: String
+    var titulo: String?
+    var direccion: String?
+    var barrio: String?
+    var precio: Double?
+    var moneda: String?
+    var fotoId: String?
+    /// La etapa de su operación (nuevo… cierre), «visita» si sólo tiene una visita, «nueva» si es una coincidencia.
+    var estado: String?
+    var visitaEn: Date?
+    var operacionId: String?
+    var puntaje: Double?
+    var enviadaEn: Date?
+    var reservaVenceEl: String?
+    var id: String { propiedadId }
+
+    var nombre: String { titulo?.nonEmpty ?? direccion ?? "Propiedad" }
+    var precioTexto: String { precio.map { Formato.plata($0, moneda ?? "USD") } ?? "Consultar precio" }
+    /// «Coincide», «Visita» o la etapa de su operación.
+    var estadoTexto: String {
+        switch estado {
+        case "nueva", nil: return "Coincide"
+        case "visita": return "Visita"
+        case let e?: return Operacion.etapaTexto(e)
+        }
+    }
+    /// La miniatura: las fotos de las propiedades son públicas (/publico/archivos/{inmobiliaria}/{id}).
+    func miniatura(_ api: URL, inmobiliaria: String?) -> URL? {
+        guard let fotoId, let inmobiliaria else { return nil }
+        return URL(string: api.appendingPathComponent("/publico/archivos/\(inmobiliaria)/\(fotoId)").absoluteString + "?tam=chica")
+    }
 }
 
 // MARK: - 8A Contactos
@@ -172,7 +209,16 @@ struct Contactos: View {
 
     private func cargar() async {
         do {
-            lista = try await estado.api.get("/v1/contactos", query: [.init(name: "limite", value: "2000")])
+            // La API da hasta 200 por página (?limite=&desde=): se piden todas para el índice por letra.
+            var todos: [Contacto] = []
+            while todos.count < 10_000 {
+                let pagina: [Contacto] = try await estado.api.get("/v1/contactos", query: [.init(name: "limite", value: "200"), .init(name: "desde", value: String(todos.count))])
+                todos += pagina
+                if pagina.count < 200 { break }
+            }
+            // Si alguien se movió de página mientras se pedían, no sale dos veces.
+            var vistos = Set<String>()
+            lista = todos.filter { vistos.insert($0.id).inserted }
             error = nil
             Guardado.guardar(lista, clave: "contactos")
             if let lista { Spotlight.indexar(contactos: lista) }
@@ -192,7 +238,7 @@ struct FichaContacto: View {
     @Environment(\.dismiss) private var cerrar
     var id: String
     @State private var c: Contacto?
-    @State private var props: [Propiedad] = []
+    @State private var props: [PropiedadDeContacto] = []
     @State private var notas: [NotaContacto] = []
     @State private var ops: [Operacion] = []
     @State private var nota = ""
@@ -235,13 +281,16 @@ struct FichaContacto: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 HStack(spacing: 10) {
                                     ForEach(props) { p in
-                                        Button { estado.abrir(AFichaPropiedad(id: p.id)) } label: {
+                                        Button { estado.abrir(AFichaPropiedad(id: p.propiedadId)) } label: {
                                             VStack(alignment: .leading, spacing: 0) {
-                                                Foto(url: p.miniatura).frame(width: 200, height: 110)
+                                                Foto(url: p.miniatura(estado.api.base, inmobiliaria: estado.sesion?.inmobiliariaId)).frame(width: 200, height: 110)
                                                 VStack(alignment: .leading, spacing: 6) {
                                                     Text(p.nombre).estilo(.subheadFuerte).foregroundStyle(C.texto).lineLimit(1)
-                                                    Text(p.precioTexto).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.okTinta)
-                                                        .padding(.horizontal, 8).frame(height: 22).background(C.okFondo, in: Capsule())
+                                                    HStack(spacing: 6) {
+                                                        Text(p.precioTexto).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.okTinta)
+                                                            .padding(.horizontal, 8).frame(height: 22).background(C.okFondo, in: Capsule())
+                                                        Text(p.estadoTexto).font(Estilo(tamano: 12, peso: .semibold, relativo: .caption).font).foregroundStyle(C.texto2).lineLimit(1)
+                                                    }
                                                 }
                                                 .padding(.horizontal, 12).padding(.vertical, 10)
                                             }
@@ -401,6 +450,7 @@ struct EditarContacto: View {
     var contacto: Contacto? = nil
     @State private var c = Contacto(id: "", nombre: "", tipo: "comprador")
     @State private var barrios = ""
+    @State private var detalles = ""
     @State private var agenda = false
     @State private var guardando = false
 
@@ -426,7 +476,7 @@ struct EditarContacto: View {
                     Picker("Moneda", selection: Binding(get: { c.buscaMoneda ?? "USD" }, set: { c.buscaMoneda = $0 })) { Text("USD").tag("USD"); Text("ARS").tag("ARS") }.pickerStyle(.segmented)
                     TextField("Desde", value: $c.buscaDesde, format: .number).keyboardType(.numberPad)
                     TextField("Hasta", value: $c.buscaHasta, format: .number).keyboardType(.numberPad)
-                    TextField("Detalles (balcón, apto crédito…)", text: Binding(get: { c.buscaDetalles ?? "" }, set: { c.buscaDetalles = $0.nonEmpty }))
+                    TextField("Detalles (balcón, apto crédito…, separados por coma)", text: $detalles)
                 }
                 Section("Notas") { TextField("Notas internas", text: Binding(get: { c.notas ?? "" }, set: { c.notas = $0.nonEmpty }), axis: .vertical) }
             }
@@ -444,22 +494,31 @@ struct EditarContacto: View {
             }
         }
         .onAppear {
-            if let contacto { c = contacto; barrios = (contacto.buscaBarrios ?? []).joined(separator: ", ") }
+            if let contacto {
+                c = contacto
+                barrios = (contacto.buscaBarrios ?? []).joined(separator: ", ")
+                detalles = (contacto.buscaDetalles ?? []).joined(separator: ", ")
+            }
         }
     }
 
     private func guardar() async {
         guardando = true
         defer { guardando = false }
-        c.buscaBarrios = barrios.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+        let lista = { (t: String) in t.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty } }
+        c.buscaBarrios = lista(barrios)
+        c.buscaDetalles = lista(detalles)
+        // El PUT reemplaza todo: va el contacto entero como vino de la API (origen, etiquetas, agente)
+        // con lo editado encima; si no, se borra lo que esta pantalla no muestra.
         struct Cuerpo: Encodable {
-            var nombre: String; var telefono: String?; var email: String?; var tipo: String?; var notas: String?
+            var nombre: String; var telefono: String?; var email: String?; var tipo: String?; var origen: String?; var notas: String?
             var buscaOperacion: String?; var buscaTipo: String?; var buscaMoneda: String?; var buscaDesde: Double?; var buscaHasta: Double?
-            var buscaAmbientes: Int?; var buscaBarrios: [String]?; var buscaDetalles: String?; var agenteId: String?
+            var buscaAmbientes: Int?; var buscaBarrios: [String]?; var buscaDetalles: [String]?; var etiquetas: [String]?; var agenteId: String?
         }
-        let cuerpo = Cuerpo(nombre: c.nombre, telefono: c.telefono, email: c.email, tipo: c.tipo, notas: c.notas, buscaOperacion: c.buscaOperacion, buscaTipo: c.buscaTipo,
-                            buscaMoneda: c.buscaMoneda, buscaDesde: c.buscaDesde, buscaHasta: c.buscaHasta, buscaAmbientes: c.buscaAmbientes, buscaBarrios: c.buscaBarrios,
-                            buscaDetalles: c.buscaDetalles, agenteId: contacto?.agenteId ?? estado.usuario?.id)
+        let cuerpo = Cuerpo(nombre: c.nombre, telefono: c.telefono, email: c.email, tipo: c.tipo, origen: c.origen, notas: c.notas, buscaOperacion: c.buscaOperacion,
+                            buscaTipo: c.buscaTipo, buscaMoneda: c.buscaMoneda, buscaDesde: c.buscaDesde, buscaHasta: c.buscaHasta, buscaAmbientes: c.buscaAmbientes,
+                            buscaBarrios: c.buscaBarrios, buscaDetalles: c.buscaDetalles, etiquetas: c.etiquetas ?? [],
+                            agenteId: contacto == nil ? estado.usuario?.id : c.agenteId)
         do {
             if let contacto {
                 try await estado.cola.enviar("PUT", "/v1/contactos/\(contacto.id)", cuerpo, etiqueta: "Cambios en \(c.nombre)")
@@ -494,8 +553,10 @@ struct SelectorAgenda: UIViewControllerRepresentable {
 
 /// Una operación del tablero.
 struct Operacion: Codable, Identifiable, Hashable {
-    struct Paso: Codable, Hashable { var paso: String?; var hecho: Bool?; var titulo: String? }
-    struct Adjunto: Codable, Hashable { var id: String?; var nombre: String?; var url: String? }
+    /// Un paso tildado de la lista del cierre: cuándo y quién.
+    struct Tildado: Codable, Hashable { var en: Date?; var por: String? }
+    /// Un paso de «Para pasar a Cierre», con el texto que le pone el panel.
+    struct Paso: Hashable { var clave: String; var texto: String; var hecho: Bool; var auto = false; var detalle: String? = nil }
     var id: String
     var titulo: String?
     var etapa: String
@@ -516,15 +577,74 @@ struct Operacion: Codable, Identifiable, Hashable {
     var honorariosComprador: Double?
     var honorariosVendedor: Double?
     var comisionAgente: Double?
-    var checklist: [Paso]?
-    var adjuntos: [Adjunto]?
+    /// Lo tildado para el cierre: clave del paso (dominio, credito, aceptacion, boleto, garantia,
+    /// documentacion, firma) → cuándo y quién.
+    var checklist: [String: Tildado]?
+    /// Los ids de los archivos adjuntos (GET /v1/archivos/{id} da el nombre).
+    var adjuntos: [String]?
     var propiedadOperacion: String?
     var propiedadPrecio: Double?
     var propiedadMoneda: String?
+    var senaRecibo: String?
+    var propietarioNombre: String?
+    var propietarioTelefono: String?
 
     static let etapas = [("nuevo", "Nuevo"), ("contactado", "Contactado"), ("visita", "Visita"), ("reserva", "Reserva"), ("cierre", "Cierre")]
     static func etapaTexto(_ e: String) -> String { etapas.first { $0.0 == e }?.1 ?? e.capitalized }
     var siguiente: String? { Operacion.etapas.firstIndex { $0.0 == etapa }.flatMap { $0 + 1 < Operacion.etapas.count ? Operacion.etapas[$0 + 1].0 : nil } }
+
+    /// «Para pasar a Cierre» según sea venta o alquiler (los mismos pasos y textos que el panel,
+    /// lib/crm/etapas.ts). La seña se tilda sola al cargarla; lo demás, a mano.
+    var pasos: [Paso] {
+        let hecho = { (k: String) in checklist?[k] != nil }
+        let sena = Paso(clave: "sena", texto: self.sena.map { "Seña \(Formato.plata($0, senaMoneda ?? moneda ?? "USD")) recibida" } ?? "Seña recibida",
+                        hecho: self.sena != nil, auto: true, detalle: self.sena != nil ? senaRecibo.map { "recibo \($0)" } : nil)
+        let aceptacion = Paso(clave: "aceptacion", texto: "Aceptación del propietario", hecho: hecho("aceptacion"))
+        var l: [Paso] = propiedadOperacion == "alquiler" || propiedadOperacion == "temporario"
+            ? [sena, Paso(clave: "garantia", texto: "Garantía aprobada", hecho: hecho("garantia")),
+               Paso(clave: "documentacion", texto: "Documentación del inquilino", hecho: hecho("documentacion")), aceptacion,
+               Paso(clave: "firma", texto: "Fecha de firma del contrato", hecho: hecho("firma"))]
+            : [sena, Paso(clave: "dominio", texto: "Informe de dominio", hecho: hecho("dominio")),
+               Paso(clave: "credito", texto: "Pre-aprobación del crédito", hecho: hecho("credito")), aceptacion,
+               Paso(clave: "boleto", texto: "Fecha de boleto y escribana", hecho: hecho("boleto"))]
+        if !l[l.count - 1].hecho && !aceptacion.hecho { l[l.count - 1].detalle = "después de la aceptación" }
+        return l
+    }
+}
+
+/// Un evento del historial de una operación (GET /v1/operaciones/{id}/historial).
+struct EventoOperacion: Codable, Identifiable, Hashable {
+    var id: String
+    var tipo: String
+    var texto: String?
+    var datos: JSONLibre?
+    var autorId: String?
+    var autorNombre: String?
+    var creadoEn: Date
+
+    /// Lo que se lee, como en el panel: «Pasó a Visita · Sofía», «Se cayó · Precio».
+    var descripcion: String {
+        let quien = autorNombre?.split(separator: " ").first.map { " · \($0)" } ?? ""
+        let dato = { (k: String) -> String? in
+            switch datos?[k] {
+            case .texto(let s)?: return s
+            case .numero(let n)?: return String(n)
+            default: return nil
+            }
+        }
+        switch tipo {
+        case "alta": return "Entró en \(Operacion.etapaTexto(dato("etapa") ?? "nuevo"))"
+        case "etapa": return "Pasó a \(Operacion.etapaTexto(dato("hasta") ?? ""))\(quien)"
+        case "nota": return (texto ?? "") + quien
+        case "asignacion": return dato("hasta") != nil ? "Cambió de agente" : "Quedó sin agente"
+        case "caida": return "Se cayó · \(dato("motivo") ?? "")"
+        case "reabierta": return "Volvió al tablero"
+        case "sena":
+            if case .numero(let n)? = datos?["monto"] { return "Dejó seña de \(Formato.plata(n, dato("moneda") ?? "USD"))" }
+            return "Dejó seña"
+        default: return texto ?? tipo
+        }
+    }
 }
 
 /// 9A–9B Tablero de operaciones: una etapa por vez (chips con la cuenta), «Pasar a …» en cada una y,
@@ -668,12 +788,17 @@ struct Operaciones: View {
     }
 
     private func reabrir(_ o: Operacion) async {
-        try? await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/reabrir")
-        estado.version += 1
+        do {
+            try await estado.api.hacer("POST", "/v1/operaciones/\(o.id)/reabrir")
+            estado.version += 1
+        } catch { estado.avisar(error) }
     }
 
+    /// El tablero no trae las caídas: van aparte con ?caidas=si.
     private func cargar() async {
-        ops = (try? await estado.api.get("/v1/operaciones", query: [.init(name: "limite", value: "500")])) ?? ops ?? []
+        let t: [Operacion]? = try? await estado.api.todas("/v1/operaciones", query: [])
+        let c: [Operacion]? = try? await estado.api.todas("/v1/operaciones", query: [.init(name: "caidas", value: "si")])
+        if let t { ops = t + (c ?? ops?.filter { $0.caidaEn != nil } ?? []) } else if ops == nil { ops = [] }
     }
 }
 
@@ -727,7 +852,9 @@ struct FichaOperacion: View {
     var id: String
     @State private var haciendoContrato = false
     @State private var o: Operacion?
-    @State private var historial: [NotaContacto] = []
+    @State private var historial: [EventoOperacion] = []
+    @State private var adjuntos: [Archivo] = []
+    @State private var previo: ArchivoPrevio?
     @State private var proxima: Cita?
     @State private var nota = ""
 
@@ -762,31 +889,40 @@ struct FichaOperacion: View {
                         if let s = o.sena { dato("Seña recibida", Formato.plata(s, o.senaMoneda ?? o.moneda ?? "USD")) }
                         if let h = o.honorariosComprador, let v = o.valor { dato("Comisión \(Formato.numero(Int(h))) %", Formato.plata(v * h / 100, o.moneda ?? "USD")) }
                         if let h = o.honorariosVendedor, let v = o.valor { dato("Comisión vendedor \(Formato.numero(Int(h))) %", Formato.plata(v * h / 100, o.moneda ?? "USD")) }
-                        ForEach(o.adjuntos ?? [], id: \.self) { a in
-                            HStack {
-                                Label(a.nombre ?? "Documento", systemImage: "doc.text").foregroundStyle(C.texto)
-                                Spacer()
-                                if let u = a.url.flatMap(URL.init(string:)) { ShareLink(item: u) { Image(systemName: "square.and.arrow.up") } }
+                        // Los adjuntos se bajan con la sesión y se abren con la vista previa (compartir, imprimir).
+                        ForEach(adjuntos) { a in
+                            Button { Task { await abrir(a) } } label: {
+                                HStack {
+                                    Label(a.nombre ?? "Documento", systemImage: "doc.text").foregroundStyle(C.texto)
+                                    Spacer()
+                                    Image(systemName: "square.and.arrow.up").foregroundStyle(C.accion)
+                                }
+                                .estilo(.body16).padding(.horizontal, 14).frame(minHeight: 46).contentShape(Rectangle())
                             }
-                            .estilo(.body16).padding(.horizontal, 14).frame(minHeight: 46)
+                            .buttonStyle(Presionable())
                             .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
                         }
                     }
                     .tarjeta()
-                    if let l = o.checklist, !l.isEmpty {
+                    if o.caidaEn == nil {
+                        let l = o.pasos
                         VStack(alignment: .leading, spacing: 8) {
-                            TituloBloque(texto: "Lo que falta")
+                            TituloBloque(texto: "\(o.etapa == "cierre" ? "Para cerrar" : "Para pasar a Cierre") · \(l.filter(\.hecho).count) de \(l.count)")
                             VStack(spacing: 0) {
-                                ForEach(Array(l.enumerated()), id: \.offset) { i, p in
+                                ForEach(Array(l.enumerated()), id: \.element.clave) { i, p in
                                     Button { Task { await marcar(p) } } label: {
                                         HStack(spacing: 12) {
-                                            Image(systemName: p.hecho == true ? "checkmark.circle.fill" : "circle").font(.system(size: 22)).foregroundStyle(p.hecho == true ? Color(hex: 0x2F9E6F) : C.texto3)
-                                            Text(p.titulo ?? p.paso ?? "").estilo(.body16).foregroundStyle(C.texto).strikethrough(p.hecho == true)
+                                            Image(systemName: p.hecho ? "checkmark.circle.fill" : "circle").font(.system(size: 22)).foregroundStyle(p.hecho ? Color(hex: 0x2F9E6F) : C.texto3)
+                                            VStack(alignment: .leading, spacing: 0) {
+                                                Text(p.texto).estilo(.body16).foregroundStyle(C.texto).strikethrough(p.hecho)
+                                                if let d = p.detalle { Text(d).estilo(.footnote).foregroundStyle(C.texto2) }
+                                            }
                                             Spacer()
                                         }
                                         .padding(.horizontal, 14).frame(minHeight: 48).contentShape(Rectangle())
                                     }
-                                    .buttonStyle(Presionable()).disabled(!estado.escribe)
+                                    // La seña se tilda sola al cargarla.
+                                    .buttonStyle(Presionable()).disabled(!estado.escribe || p.auto)
                                     .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                                 }
                             }
@@ -804,8 +940,8 @@ struct FichaOperacion: View {
                             }
                             ForEach(historial) { n in
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(Formato.cuando(n.ocurrioEn)).font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto3)
-                                    Text(n.texto).estilo(.subhead).foregroundStyle(C.texto)
+                                    Text(Formato.cuando(n.creadoEn)).font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto3)
+                                    Text(n.descripcion).estilo(.subhead).foregroundStyle(C.texto)
                                 }
                             }
                         }
@@ -829,6 +965,7 @@ struct FichaOperacion: View {
         }
         .pantallaApilada("Operación")
         .sheet(isPresented: $haciendoContrato) { AltaContrato(operacion: id) }
+        .vistaPrevia($previo)
         .task(id: estado.version) { await cargar() }
     }
 
@@ -866,7 +1003,11 @@ struct FichaOperacion: View {
 
     private func cargar() async {
         o = try? await estado.api.get("/v1/operaciones/\(id)")
-        historial = ((try? await estado.api.get("/v1/operaciones/\(id)/historial")) ?? [NotaContacto]()).sorted { $0.ocurrioEn > $1.ocurrioEn }
+        historial = ((try? await estado.api.get("/v1/operaciones/\(id)/historial")) ?? [EventoOperacion]()).sorted { $0.creadoEn > $1.creadoEn }
+        // Los adjuntos vienen como ids: el nombre lo da cada archivo.
+        var l: [Archivo] = []
+        for a in o?.adjuntos ?? [] { if let x: Archivo = try? await estado.api.get("/v1/archivos/\(a)") { l.append(x) } }
+        adjuntos = l
         let hoy = Formato.diaISO(Date())
         let citas: [Cita] = (try? await estado.api.get("/v1/agenda", query: [.init(name: "desde", value: hoy), .init(name: "operacion", value: id), .init(name: "limite", value: "5")])) ?? []
         proxima = citas.filter { $0.operacionId == id && $0.empiezaEn > Date() }.sorted { $0.empiezaEn < $1.empiezaEn }.first
@@ -889,17 +1030,33 @@ struct FichaOperacion: View {
     }
 
     private func marcar(_ p: Operacion.Paso) async {
+        guard !p.auto else { return }
         struct Cuerpo: Encodable { var paso: String; var hecho: Bool }
-        try? await estado.api.hacer("POST", "/v1/operaciones/\(id)/checklist", Cuerpo(paso: p.paso ?? p.titulo ?? "", hecho: !(p.hecho ?? false)))
-        await cargar()
+        do {
+            try await estado.api.hacer("POST", "/v1/operaciones/\(id)/checklist", Cuerpo(paso: p.clave, hecho: !p.hecho))
+            Haptico.impacto()
+            await cargar()
+        } catch { estado.avisar(error) }
     }
 
     private func sumarNota() async {
         struct Cuerpo: Encodable { var texto: String }
         let t = nota
         nota = ""
-        try? await estado.cola.enviar("POST", "/v1/operaciones/\(id)/notas", Cuerpo(texto: t), etiqueta: "Nota en la operación")
-        await cargar()
+        do {
+            try await estado.cola.enviar("POST", "/v1/operaciones/\(id)/notas", Cuerpo(texto: t), etiqueta: "Nota en la operación")
+            await cargar()
+        } catch { nota = t; estado.avisar(error) }
+    }
+
+    /// Lo baja con la sesión de la app y lo muestra con la vista previa.
+    private func abrir(_ a: Archivo) async {
+        do {
+            let datos = try await estado.api.pedir("GET", "/v1/archivos/\(a.id)/contenido")
+            let u = FileManager.default.temporaryDirectory.appendingPathComponent(a.nombre?.nonEmpty ?? "documento-\(a.id)")
+            try datos.write(to: u)
+            previo = ArchivoPrevio(url: u)
+        } catch { estado.avisar(error) }
     }
 }
 

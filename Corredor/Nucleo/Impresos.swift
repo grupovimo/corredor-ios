@@ -230,7 +230,7 @@ enum Documentos {
         let inmo = await inmobiliaria(api)
         var filas: [(String, String)] = (c.conceptos ?? []).map { ($0.concepto, Formato.plata($0.monto, c.moneda)) }
         if filas.isEmpty { filas = [("Alquiler", Formato.plata(c.monto, c.moneda))] }
-        let pago = [c.pagadoEl.flatMap(Fecha.dia).map { "Pagado el \(Formato.diaCompleto($0))" }, c.medio.map { "por \($0)" }].compactMap { $0 }.joined(separator: " ")
+        let pago = [c.pagadoEl.flatMap(Fecha.dia).map { "Pagado el \(Formato.diaCompleto($0))" }, c.medio.map { "por \(ReciboVista.medioTexto($0))" }].compactMap { $0 }.joined(separator: " ")
         let d = Documento(titulo: k?.contactoNombre ?? "Recibo", subtitulo: "\(k?.propiedadTitulo ?? "") · \(ReciboVista.mes(c.periodo))",
                           numero: c.numero.map { "Recibo N.º " + String(format: "0001-%05d", $0) },
                           bloques: [.init(titulo: "Conceptos", filas: filas, total: ("Total cobrado", Formato.plata(c.monto, c.moneda))),
@@ -275,9 +275,11 @@ enum Documentos {
         return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Contrato \(k.propiedadTitulo ?? "")")
     }
 
-    /// El acta de entrega o devolución: cada ambiente con sus ítems y su estado, y las tres firmas.
-    static func acta(_ a: Acta, items: [ItemInventario], propiedad: String, api: Api) async -> URL? {
+    /// El acta de entrega o devolución: cada ambiente con sus ítems y su estado (los que quedaron
+    /// congelados al labrarla, `acta.items`), y las tres firmas.
+    static func acta(_ a: Acta, propiedad: String, api: Api) async -> URL? {
         let inmo = await inmobiliaria(api)
+        let items = a.items ?? []
         var ambientes: [String] = []
         for i in items where !ambientes.contains(i.ambiente) { ambientes.append(i.ambiente) }
         var bloques = ambientes.map { amb in
@@ -290,7 +292,7 @@ enum Documentos {
         let firmas = [("inquilino", "Inquilino"), ("propietario", "Propietario"), ("inmobiliaria", "Inmobiliaria")].map { k, n in
             Documento.Firma(parte: n, nombre: a.firmas?[k]?.nombre, trazo: a.firmas?[k]?.trazo)
         }
-        let d = Documento(titulo: a.tipo == "devolucion" ? "Acta de devolución" : "Acta de entrega",
+        let d = Documento(titulo: a.esSalida ? "Acta de devolución" : "Acta de entrega",
                           subtitulo: "\(propiedad) · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "")", bloques: bloques, firmas: firmas,
                           pie: "Las partes aceptan el estado de cada ambiente tal como quedó registrado. Hecha con Corredor")
         return Impresor.pdf(d, inmobiliaria: inmo?.nombre ?? "Corredor", nombre: "Acta \(propiedad)")

@@ -14,10 +14,12 @@ struct Buscar: View {
     @State private var buscando = false
     @FocusState private var foco: Bool
 
+    /// Los tipos que devuelve la API, en el orden de los grupos del panel (lib/ui/shell/busqueda.ts).
     private static let grupos: [(String, String, String)] = [
         ("propiedad", "Propiedades", "building.2"), ("contacto", "Contactos", "person"), ("contrato", "Contratos", "doc.text"),
-        ("operacion", "Operaciones", "rectangle.split.3x1"), ("emprendimiento", "Emprendimientos", "building"),
-        ("consorcio", "Consorcios", "building.columns"),
+        ("consorcio", "Consorcios", "building.columns"), ("operacion", "Operaciones", "rectangle.split.3x1"),
+        ("emprendimiento", "Emprendimientos", "building"), ("reserva", "Reservas", "hand.raised"),
+        ("reserva_temporada", "Temporario", "beach.umbrella"),
     ]
 
     var body: some View {
@@ -120,7 +122,12 @@ struct Buscar: View {
         case "contacto": estado.abrir(AFichaContacto(id: x.id))
         case "contrato": estado.abrir(AFichaContrato(id: x.id))
         case "operacion": estado.abrir(AFichaOperacion(id: x.id))
-        default: estado.abrir(ASeccion(clave: x.tipo + "s", id: x.id))
+        // Las claves de la ficha son en singular (las de la lista, en plural, ignoran el id).
+        case "emprendimiento", "consorcio": estado.abrir(ASeccion(clave: x.tipo, id: x.id))
+        // Las reservas todavía no tienen ficha en la app: se abre su lista.
+        case "reserva": estado.abrir(ASeccion(clave: "reservas"))
+        case "reserva_temporada": estado.abrir(ASeccion(clave: "temporada"))
+        default: if let r = Ruta(texto: "/\(x.tipo)/\(x.id)"), let d = r.destino { estado.abrir(d) }
         }
     }
 }
@@ -133,6 +140,11 @@ struct Avisos: View {
     @State private var seg = 0
     @State private var avisos: [AvisoCentro]?
     @State private var error: ErrorApi?
+    /// La acción que pide un texto antes de mandarse (responder desde el aviso).
+    @State private var escribiendo: Escribir?
+    @State private var respuesta = ""
+
+    struct Escribir { var aviso: AvisoCentro; var accion: AvisoCentro.Accion }
 
     var body: some View {
         ScrollView {
@@ -167,13 +179,23 @@ struct Avisos: View {
             if seg == 0, avisos?.contains(where: { $0.leidoEn == nil }) == true {
                 Button("Marcar leídos") {
                     Task {
-                        try? await estado.api.hacer("POST", "/v1/avisos/leidos")
-                        await cargar()
+                        do {
+                            try await estado.api.hacer("POST", "/v1/avisos/leidos")
+                            await cargar()
+                        } catch { estado.avisar(error) }
                     }
                 }
             }
         }
         .task(id: estado.version) { await cargar() }
+        .alert(escribiendo?.accion.titulo ?? "Responder", isPresented: Binding(get: { escribiendo != nil }, set: { if !$0 { escribiendo = nil } }), presenting: escribiendo) { e in
+            TextField("Escribí acá", text: $respuesta)
+            Button("Cancelar", role: .cancel) {}
+            Button("Mandar") {
+                let t = respuesta.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty { Task { await hacer(e.aviso, e.accion, texto: t) } }
+            }
+        }
     }
 
     private func fila(_ a: AvisoCentro, primera: Bool) -> some View {
@@ -200,7 +222,17 @@ struct Avisos: View {
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
         .contentShape(Rectangle())
         .onTapGesture { abrir(a) }
-        .swipeActions { Button("Leído") { Task { try? await estado.api.hacer("POST", "/v1/avisos/\(a.id)/leido"); await cargar() } }.tint(C.verde700) }
+        .swipeActions {
+            Button("Leído") {
+                Task {
+                    do {
+                        try await estado.api.hacer("POST", "/v1/avisos/\(a.id)/leido")
+                        await cargar()
+                    } catch { estado.avisar(error) }
+                }
+            }
+            .tint(C.verde700)
+        }
     }
 
     private func abrir(_ a: AvisoCentro) {
@@ -208,18 +240,30 @@ struct Avisos: View {
         if let u = a.url, let r = Ruta(texto: u) { estado.ir(r) }
     }
 
-    /// Una acción del aviso: si trae método y ruta se hace acá (con «Deshacer» si se puede); si no, se abre.
-    private func hacer(_ a: AvisoCentro, _ x: AvisoCentro.Accion) async {
-        if let m = x.metodo, let r = x.ruta {
-            do {
-                _ = try await estado.api.pedir(m, r.hasPrefix("/v1") ? r : "/v1" + r)
-                try? await estado.api.hacer("POST", "/v1/avisos/\(a.id)/hecho")
-                estado.avisar(x.titulo.map { "\($0) · listo" } ?? "Listo")
-                await cargar()
-            } catch { estado.avisar(error) }
-        } else if let u = x.url ?? a.url, let r = Ruta(texto: u) {
-            estado.ir(r)
+    /// Una acción del aviso, como la hace el panel (avisos/[id]/accion): con ruta se llama a la API con
+    /// su método y su cuerpo (o {"texto": …} si pide escribir); sin ruta, se abre su link.
+    private func hacer(_ a: AvisoCentro, _ x: AvisoCentro.Accion, texto: String? = nil) async {
+        guard let r = x.ruta?.nonEmpty else {
+            if let u = x.url ?? a.url, let r = Ruta(texto: u) { estado.ir(r) }
+            return
         }
+        if x.entrada == "texto" && texto == nil {
+            respuesta = ""
+            escribiendo = Escribir(aviso: a, accion: x)
+            return
+        }
+        let cuerpo: JSONLibre
+        if x.entrada == "texto" { cuerpo = .objeto(["texto": .texto(texto ?? "")]) }
+        else if let c = x.cuerpo, c != .nulo { cuerpo = c }
+        else { cuerpo = .objeto([:]) }
+        do {
+            _ = try await estado.api.pedir((x.metodo ?? "POST").uppercased(), r.hasPrefix("/v1") ? r : "/v1" + r, cuerpo: Api.codificador.encode(cuerpo))
+            // Si pedía algo, queda hecho; si no, leído.
+            if a.accionable == true && a.hechoEn == nil { try? await estado.api.hacer("POST", "/v1/avisos/\(a.id)/hecho") }
+            else { try? await estado.api.hacer("POST", "/v1/avisos/\(a.id)/leido") }
+            estado.avisar(x.titulo.map { "\($0) · listo" } ?? "Listo")
+            await cargar()
+        } catch { estado.avisar(error) }
     }
 
     private func cargar() async {

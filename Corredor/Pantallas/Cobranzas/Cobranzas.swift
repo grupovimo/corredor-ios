@@ -233,7 +233,7 @@ struct Cobranzas: View {
     private func cargar() async {
         let p = String(Formato.diaISO(periodo).prefix(7))
         do {
-            mes = try await estado.api.get("/v1/cobranzas", query: [.init(name: "periodo", value: p)])
+            mes = try await estado.api.get("/v1/cobranzas", query: [.init(name: "mes", value: p)])
             error = nil
         } catch let e as ErrorApi { if mes == nil { error = e } } catch {}
     }
@@ -266,7 +266,8 @@ struct HojaCobro: View {
                 Text(fila.estimado == true ? "Con el ajuste estimado (el índice todavía no salió)" : "Alquiler del mes con su ajuste").estilo(.footnote).foregroundStyle(C.texto2)
             }
             .padding(14).frame(maxWidth: .infinity, alignment: .leading).background(C.hundida, in: .rect(cornerRadius: 16))
-            Segmentado(opciones: [("transferencia", "Transferencia"), ("efectivo", "Efectivo"), ("otro", "Otro")], elegido: $medio)
+            // Los medios que acepta la API (transferencia, efectivo o mercadopago).
+            Segmentado(opciones: [("transferencia", "Transferencia"), ("efectivo", "Efectivo"), ("mercadopago", "Mercado Pago")], elegido: $medio)
             HStack {
                 Text("Fecha").foregroundStyle(C.texto2)
                 Spacer()
@@ -348,7 +349,7 @@ struct ReciboVista: View {
                 Rectangle().fill(Color(hex: 0xE3DDCF)).frame(height: 1)
                 HStack { Text("Total cobrado").bold(); Spacer(); Text(c.map { Formato.plata($0.monto, $0.moneda) } ?? "").bold() }
                     .font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font)
-                if let p = c?.pagadoEl { Text("Pagado el \(Fecha.dia(p).map { Formato.diaCompleto($0) } ?? p)\(c?.medio.map { " · \($0)" } ?? "")").estilo(.footnote).foregroundStyle(Color(hex: 0x6B6457)) }
+                if let p = c?.pagadoEl { Text("Pagado el \(Fecha.dia(p).map { Formato.diaCompleto($0) } ?? p)\(c?.medio.map { " · \(Self.medioTexto($0))" } ?? "")").estilo(.footnote).foregroundStyle(Color(hex: 0x6B6457)) }
                 Spacer(minLength: 0)
                 HStack(spacing: 6) {
                     Image("Simbolo").resizable().scaledToFit().frame(height: 10).colorMultiply(Color(hex: 0xC9A04A))
@@ -384,6 +385,10 @@ struct ReciboVista: View {
             k = try? await estado.api.get("/v1/contratos/\(contrato)")
             inmo = try? await estado.api.get("/v1/inmobiliaria")
         }
+    }
+
+    static func medioTexto(_ m: String) -> String {
+        ["transferencia": "transferencia", "efectivo": "efectivo", "mercadopago": "Mercado Pago"][m] ?? m
     }
 
     static func mes(_ p: String) -> String {
@@ -444,6 +449,8 @@ struct Contratos: View {
     @Environment(Estado.self) private var estado
     @State private var lista: [ContratoAPI]?
     @State private var deudas: [String: Deuda] = [:]
+    /// El alquiler de hoy (el del mes, ya ajustado) de cada contrato, de GET /v1/cobranzas.
+    @State private var actual: [String: Double] = [:]
     @State private var filtro = "vigente"
     @State private var nuevo = false
     @State private var leerPDF = false
@@ -473,7 +480,7 @@ struct Contratos: View {
                                     IconoTono(icono: k.tipo == "venta" ? "key" : "doc.text", tono: deudas[k.id] != nil ? .rojo : .verde)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(k.propiedadTitulo ?? "Contrato").estilo(.filaLista).foregroundStyle(C.texto)
-                                        Text([k.contactoNombre, k.monto.map { Formato.plata($0, k.moneda ?? "ARS") }, k.ajusteTexto].compactMap { $0 }.joined(separator: " · "))
+                                        Text([k.contactoNombre, (actual[k.id] ?? k.monto).map { Formato.plata($0, k.moneda ?? "ARS") }, k.ajusteTexto].compactMap { $0 }.joined(separator: " · "))
                                             .estilo(.footnote).foregroundStyle(C.texto2).lineLimit(1)
                                         if let d = deudas[k.id] {
                                             Text("Debe \(Formato.plata(d.total ?? 0, d.moneda ?? "ARS"))").font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.errorTinta)
@@ -511,9 +518,12 @@ struct Contratos: View {
     }
 
     private func cargar() async {
-        lista = (try? await estado.api.get("/v1/contratos", query: [.init(name: "limite", value: "1000")])) ?? lista ?? []
+        lista = (try? await estado.api.todas("/v1/contratos", query: [])) ?? lista ?? []
         let d: [Deuda] = (try? await estado.api.get("/v1/contratos/deudas")) ?? []
         deudas = Dictionary(d.map { ($0.contratoId, $0) }, uniquingKeysWith: { a, _ in a })
+        if let m: MesCobranzas = try? await estado.api.get("/v1/cobranzas") {
+            actual = Dictionary((m.pendientes + m.cobradas).map { ($0.contratoId, $0.monto) }, uniquingKeysWith: { a, _ in a })
+        }
     }
 }
 
@@ -532,15 +542,17 @@ struct FichaContrato: View {
     @State private var recibo: ARecibo?
     @State private var previo: ArchivoPrevio?
 
-    /// GET /v1/contratos/{id}/ajuste: el próximo ajuste y a quién ya se le avisó.
+    /// GET /v1/contratos/{id}/ajuste: el alquiler de hoy (`vigente`), el próximo ajuste y a quién ya se le
+    /// avisó (parte → cuándo).
     struct AjusteAPI: Codable {
         struct Proximo: Codable { var indice: String?; var fecha: String?; var monto: Double?; var estimado: Bool? }
+        var base: Double?
+        var vigente: Double?
         var proximo: Proximo?
         var avisos: [String: Date]?
         var fecha: String? { proximo?.fecha }
         var montoNuevo: Double? { proximo?.monto }
         var estimado: Bool? { proximo?.estimado }
-        var avisado: Bool? { (avisos?.isEmpty == false) }
     }
 
     var body: some View {
@@ -574,7 +586,9 @@ struct FichaContrato: View {
                     VStack(spacing: 0) {
                         dato("Inquilino", k.contactoNombre ?? "—", primera: true) { if let c = k.contactoId { estado.abrir(AFichaContacto(id: c)) } }
                         dato("Propietario", k.propietarioNombre ?? "—") { if let c = k.propietarioId { estado.abrir(AFichaContacto(id: c)) } }
-                        dato("Alquiler", k.monto.map { Formato.plata($0, k.moneda ?? "ARS") } ?? "—")
+                        // El de hoy (ya ajustado) y el inicial del contrato, como la web.
+                        if k.tipo != "venta", let v = ajuste?.vigente, v > 0 { dato("Alquiler hoy", Formato.plata(v, k.moneda ?? "ARS")) }
+                        dato(k.tipo == "venta" ? "Monto" : "Alquiler inicial", k.monto.map { Formato.plata($0, k.moneda ?? "ARS") } ?? "—")
                         dato("Ajuste", k.ajusteTexto)
                         if let a = ajuste, let f = a.fecha {
                             dato("Próximo ajuste", "\(Fecha.dia(f).map { Formato.diaCompleto($0) } ?? f)\(a.montoNuevo.map { " · \(Formato.plata($0, k.moneda ?? "ARS"))\(a.estimado == true ? " (estimado)" : "")" } ?? "")")
@@ -585,11 +599,8 @@ struct FichaContrato: View {
                         if let g = k.garanteNombre { dato("Garante", g) { Afuera.llamar(k.garanteTelefono) } }
                     }
                     .tarjeta()
-                    if let a = ajuste, a.avisado != true, a.fecha != nil, estado.escribe {
-                        Button {
-                            Task { try? await estado.api.hacer("POST", "/v1/contratos/\(id)/ajuste/avisos"); estado.avisar("Le avisamos del ajuste"); await cargar() }
-                        } label: { Label("Avisarle el ajuste por WhatsApp", systemImage: "bell") }
-                        .buttonStyle(BotonHundido())
+                    if let a = ajuste, a.fecha != nil, a.montoNuevo != nil, estado.escribe {
+                        avisosAjuste(k, a)
                     }
                     VStack(alignment: .leading, spacing: 8) {
                         TituloBloque(texto: "Cobros")
@@ -677,6 +688,58 @@ struct FichaContrato: View {
         }
         .buttonStyle(Presionable()).disabled(hacer == nil)
         .overlay(alignment: .top) { if !primera { Rectangle().fill(C.linea).frame(height: 0.5) } }
+    }
+
+    /// «Avisarle a …» / «Avisar a …»: el WhatsApp del ajuste a cada parte y quién ya sabe (como la web).
+    @ViewBuilder private func avisosAjuste(_ k: ContratoAPI, _ a: AjusteAPI) -> some View {
+        let nInq = Self.primerNombre(k.contactoNombre)
+        let nProp = Self.primerNombre(k.propietarioNombre)
+        VStack(alignment: .leading, spacing: 8) {
+            if k.contactoId != nil {
+                Button { Task { await avisarAjuste("inquilino") } } label: { Label("Avisarle a \(nInq.isEmpty ? "el inquilino" : nInq)", systemImage: "bubble.left") }
+                    .buttonStyle(BotonHundido())
+            }
+            if k.propietarioId != nil {
+                Button { Task { await avisarAjuste("propietario") } } label: { Label("Avisar a \(nProp.isEmpty ? "el propietario" : nProp)", systemImage: "bubble.left") }
+                    .buttonStyle(BotonHundido())
+            }
+            let ya: [String] = [a.avisos?["inquilino"].map { "\(nInq.isEmpty ? "El inquilino" : nInq) el \(Self.cortita($0))" },
+                                a.avisos?["propietario"].map { "\(nProp.isEmpty ? "el propietario" : nProp) el \(Self.cortita($0))" }].compactMap { $0 }
+            if !ya.isEmpty {
+                Label(Formato.mayuscula(ya.joined(separator: " y ")) + " ya \(ya.count == 2 ? "saben" : "sabe") del\u{00A0}ajuste.", systemImage: "checkmark.circle")
+                    .estilo(.footnote).foregroundStyle(C.okTinta)
+            }
+        }
+    }
+
+    static func primerNombre(_ n: String?) -> String { n?.split(separator: " ").first.map(String.init) ?? "" }
+
+    /// «15/03».
+    static func cortita(_ f: Date) -> String {
+        let c = Calendar.current.dateComponents([.day, .month], from: f)
+        return String(format: "%02d/%02d", c.day ?? 0, c.month ?? 0)
+    }
+
+    /// Manda el WhatsApp con el texto de la web y anota el aviso (POST …/ajuste/avisos {parte}).
+    private func avisarAjuste(_ parte: String) async {
+        guard let k, let a = ajuste, let f = a.fecha, let nuevo = a.montoNuevo else { return }
+        struct Ct: Decodable { var telefono: String? }
+        let contacto = parte == "inquilino" ? k.contactoId : k.propietarioId
+        let nombre = parte == "inquilino" ? k.contactoNombre : k.propietarioNombre
+        let x: Ct? = contacto == nil ? nil : try? await estado.api.get("/v1/contactos/\(contacto!)")
+        let n = Self.primerNombre(nombre)
+        let indice = ["icl": "ICL", "ipc": "IPC", "uva": "UVA", "fijo": "Fijo"][k.ajusteIndice ?? ""] ?? "el índice"
+        let moneda = k.moneda ?? "ARS"
+        let fecha = Fecha.dia(f).map(Self.cortita) ?? f
+        let texto = "¡Hola\(n.isEmpty ? "" : " " + n)! Te avisamos que el \(fecha) el alquiler se ajusta por \(indice): pasa de \(Formato.plata(a.vigente ?? k.monto ?? 0, moneda)) a \(Formato.plata(nuevo, moneda)). Cualquier duda, escribinos."
+        Afuera.whatsapp(x?.telefono, texto: texto)
+        struct Cuerpo: Encodable { var parte: String }
+        do {
+            try await estado.api.hacer("POST", "/v1/contratos/\(id)/ajuste/avisos", Cuerpo(parte: parte))
+            ajuste?.avisos = (ajuste?.avisos ?? [:]).merging([parte: Date()]) { _, b in b }
+        } catch {
+            estado.avisar(error)
+        }
     }
 
     private func cargar() async {

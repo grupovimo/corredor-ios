@@ -9,8 +9,9 @@ import Foundation
 struct AFichaPropiedad: Hashable { var id: String }
 /// 3E Galería de fotos de una propiedad, desde la foto `indice`.
 struct AGaleria: Hashable { var id: String; var indice = 0 }
-/// 4A Alta rápida de una propiedad (o seguir un borrador).
-struct AAltaPropiedad: Hashable { var borrador: String? = nil }
+/// 4A Alta rápida de una propiedad. `editar`: el id de una propiedad; `borrador`: el id de uno de
+/// /v1/borradores para seguirlo (el de la web, el de otro aparato o el que dejó MIRA).
+struct AAltaPropiedad: Hashable { var editar: String? = nil; var borrador: String? = nil }
 /// 5I Lo captado con MIRA (la cola y los borradores).
 struct ACaptadas: Hashable {}
 /// 6B Un chat de WhatsApp.
@@ -68,8 +69,11 @@ struct Ruta: Equatable {
 
     /// `propiedad/123` (el `ruta` del push) o `corredor://propiedad/123`. También acepta rutas del
     /// panel web (`/propiedades/123`, `/mensajes/abc`), que son las que manda la API en los avisos.
+    /// `/propiedades/nueva?borrador=<id>` sigue ese borrador.
     init?(texto: String) {
+        let borrador = URLComponents(string: texto)?.queryItems?.first { $0.name == "borrador" }?.value
         var t = texto
+        if let q = t.firstIndex(of: "?") { t = String(t[..<q]) }
         if let u = URL(string: texto), u.scheme == "corredor" {
             t = ([u.host ?? ""] + u.pathComponents.filter { $0 != "/" }).joined(separator: "/")
         } else if let u = URL(string: texto), u.scheme == "https" {
@@ -81,7 +85,7 @@ struct Ruta: Equatable {
         switch a {
         case "inicio": self.init(.inicio)
         case "propiedad", "propiedades":
-            self.init(.propiedades, id.map { $0 == "nueva" ? AnyHashable(AAltaPropiedad()) : AnyHashable(AFichaPropiedad(id: $0)) })
+            self.init(.propiedades, id.map { $0 == "nueva" ? AnyHashable(AAltaPropiedad(borrador: borrador)) : AnyHashable(AFichaPropiedad(id: $0)) })
         case "mira": self.init(.mira, id == "captadas" ? AnyHashable(ACaptadas()) : nil)
         case "chat", "mensajes", "whatsapp": self.init(.mensajes, id.map { AnyHashable(AChat(id: $0)) })
         case "ml", "mercadolibre": self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })

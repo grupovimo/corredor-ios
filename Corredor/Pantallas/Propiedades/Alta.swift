@@ -2,7 +2,9 @@ import PhotosUI
 import Speech
 import SwiftUI
 
-/// Lo que se carga en el alta (y en el borrador que se guarda solo).
+/// Lo que se carga en el alta (y en el borrador que se guarda solo). En /v1/borradores va con el
+/// formato de la web (lib/propiedades/alta-modelo.ts), para seguirlo en cualquier aparato: las fotos
+/// como `[{id, url}]`, más título, comodidades y dónde publicar, que acá no se editan pero se respetan.
 struct DatosAlta: Codable, Equatable {
     var operacion = "venta"
     var tipo = "departamento"
@@ -25,6 +27,15 @@ struct DatosAlta: Codable, Equatable {
     var fotosUrl: [String] = []
     var propietarioId: String?
     var propietarioNombre: String?
+    // Los de la web.
+    var titulo = ""
+    /// El título lo tocó la persona: ya no se arma solo de la descripción.
+    var tituloPropio = false
+    var comodidades: [String] = []
+    var sugeridas: [String] = []
+    var publicar: [String: Bool] = ["web": true, "mercadolibre": true, "zonaprop": true, "argenprop": false]
+    var audioId: String?
+    var audioSegundos: Double?
 
     init() {}
 
@@ -49,54 +60,238 @@ struct DatosAlta: Codable, Equatable {
         fotos = p.fotos ?? []
         fotosUrl = p.fotosUrl ?? []
         propietarioId = p.propietarioId
+        titulo = p.titulo ?? ""
+        tituloPropio = true
+        comodidades = p.comodidades ?? []
+        sugeridas = comodidades
+        publicar = ["web": p.publicada ?? true, "mercadolibre": false, "zonaprop": false, "argenprop": false]
     }
 
-    /// Lo que va a POST/PUT /v1/propiedades.
-    struct Cuerpo: Encodable {
-        var titulo: String
-        var operacion: String
-        var tipo: String
-        var direccion: String?
-        var barrio: String?
-        var ciudad: String?
-        var precio: Double?
-        var moneda: String
-        var expensas: Double?
-        var ambientes: Int
-        var dormitorios: Int?
-        var banos: Int?
-        var cocheras: Int?
-        var superficie: Double?
-        var cubierta: Double?
-        var antiguedad: Int?
-        var aptoCredito: Bool
-        var descripcion: String?
-        var fotos: [String]
-        var propietarioId: String?
-        var estado: String?
+    // MARK: El formato de la web
+
+    private struct FotoAlta: Codable { var id: String; var url: String? }
+
+    private enum K: String, CodingKey {
+        case operacion, tipo, direccion, barrio, ciudad, precio, moneda, expensas, ambientes, dormitorios, banos, cocheras, superficie,
+             cubierta, antiguedad, aptoCredito, descripcion, fotos, fotosUrl, propietarioId, propietarioNombre, titulo, tituloPropio,
+             comodidades, sugeridas, publicar, audioId, audioSegundos
     }
 
-    func cuerpo(estado: String? = nil) -> Cuerpo {
-        Cuerpo(titulo: direccion.nonEmpty ?? "Propiedad sin dirección", operacion: operacion, tipo: tipo, direccion: direccion.nonEmpty,
-               barrio: barrio.nonEmpty, ciudad: ciudad.nonEmpty, precio: precio, moneda: moneda, expensas: expensas, ambientes: ambientes,
-               dormitorios: dormitorios, banos: banos, cocheras: cocheras, superficie: superficie, cubierta: cubierta, antiguedad: antiguedad,
-               aptoCredito: aptoCredito, descripcion: descripcion.nonEmpty, fotos: fotos, propietarioId: propietarioId, estado: estado)
+    /// Tolerante: el de la web, el de MIRA y el viejo de la app (fotos como ids sueltos y `fotosUrl`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: K.self)
+        func v<T: Decodable>(_ k: K) -> T? { (try? c.decodeIfPresent(T.self, forKey: k)) ?? nil }
+        operacion = v(.operacion) ?? operacion
+        tipo = v(.tipo) ?? tipo
+        if tipo == "terreno" { tipo = "lote" }
+        direccion = v(.direccion) ?? ""
+        barrio = v(.barrio) ?? ""
+        ciudad = v(.ciudad) ?? ""
+        precio = v(.precio)
+        moneda = v(.moneda) ?? moneda
+        expensas = v(.expensas)
+        ambientes = v(.ambientes) ?? ambientes
+        dormitorios = v(.dormitorios)
+        banos = v(.banos)
+        cocheras = v(.cocheras)
+        superficie = v(.superficie)
+        cubierta = v(.cubierta)
+        antiguedad = v(.antiguedad)
+        aptoCredito = v(.aptoCredito) ?? false
+        descripcion = v(.descripcion) ?? ""
+        let urls: [String] = v(.fotosUrl) ?? []
+        for (i, f) in ((v(.fotos) as [JSONLibre]?) ?? []).enumerated() {
+            if let id = f["id"]?.texto, !id.hasPrefix("subiendo-") {
+                fotos.append(id)
+                fotosUrl.append(f["url"]?.texto ?? "")
+            } else if let id = f.texto {
+                fotos.append(id)
+                fotosUrl.append(urls.indices.contains(i) ? urls[i] : "")
+            }
+        }
+        propietarioId = v(.propietarioId)
+        propietarioNombre = v(.propietarioNombre)
+        titulo = v(.titulo) ?? ""
+        tituloPropio = v(.tituloPropio) ?? false
+        comodidades = v(.comodidades) ?? []
+        sugeridas = v(.sugeridas) ?? []
+        publicar.merge((v(.publicar) as [String: Bool]?) ?? [:]) { _, nuevo in nuevo }
+        audioId = v(.audioId)
+        audioSegundos = v(.audioSegundos)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: K.self)
+        try c.encode(operacion, forKey: .operacion)
+        try c.encode(tipo, forKey: .tipo)
+        try c.encode(direccion, forKey: .direccion)
+        try c.encode(barrio, forKey: .barrio)
+        try c.encode(precio, forKey: .precio)
+        try c.encode(moneda, forKey: .moneda)
+        try c.encode(ambientes, forKey: .ambientes)
+        try c.encode(zip(fotos, fotosUrl).map { FotoAlta(id: $0, url: $1.nonEmpty) }, forKey: .fotos)
+        try c.encode(descripcion, forKey: .descripcion)
+        try c.encode(titulo, forKey: .titulo)
+        try c.encode(tituloPropio, forKey: .tituloPropio)
+        try c.encode(comodidades, forKey: .comodidades)
+        try c.encode(sugeridas, forKey: .sugeridas)
+        try c.encode(publicar, forKey: .publicar)
+        try c.encodeIfPresent(audioId, forKey: .audioId)
+        try c.encodeIfPresent(audioSegundos, forKey: .audioSegundos)
+        // Lo que la web no carga en el alta (la web lo deja pasar tal cual).
+        try c.encodeIfPresent(ciudad.nonEmpty, forKey: .ciudad)
+        try c.encodeIfPresent(expensas, forKey: .expensas)
+        try c.encodeIfPresent(dormitorios, forKey: .dormitorios)
+        try c.encodeIfPresent(banos, forKey: .banos)
+        try c.encodeIfPresent(cocheras, forKey: .cocheras)
+        try c.encodeIfPresent(superficie, forKey: .superficie)
+        try c.encodeIfPresent(cubierta, forKey: .cubierta)
+        try c.encodeIfPresent(antiguedad, forKey: .antiguedad)
+        if aptoCredito { try c.encode(true, forKey: .aptoCredito) }
+        try c.encodeIfPresent(propietarioId, forKey: .propietarioId)
+        try c.encodeIfPresent(propietarioNombre, forKey: .propietarioNombre)
+    }
+
+    // MARK: El título (tituloSugerido y tituloFinal de la web)
+
+    private var tipoCorto: String { tipo == "departamento" ? "Depto" : (Propiedad.tipos.first { $0.0 == tipo }?.1 ?? tipo) }
+
+    /// «3 amb al frente con balcón · Belgrano · apto crédito», armado de la descripción.
+    var tituloSugerido: String {
+        let t = descripcion.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "es")).lowercased()
+        let cabeza = [tipo == "departamento" || tipo == "ph" ? "\(ambientes) amb" : "\(tipoCorto) \(ambientes) amb",
+                      t.contains("al frente") ? "al frente" : "",
+                      t.contains("balcon") ? "con balcón" : t.contains("terraza") ? "con terraza" : t.contains("patio") ? "con patio" : ""]
+            .filter { !$0.isEmpty }.joined(separator: " ")
+        return [cabeza, barrio.trimmingCharacters(in: .whitespaces), t.contains("apto credito") ? "apto crédito" : ""]
+            .filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// Un título que la API acepte (3 a 120 letras).
+    var tituloFinal: String {
+        let t = (tituloPropio ? titulo : titulo.nonEmpty ?? tituloSugerido).trimmingCharacters(in: .whitespacesAndNewlines)
+        if t.count >= 3 { return String(t.prefix(120)) }
+        return String("\(tipoCorto) · \(direccion)".prefix(120))
+    }
+
+    // MARK: Lo que va a la API
+
+    /// El cuerpo de POST/PUT /v1/propiedades (propiedades.Datos). El PUT reemplaza todo: en la edición
+    /// se parte de la propiedad entera (`base`) y se cambia sólo lo del alta, como cuerpo() de la web.
+    /// Sin `base` (el alta), se publica en la web según `publicar`.
+    func cuerpo(base b: Propiedad? = nil) -> CuerpoPropiedad {
+        let periodo: String? = operacion == "alquiler" ? (b?.periodo ?? "mes") : operacion == "temporario" ? (b?.periodo ?? "noche") : nil
+        return CuerpoPropiedad(
+            titulo: tituloFinal, slug: b?.slug, descripcion: descripcion.nonEmpty?.trimmingCharacters(in: .whitespacesAndNewlines),
+            tipo: tipo, operacion: operacion, estado: b?.estado, precio: precio, moneda: moneda, periodo: periodo, expensas: expensas,
+            precioOculto: b?.precioOculto, direccion: direccion.trimmingCharacters(in: .whitespacesAndNewlines),
+            barrio: barrio.nonEmpty?.trimmingCharacters(in: .whitespaces), ciudad: ciudad.nonEmpty?.trimmingCharacters(in: .whitespaces),
+            lat: b?.lat, lng: b?.lng, ambientes: ambientes, dormitorios: dormitorios, banos: banos, cocheras: cocheras,
+            superficie: superficie, cubierta: cubierta, antiguedad: antiguedad,
+            aptoCredito: b?.aptoCredito == nil && !aptoCredito ? nil : aptoCredito, tambienTemporario: b?.tambienTemporario,
+            comodidades: comodidades, caracteristicas: b?.caracteristicas, servicios: b?.servicios, fotos: fotos, video: b?.video,
+            ficha: b?.ficha, destacada: b?.destacada, publicada: b.map { $0.publicada ?? true } ?? (publicar["web"] ?? true),
+            agenteId: b?.agenteId, propietarioId: propietarioId, emprendimientoId: b?.emprendimientoId)
+    }
+}
+
+/// POST/PUT /v1/propiedades: todos los campos de propiedades.Datos (lo que falta va como null).
+struct CuerpoPropiedad: Encodable {
+    var titulo: String
+    var slug: String?
+    var descripcion: String?
+    var tipo: String
+    var operacion: String
+    var estado: String?
+    var precio: Double?
+    var moneda: String
+    var periodo: String?
+    var expensas: Double?
+    var precioOculto: Bool?
+    var direccion: String
+    var barrio: String?
+    var ciudad: String?
+    var lat: Double?
+    var lng: Double?
+    var ambientes: Int?
+    var dormitorios: Int?
+    var banos: Int?
+    var cocheras: Int?
+    var superficie: Double?
+    var cubierta: Double?
+    var antiguedad: Int?
+    var aptoCredito: Bool?
+    var tambienTemporario: Bool?
+    var comodidades: [String]?
+    var caracteristicas: [String]?
+    var servicios: [String]?
+    var fotos: [String]
+    var video: String?
+    var ficha: JSONLibre?
+    var destacada: Bool?
+    var publicada: Bool?
+    var agenteId: String?
+    var propietarioId: String?
+    var emprendimientoId: String?
+}
+
+/// Lo que se guarda en /v1/borradores: `{paso, datos}`, como la web (el paso es el del alta de la web,
+/// de 0 a 4; la app lo respeta para que allá se siga donde quedó).
+struct BorradorAlta: Codable, Equatable {
+    var paso = 0
+    var datos = DatosAlta()
+
+    init(paso: Int = 0, datos: DatosAlta = DatosAlta()) {
+        self.paso = paso
+        self.datos = datos
+    }
+
+    private enum CodingKeys: String, CodingKey { case paso, datos }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        paso = min(4, max(0, ((try? c.decodeIfPresent(Int.self, forKey: .paso)) ?? nil) ?? 0))
+        datos = ((try? c.decodeIfPresent(DatosAlta.self, forKey: .datos)) ?? nil) ?? DatosAlta()
+    }
+}
+
+/// Un borrador de GET /v1/borradores.
+struct BorradorPropiedad: Decodable, Identifiable {
+    var id: String
+    var datos: BorradorAlta
+    var actualizadoEn: Date?
+
+    private enum K: String, CodingKey { case id, datos, actualizadoEn }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: K.self)
+        id = try c.decode(String.self, forKey: .id)
+        datos = ((try? c.decodeIfPresent(BorradorAlta.self, forKey: .datos)) ?? nil) ?? BorradorAlta()
+        actualizadoEn = (try? c.decodeIfPresent(Date.self, forKey: .actualizadoEn)) ?? nil
     }
 }
 
 /// 4A Alta rápida (y edición): fotos de la cámara o la fototeca (la primera es la portada), operación,
 /// tipo, dirección, barrio, precio, ambientes y la descripción dictada. Se guarda sola como borrador
-/// («Borrador guardado · hace 3 s»); sin señal, el alta queda en cola.
+/// («Borrador guardado · hace 3 s»), el mismo que se sigue en la web; sin señal, el alta queda en cola.
 struct AltaPropiedad: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     /// El id de la propiedad a editar (nil: una nueva).
     var editar: String?
+    /// El id de un borrador de /v1/borradores para seguirlo.
+    var borrador: String? = nil
     var inicial: DatosAlta? = nil
 
     @State private var d = DatosAlta()
+    /// En la edición, la propiedad entera como vino: el PUT parte de ella.
+    @State private var base: Propiedad?
+    @State private var paso = 0
+    /// Los borradores a medio cargar (para seguir uno en vez de empezar otro).
+    @State private var paraSeguir: [BorradorPropiedad] = []
     @State private var borradorId: String?
     @State private var guardadoEn: Date?
+    @State private var sinGuardar = false
     @State private var cargando = false
     @State private var publicando = false
     @State private var elegidas: [PhotosPickerItem] = []
@@ -111,10 +306,18 @@ struct AltaPropiedad: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 if editar == nil {
-                    Label(guardadoEn.map { "Borrador guardado · \(Formato.hace($0, ahora: ahora))" } ?? "Se guarda solo como borrador", systemImage: "checkmark.icloud")
-                        .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.okTinta)
-                        .padding(.horizontal, 12).frame(height: 28).background(C.okFondo, in: Capsule())
-                        .frame(maxWidth: .infinity)
+                    if sinGuardar {
+                        Label("No se pudo guardar el borrador", systemImage: "exclamationmark.icloud")
+                            .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.errorTinta)
+                            .padding(.horizontal, 12).frame(height: 28).background(C.errorFondo, in: Capsule())
+                            .frame(maxWidth: .infinity)
+                    } else {
+                        Label(guardadoEn.map { "Borrador guardado · \(Formato.hace($0, ahora: ahora))" } ?? "Se guarda solo como borrador", systemImage: "checkmark.icloud")
+                            .font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font).foregroundStyle(C.okTinta)
+                            .padding(.horizontal, 12).frame(height: 28).background(C.okFondo, in: Capsule())
+                            .frame(maxWidth: .infinity)
+                    }
+                    if borradorId == nil, !paraSeguir.isEmpty, d == DatosAlta() { aMedioCargar }
                 }
                 fotos
                 Segmentado(opciones: Propiedad.operaciones.map { ($0.0, $0.1) }, elegido: $d.operacion)
@@ -166,7 +369,7 @@ struct AltaPropiedad: View {
             ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } }
             ToolbarItem(placement: .confirmationAction) {
                 Button(editar == nil ? "Publicar" : "Guardar") { Task { await publicar() } }
-                    .fontWeight(.semibold).disabled(publicando || subiendo > 0 || d.direccion.isEmpty)
+                    .fontWeight(.semibold).disabled(publicando || subiendo > 0 || d.direccion.isEmpty || (editar != nil && base == nil))
             }
         }
         .sheet(item: Binding(get: { campo.map { CampoAlta(id: $0) } }, set: { campo = $0?.id })) { c in
@@ -188,6 +391,43 @@ struct AltaPropiedad: View {
                 ahora = Date()
             }
         }
+    }
+
+    // MARK: A medio cargar
+
+    /// Los borradores de la persona (de la web, de otro aparato o de MIRA): tocar uno lo sigue.
+    private var aMedioCargar: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("A MEDIO CARGAR").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.5)
+                .foregroundStyle(C.texto2).padding(.horizontal, 4)
+            VStack(spacing: 0) {
+                ForEach(Array(paraSeguir.enumerated()), id: \.element.id) { i, b in
+                    Button { seguir(b) } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "square.and.pencil").font(.system(size: 18)).foregroundStyle(C.oro).frame(width: 24)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(b.datos.datos.direccion.nonEmpty ?? "Sin dirección todavía").estilo(.filaLista).foregroundStyle(C.texto).lineLimit(1)
+                                Text([Formato.cantidad(b.datos.datos.fotos.count, "foto", "fotos"), b.actualizadoEn.map { Formato.hace($0, ahora: ahora) }]
+                                    .compactMap { $0 }.joined(separator: " · ")).estilo(.footnote).foregroundStyle(C.texto2)
+                            }
+                            Spacer()
+                            Chevron()
+                        }
+                        .padding(.horizontal, 14).frame(minHeight: 54).contentShape(Rectangle())
+                    }
+                    .buttonStyle(Presionable())
+                    .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
+                }
+            }
+            .tarjeta(16)
+        }
+    }
+
+    private func seguir(_ b: BorradorPropiedad) {
+        borradorId = b.id
+        paso = b.datos.paso
+        d = b.datos.datos
+        paraSeguir = []
     }
 
     // MARK: Fotos
@@ -345,13 +585,32 @@ struct AltaPropiedad: View {
 
     private func arrancar() async {
         if let inicial { d = inicial; return }
-        guard let editar else { return }
-        cargando = true
-        if let p: Propiedad = try? await estado.api.get("/v1/propiedades/\(editar)") { d = DatosAlta(p) }
-        cargando = false
+        if let editar {
+            cargando = true
+            defer { cargando = false }
+            do {
+                let p: Propiedad = try await estado.api.get("/v1/propiedades/\(editar)")
+                base = p
+                d = DatosAlta(p)
+            } catch { estado.avisar(error) }
+            return
+        }
+        do {
+            let bs: [BorradorPropiedad] = try await estado.api.get("/v1/borradores")
+            if let borrador {
+                if let b = bs.first(where: { $0.id == borrador }) { seguir(b) } else { estado.avisar("Ese borrador ya no está: se publicó o se borró") }
+            } else {
+                paraSeguir = bs
+            }
+        } catch {
+            if borrador != nil { estado.avisar(error) }
+        }
     }
 
     @State private var esperaBorrador: Task<Void, Never>?
+    /// El guardado en curso: los guardados van en fila (el primero crea el borrador y los que siguen
+    /// lo actualizan), y no se cancelan a mitad del pedido.
+    @State private var guardando: Task<Void, Never>?
 
     private func programarBorrador() {
         guard editar == nil else { return }
@@ -359,30 +618,49 @@ struct AltaPropiedad: View {
         esperaBorrador = Task {
             try? await Task.sleep(for: .milliseconds(800))
             if Task.isCancelled { return }
-            struct Cuerpo: Encodable { var datos: DatosAlta }
-            struct Creado: Decodable { var id: String }
-            do {
-                if let b = borradorId {
-                    try await estado.api.hacer("PUT", "/v1/borradores/\(b)", Cuerpo(datos: d))
-                } else {
-                    let c: Creado = try await estado.api.enviar("POST", "/v1/borradores?clase=propiedad", Cuerpo(datos: d))
-                    borradorId = c.id
-                }
-                guardadoEn = Date()
-            } catch {}
+            let previo = guardando
+            guardando = Task {
+                await previo?.value
+                await guardarBorrador()
+            }
+        }
+    }
+
+    private func guardarBorrador() async {
+        struct Creado: Decodable { var id: String }
+        let cuerpo = BorradorAlta(paso: paso, datos: d)
+        do {
+            if let b = borradorId {
+                try await estado.api.hacer("PUT", "/v1/borradores/\(b)", cuerpo)
+            } else {
+                let c: Creado = try await estado.api.enviar("POST", "/v1/borradores", cuerpo)
+                borradorId = c.id
+            }
+            guardadoEn = Date()
+            sinGuardar = false
+        } catch {
+            sinGuardar = true
         }
     }
 
     private func publicar() async {
         publicando = true
         defer { publicando = false }
+        // Que no quede un guardado del borrador a medias (ni uno nuevo después de publicar).
+        esperaBorrador?.cancel()
+        await guardando?.value
         do {
             if let editar {
-                try await estado.cola.enviar("PUT", "/v1/propiedades/\(editar)", d.cuerpo(), etiqueta: "Cambios en \(d.direccion)")
+                guard let base else { return }
+                try await estado.cola.enviar("PUT", "/v1/propiedades/\(editar)", d.cuerpo(base: base), etiqueta: "Cambios en \(d.direccion)")
                 estado.avisar("Propiedad guardada")
             } else {
-                let subio = try await estado.cola.enviar("POST", "/v1/propiedades", d.cuerpo(estado: "disponible"), etiqueta: "Alta de \(d.direccion)")
-                if let b = borradorId { try? await estado.api.hacer("DELETE", "/v1/borradores/\(b)") }
+                let subio = try await estado.cola.enviar("POST", "/v1/propiedades", d.cuerpo(), etiqueta: "Alta de \(d.direccion)")
+                if let b = borradorId {
+                    do { try await estado.api.hacer("DELETE", "/v1/borradores/\(b)") } catch let e as ErrorApi where e.sinConexion {
+                        // Sin señal queda en «a medio cargar»: se borra a mano.
+                    } catch { estado.avisar(error) }
+                }
                 if subio {
                     estado.sugerir("\(d.direccion) quedó publicada en tu web", "Portales", ASeccion(clave: "difusion"))
                 } else {

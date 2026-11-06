@@ -15,17 +15,31 @@ struct ItemInventario: Codable, Identifiable, Hashable {
     static let estados = [("nuevo", "Nuevo"), ("muy_bueno", "Muy bueno"), ("bueno", "Bueno"), ("regular", "Regular"), ("malo", "Malo")]
 }
 
-/// Un acta (entrega o devolución) con sus firmas.
+/// Un acta con sus firmas. La API la llama «entrada» (entrega) o «salida» (devolución).
 struct Acta: Codable, Identifiable, Hashable {
     struct Firma: Codable, Hashable { var nombre: String?; var trazo: String?; var en: Date? }
+    /// Un ítem tal como quedó congelado al labrar el acta.
+    struct Item: Codable, Hashable {
+        var ambiente: String
+        var descripcion: String
+        var cantidad: Int?
+        var estado: String
+        var notas: String?
+        var fotos: [String]?
+        var fotosUrl: [String]?
+    }
     var id: String
     var propiedadId: String?
     var contratoId: String?
     var tipo: String?
     var fecha: String?
+    var items: [Item]?
     var observaciones: String?
     var firmas: [String: Firma]?
     var propiedadTitulo: String?
+
+    var esSalida: Bool { tipo == "salida" }
+    var tipoTexto: String { esSalida ? "Devolución" : "Entrega" }
 }
 
 /// 11A Recorrida de inventario: los ambientes en chips, las fotos del ambiente, el estado de cada ítem
@@ -35,6 +49,8 @@ struct Inventario: View {
     var propiedad: String
     @State private var items: [ItemInventario] = []
     @State private var actas: [Acta] = []
+    /// El contrato de la propiedad (el vigente o el último), para atar el acta y el dictado.
+    @State private var contrato: ContratoAPI?
     @State private var prop: Propiedad?
     @State private var ambiente = ""
     @State private var foto: PhotosPickerItem?
@@ -150,7 +166,7 @@ struct Inventario: View {
                             ForEach(Array(actas.enumerated()), id: \.element.id) { i, a in
                                 Button { estado.abrir(AFirmas(id: "\(propiedad)/\(a.id)")) } label: {
                                     HStack {
-                                        Text("\(a.tipo == "devolucion" ? "Devolución" : "Entrega") · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "")").estilo(.filaLista).foregroundStyle(C.texto)
+                                        Text("\(a.tipoTexto) · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "")").estilo(.filaLista).foregroundStyle(C.texto)
                                         Spacer()
                                         Text("\(a.firmas?.count ?? 0) de 3 firmas").estilo(.footnote).foregroundStyle(C.texto2)
                                         Chevron()
@@ -167,10 +183,10 @@ struct Inventario: View {
             }
             .padding(.horizontal, 16).padding(.vertical, 14)
         }
-        .pantallaApilada("Acta de entrega")
+        .pantallaApilada(proxima.tipo == "salida" ? "Acta de devolución" : "Acta de entrega")
         .toolbar { if estado.escribe { Button { dictando = true } label: { Label("Dictar", systemImage: "mic") } } }
         .sheet(isPresented: $dictando) {
-            DictarInventario(propiedad: propiedad) { n in
+            DictarInventario(propiedad: propiedad, tipoActa: proxima.contratoId == nil ? nil : proxima.tipo, contrato: proxima.contratoId) { n in
                 estado.avisar("Sumamos \(Formato.cantidad(n, "ítem", "ítems")) al inventario")
                 Task { await cargar() }
             }
@@ -187,6 +203,8 @@ struct Inventario: View {
         prop = try? await estado.api.get("/v1/propiedades/\(propiedad)")
         items = (try? await estado.api.get("/v1/propiedades/\(propiedad)/inventario")) ?? []
         actas = (try? await estado.api.get("/v1/propiedades/\(propiedad)/actas")) ?? []
+        let ks: [ContratoAPI] = (try? await estado.api.get("/v1/contratos", query: [.init(name: "propiedad", value: propiedad), .init(name: "limite", value: "5")])) ?? []
+        contrato = ks.first { $0.estado == "vigente" } ?? ks.first
         if ambiente.isEmpty || !ambientes.contains(ambiente) { ambiente = ambientes.first ?? "" }
     }
 
@@ -224,15 +242,25 @@ struct Inventario: View {
         } catch { estado.avisar(error) }
     }
 
+    /// El acta que toca labrar, como la web: la de salida (devolución) si ya hay entrada y falta la
+    /// salida, con el contrato de la entrada; si no, la de entrada con el contrato de la propiedad.
+    private var proxima: (tipo: String, contratoId: String?) {
+        let entrada = actas.first { $0.tipo == "entrada" }
+        let salida = actas.first { $0.tipo == "salida" }
+        if let entrada, salida == nil { return ("salida", entrada.contratoId) }
+        return ("entrada", entrada == nil ? contrato?.id : nil)
+    }
+
     private func firmas() async {
         if let a = actas.first(where: { ($0.firmas?.count ?? 0) < 3 }) {
             estado.abrir(AFirmas(id: "\(propiedad)/\(a.id)"))
             return
         }
-        struct Cuerpo: Encodable { var tipo = "entrega"; var fecha: String }
+        struct Cuerpo: Encodable { var tipo: String; var fecha: String; var contratoId: String? }
         struct Nueva: Decodable { var id: String }
         do {
-            let n: Nueva = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/actas", Cuerpo(fecha: Formato.diaISO(Date())))
+            let x = proxima
+            let n: Nueva = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/actas", Cuerpo(tipo: x.tipo, fecha: Formato.diaISO(Date()), contratoId: x.contratoId))
             estado.abrir(AFirmas(id: "\(propiedad)/\(n.id)"))
         } catch { estado.avisar(error) }
     }
@@ -293,9 +321,8 @@ struct Firmas: View {
                 Button {
                     Task {
                         guard let acta else { return }
-                        let items: [ItemInventario] = (try? await estado.api.get("/v1/propiedades/\(propiedad)/inventario")) ?? []
                         let p: Propiedad? = try? await estado.api.get("/v1/propiedades/\(propiedad)")
-                        if let u = await Documentos.acta(acta, items: items, propiedad: p?.nombre ?? "", api: estado.api) {
+                        if let u = await Documentos.acta(acta, propiedad: p?.nombre ?? "", api: estado.api) {
                             Haptico.exito()
                             previo = ArchivoPrevio(url: u)
                         }
@@ -332,7 +359,7 @@ struct Firmas: View {
         struct L: Decodable { var url: String }
         do {
             let l: L = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/actas/\(actaId)/firmas/\(parte)/link", [String: String]())
-            Afuera.whatsapp(nil, texto: "Para firmar el acta de entrega: \(l.url)")
+            Afuera.whatsapp(nil, texto: "Para firmar el acta de \(acta?.esSalida == true ? "devolución" : "entrega"): \(l.url)")
         } catch { estado.avisar(error) }
     }
 }
@@ -429,6 +456,9 @@ struct DictarInventario: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     var propiedad: String
+    /// «entrada» o «salida» para respaldar el acta (la API lo pide junto con el contrato); nil si no hay contrato.
+    var tipoActa: String? = nil
+    var contrato: String? = nil
     var alTerminar: (Int) -> Void
     @State private var dictado = Dictado()
     @State private var enviando = false
@@ -462,8 +492,10 @@ struct DictarInventario: View {
         enviando = true
         defer { enviando = false }
         do {
-            struct C: Encodable { var transcripcion: String; var tipoActa = "entrega" }
-            let g: GrabacionAPI = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/grabaciones", C(transcripcion: dictado.texto))
+            struct C: Encodable { var transcripcion: String; var tipoActa: String?; var contratoId: String? }
+            let ok = tipoActa == "entrada" || tipoActa == "salida"
+            let g: GrabacionAPI = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/grabaciones",
+                                                              C(transcripcion: dictado.texto, tipoActa: ok && contrato != nil ? tipoActa : nil, contratoId: ok ? contrato : nil))
             Haptico.exito()
             alTerminar(g.itemsCreados ?? 0)
             cerrar()

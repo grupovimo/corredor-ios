@@ -6,15 +6,30 @@ import UniformTypeIdentifiers
 
 // MARK: - Portales (difusión)
 
+/// `GET /v1/publicaciones/resumen`: un renglón por portal y lo que falta difundir.
 struct ResumenPublicaciones: Codable {
-    var total: Int?
+    struct Portal: Codable, Hashable {
+        var portal: String
+        var activos: Int?
+        var pausados: Int?
+        var conError: Int?
+        var pendientes: Int?
+        var visitas: Int?
+        var visitasSemana: Int?
+        var visitasSemanaAnterior: Int?
+        var feed: String?
+        var leidoEn: Date?
+    }
+    var portales: [Portal]?
+    /// Las disponibles que se pueden difundir y, de ellas, las que faltan en algún portal (ids).
     var difundibles: Int?
-    var sinPublicar: Int?
-    var conError: Int?
-    var esperando: Int?
-    var sinVistas: Int?
+    var faltan: [String]?
+    var reservadas: Int?
     var webVisitasSemana: Int?
     var webVisitasSemanaAnterior: Int?
+
+    var publicadas: Int { (portales ?? []).reduce(0) { $0 + ($1.activos ?? 0) } }
+    var conError: Int { (portales ?? []).reduce(0) { $0 + ($1.conError ?? 0) } }
 }
 
 struct PublicacionLista: Codable, Identifiable, Hashable {
@@ -43,9 +58,9 @@ struct Portales: View {
             VStack(alignment: .leading, spacing: 14) {
                 if let r {
                     HStack(spacing: 8) {
-                        Cifra(etiqueta: "Publicadas", valor: "\((r.total ?? 0) - (r.sinPublicar ?? 0))")
-                        Cifra(etiqueta: "Sin publicar", valor: "\(r.sinPublicar ?? 0)")
-                        Cifra(etiqueta: "Con error", valor: "\(r.conError ?? 0)")
+                        Cifra(etiqueta: "Publicadas", valor: "\(r.publicadas)")
+                        Cifra(etiqueta: "Sin publicar", valor: "\(r.faltan?.count ?? 0)")
+                        Cifra(etiqueta: "Con error", valor: "\(r.conError)")
                     }
                     if let v = r.webVisitasSemana {
                         let antes = r.webVisitasSemanaAnterior ?? 0
@@ -109,7 +124,7 @@ struct Portales: View {
 
     private func cargar() async {
         r = try? await estado.api.get("/v1/publicaciones/resumen")
-        pubs = (try? await estado.api.get("/v1/publicaciones", query: [.init(name: "limite", value: "500")])) ?? pubs ?? []
+        pubs = (try? await estado.api.todas("/v1/publicaciones", query: [])) ?? pubs ?? []
     }
 
     private func accion(_ p: PublicacionLista, pausar: Bool) async {
@@ -124,7 +139,8 @@ struct Portales: View {
 // MARK: - Actividad
 
 struct EntradaActividad: Codable, Identifiable, Hashable {
-    var id: String
+    /// En la API es un número (la auditoría), y sirve para seguir bajando con `antesDe`.
+    var id: Int64
     var actorTipo: String?
     var actorNombre: String?
     var accion: String?
@@ -139,6 +155,10 @@ struct Actividad: View {
     @Environment(Estado.self) private var estado
     @State private var lista: [EntradaActividad]?
     @State private var quien = ""
+    /// Si la última página vino llena, hay más para atrás.
+    @State private var hayMas = false
+    @State private var bajando = false
+    private static let pagina = 200
 
     var body: some View {
         List {
@@ -163,6 +183,12 @@ struct Actividad: View {
                         }
                     }
                 }
+                if hayMas {
+                    Button { Task { await masViejos() } } label: {
+                        HStack { Spacer(); Text(bajando ? "Cargando…" : "Ver más"); Spacer() }
+                    }
+                    .disabled(bajando)
+                }
             } else { ProgressView() }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -171,7 +197,24 @@ struct Actividad: View {
         .task(id: estado.version) { await cargar() }
     }
 
-    private func cargar() async { lista = (try? await estado.api.get("/v1/actividad", query: [.init(name: "limite", value: "300")])) ?? lista ?? [] }
+    private func cargar() async {
+        if let l: [EntradaActividad] = try? await estado.api.get("/v1/actividad", query: [.init(name: "limite", value: "\(Self.pagina)")]) {
+            lista = l
+            hayMas = l.count == Self.pagina
+        } else if lista == nil { lista = [] }
+    }
+
+    /// La página siguiente: lo anterior al último que se ve (`antesDe`, sin saltos aunque entren nuevos).
+    private func masViejos() async {
+        guard let ultimo = lista?.last?.id else { return }
+        bajando = true
+        defer { bajando = false }
+        do {
+            let l: [EntradaActividad] = try await estado.api.get("/v1/actividad", query: [.init(name: "limite", value: "\(Self.pagina)"), .init(name: "antesDe", value: "\(ultimo)")])
+            lista = (lista ?? []) + l
+            hayMas = l.count == Self.pagina
+        } catch { estado.avisar(error) }
+    }
 
     private func abrir(_ a: EntradaActividad) {
         guard let id = a.entidadId else { return }
@@ -210,6 +253,9 @@ struct TarifaAPI: Codable, Identifiable, Hashable {
     var moneda: String?
     var periodo: String?
     var nochesMinimas: Int?
+
+    /// Los que acepta la API (sin período, la API pone «temporada»).
+    static let periodos = [("noche", "Noche"), ("semana", "Semana"), ("quincena", "Quincena"), ("mes", "Mes"), ("temporada", "Temporada")]
 }
 
 /// Tarifas de temporada de una propiedad: por rango de fechas, con noches mínimas.
@@ -230,10 +276,10 @@ struct TarifasTemporada: View {
                             Text("\(t.desde) al \(t.hasta)\(t.nochesMinimas.map { " · mínimo \($0) noches" } ?? "")").estilo(.footnote).foregroundStyle(C.texto2)
                         }
                         Spacer()
-                        Text("\(Formato.plata(t.precio, t.moneda ?? "USD")) / \(t.periodo == "semana" ? "semana" : t.periodo == "mes" ? "mes" : "noche")").fontWeight(.semibold).foregroundStyle(C.texto)
+                        Text("\(Formato.plata(t.precio, t.moneda ?? "USD")) / \(TarifaAPI.periodos.first { $0.0 == (t.periodo ?? "temporada") }?.1.lowercased() ?? "temporada")").fontWeight(.semibold).foregroundStyle(C.texto)
                     }
                 }
-                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/propiedades/\(propiedad)/tarifas/\(t.id)"); await cargar() } } } }
+                .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/propiedades/\(propiedad)/tarifas/\(t.id)"); await cargar() } catch { estado.avisar(error) } } } } }
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -267,12 +313,12 @@ struct FormTarifa: View {
                 DatePicker("Hasta", selection: Binding(get: { Fecha.dia(t.hasta) ?? Date() }, set: { t.hasta = Formato.diaISO($0) }), displayedComponents: .date)
                 Picker("Moneda", selection: Binding(get: { t.moneda ?? "USD" }, set: { t.moneda = $0 })) { Text("USD").tag("USD"); Text("ARS").tag("ARS") }.pickerStyle(.segmented)
                 TextField("Precio", value: $t.precio, format: .number).keyboardType(.decimalPad)
-                Picker("Por", selection: Binding(get: { t.periodo ?? "noche" }, set: { t.periodo = $0 })) { Text("Noche").tag("noche"); Text("Semana").tag("semana"); Text("Mes").tag("mes") }
-                Stepper("Mínimo \(t.nochesMinimas ?? 1) noches", value: Binding(get: { t.nochesMinimas ?? 1 }, set: { t.nochesMinimas = $0 }), in: 1...60)
+                Picker("Por", selection: Binding(get: { t.periodo ?? "noche" }, set: { t.periodo = $0 })) { ForEach(TarifaAPI.periodos, id: \.0) { Text($0.1).tag($0.0) } }
+                Stepper("Mínimo \(t.nochesMinimas ?? 1) noches", value: Binding(get: { t.nochesMinimas ?? 1 }, set: { t.nochesMinimas = $0 }), in: 1...120)
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Guardar") { guardar(t); cerrar() }.disabled(t.precio <= 0) }
+                ToolbarItem(placement: .confirmationAction) { Button("Guardar") { guardar(t); cerrar() }.disabled(t.precio <= 0 || (t.nombre ?? "").nonEmpty == nil) }
             }
         }
     }
@@ -280,33 +326,43 @@ struct FormTarifa: View {
 
 // MARK: - Vistas de una propiedad
 
-/// Vistas y consultas de una propiedad: el gráfico por día de los últimos 30 días.
+/// Vistas de una propiedad en la web: el total y el gráfico por día de los últimos 90 días.
 struct VistasPropiedad: View {
     @Environment(Estado.self) private var estado
     var propiedad: String
-    @State private var dias: [Dia] = []
+    @State private var r: Respuesta?
     struct Dia: Codable, Identifiable { var dia: String; var cantidad: Int; var id: String { dia } }
+    /// `GET /v1/propiedades/{id}/vistas`: el total de siempre y los días (sólo los que tuvieron vistas).
+    struct Respuesta: Codable { var total: Int?; var dias: [Dia]? }
+
+    private var dias: [Dia] { r?.dias ?? [] }
+
+    /// Las vistas desde hace `n` días (por fecha: los días sin vistas no vienen).
+    private func ultimos(_ n: Int) -> Int {
+        let desde = Calendar.current.date(byAdding: .day, value: -n, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+        return dias.filter { (Fecha.dia($0.dia) ?? .distantPast) > desde }.reduce(0) { $0 + $1.cantidad }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
-                    Cifra(etiqueta: "Últimos 30 días", valor: Formato.numero(dias.reduce(0) { $0 + $1.cantidad }))
-                    Cifra(etiqueta: "Últimos 7 días", valor: Formato.numero(dias.suffix(7).reduce(0) { $0 + $1.cantidad }))
+                    Cifra(etiqueta: "Desde siempre", valor: Formato.numero(r?.total ?? 0))
+                    Cifra(etiqueta: "Últimos 90 días", valor: Formato.numero(dias.reduce(0) { $0 + $1.cantidad }))
+                    Cifra(etiqueta: "Últimos 7 días", valor: Formato.numero(ultimos(7)))
                 }
                 Chart(dias) { d in
                     BarMark(x: .value("Día", Fecha.dia(d.dia) ?? Date(), unit: .day), y: .value("Vistas", d.cantidad))
                         .foregroundStyle(C.accion).cornerRadius(3)
                 }
                 .frame(height: 220).padding(14).tarjeta()
-                if dias.isEmpty { Text("Todavía nadie la vio. Publicala y compartila para que llegue.").estilo(.subhead).foregroundStyle(C.texto2) }
+                if r != nil, dias.isEmpty { Text("Todavía nadie la vio. Publicala y compartila para que llegue.").estilo(.subhead).foregroundStyle(C.texto2) }
             }
             .padding(16)
         }
         .pantallaApilada("Vistas")
         .task {
-            if let l: [Dia] = try? await estado.api.get("/v1/propiedades/\(propiedad)/vistas") { dias = l }
-            else if let o: [String: [Dia]] = try? await estado.api.get("/v1/propiedades/\(propiedad)/vistas") { dias = o.values.first ?? [] }
+            r = (try? await estado.api.get("/v1/propiedades/\(propiedad)/vistas")) ?? Respuesta(total: 0, dias: [])
         }
     }
 }
@@ -316,9 +372,21 @@ struct VistasPropiedad: View {
 /// Corredor en tu IA: las IA conectadas (Claude, ChatGPT), qué pueden hacer y el link para conectar.
 struct CorredorEnTuIA: View {
     @Environment(Estado.self) private var estado
-    @State private var conexiones: [JSONLibre] = []
+    @State private var conexiones: [Conexion] = []
     @State private var ajustes: Ajustes?
-    struct Ajustes: Codable { var habilitado: Bool?; var aviso: Bool?; var mover: Bool?; var agendar: Bool?; var url: String? }
+    /// `GET /v1/ia/ajustes`: lo que eligió la dueña, el link para pegar y el aviso de la Ley 25.326 (texto).
+    struct Ajustes: Codable { var habilitado: Bool?; var agendar: Bool?; var mover: Bool?; var url: String?; var aviso: String? }
+    /// `GET /v1/ia/conexiones`: de quién es, con qué asistente y qué permisos le dio.
+    struct Conexion: Codable, Identifiable {
+        var id: String
+        var usuarioId: String?
+        var personaNombre: String?
+        var rol: String?
+        var cliente: String?
+        var permisos: [String]?
+        var creadaEn: Date?
+        var usadaEn: Date?
+    }
 
     var body: some View {
         Form {
@@ -332,22 +400,20 @@ struct CorredorEnTuIA: View {
                     Toggle("Prendido", isOn: bind(\.habilitado))
                     Toggle("Mover operaciones sin pedir permiso", isOn: bind(\.mover))
                     Toggle("Agendar visitas sin pedir permiso", isOn: bind(\.agendar))
-                    Toggle("Avisarme cuando use algo", isOn: bind(\.aviso))
                 }
             }
             Section("Conectadas") {
                 if conexiones.isEmpty { Text("Todavía no conectaste ninguna.").foregroundStyle(C.texto2) }
-                ForEach(conexiones.indices, id: \.self) { i in
-                    let c = conexiones[i]
+                ForEach(conexiones) { c in
                     VStack(alignment: .leading) {
-                        Text(c["cliente"]?.texto ?? c["nombre"]?.texto ?? "IA").estilo(.filaLista)
-                        Text([c["persona"]?.texto ?? c["usuarioNombre"]?.texto, c["usadaEn"]?.texto.flatMap(Fecha.iso).map { "usada \(Formato.hace($0))" }].compactMap { $0 }.joined(separator: " · "))
-                            .estilo(.footnote).foregroundStyle(C.texto2)
+                        Text(c.cliente ?? "IA").estilo(.filaLista)
+                        Text(Self.detalle(c)).estilo(.footnote).foregroundStyle(C.texto2)
                     }
-                    .swipeActions {
-                        if let id = c["id"]?.texto { Button("Desconectar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/ia/conexiones/\(id)"); await cargar() } } }
-                    }
+                    .swipeActions { Button("Desconectar", role: .destructive) { Task { await desconectar(c) } } }
                 }
+            }
+            if let a = ajustes?.aviso?.nonEmpty {
+                Section { Text(a).estilo(.footnote).foregroundStyle(C.texto2) }
             }
             Section { Button("Revisión de la IA") { estado.abrir(ASeccion(clave: "revision")) } }
         }
@@ -356,16 +422,48 @@ struct CorredorEnTuIA: View {
         .task(id: estado.version) { await cargar() }
     }
 
+    /// «Martín (agente) · leer + borradores + agendar · usada hace 2 h».
+    static func detalle(_ c: Conexion) -> String {
+        var partes: [String] = []
+        if let n = c.personaNombre?.nonEmpty { partes.append(c.rol.map { "\(n) (\(ElegirInmobiliaria.rol($0).lowercased()))" } ?? n) }
+        if let p = c.permisos, !p.isEmpty { partes.append(p.joined(separator: " + ")) }
+        partes.append(c.usadaEn.map { "usada \(Formato.hace($0))" } ?? "todavía sin usar")
+        return partes.joined(separator: " · ")
+    }
+
+    /// Cada interruptor guarda al toque; si la API dice que no, vuelve a como estaba.
     private func bind(_ k: WritableKeyPath<Ajustes, Bool?>) -> Binding<Bool> {
         Binding(get: { ajustes?[keyPath: k] ?? false }, set: { v in
+            guard let antes = ajustes else { return }
             ajustes?[keyPath: k] = v
-            Task { if let a = ajustes { try? await estado.api.hacer("PUT", "/v1/ia/ajustes", a) } }
+            Task { await guardar(antes: antes) }
         })
+    }
+
+    private func guardar(antes: Ajustes) async {
+        guard let a = ajustes else { return }
+        // El PUT lleva sólo lo que se elige (la URL y el aviso los pone la API).
+        struct Cuerpo: Encodable { var habilitado: Bool; var agendar: Bool; var mover: Bool }
+        do {
+            let nuevos: Ajustes = try await estado.api.enviar("PUT", "/v1/ia/ajustes", Cuerpo(habilitado: a.habilitado ?? false, agendar: a.agendar ?? false, mover: a.mover ?? false))
+            ajustes = nuevos
+        } catch {
+            ajustes = antes
+            estado.avisar(error)
+        }
+    }
+
+    private func desconectar(_ c: Conexion) async {
+        do {
+            try await estado.api.hacer("DELETE", "/v1/ia/conexiones/\(c.id)")
+            estado.avisar("Desconectaste \(c.cliente ?? "la IA")")
+            await cargar()
+        } catch { estado.avisar(error) }
     }
 
     private func cargar() async {
         ajustes = try? await estado.api.get("/v1/ia/ajustes")
-        if case .lista(let l)? = try? await estado.api.get("/v1/ia/conexiones") as JSONLibre { conexiones = l }
+        if let l: [Conexion] = try? await estado.api.get("/v1/ia/conexiones") { conexiones = l }
     }
 }
 
@@ -443,7 +541,7 @@ struct FirmaYSesiones: View {
                         Text([x.ip, x.vistoEn.map { "visto \(Formato.hace($0))" }].compactMap { $0 }.joined(separator: " · ")).estilo(.footnote).foregroundStyle(C.texto2)
                     }
                     .swipeActions {
-                        if x.actual != true { Button("Cerrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/auth/sesiones/\(x.id)"); await cargar() } } }
+                        if x.actual != true { Button("Cerrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/auth/sesiones/\(x.id)"); await cargar() } catch { estado.avisar(error) } } } }
                     }
                 }
             }
@@ -471,8 +569,8 @@ struct Reservas: View {
             guard let id = x["id"]?.texto, estado.escribe else { return [] }
             struct C: Encodable { var resultado: String; var motivo: String?; var cerradaEl: String }
             return [
-                ("Se concretó", { Task { try? await estado.api.hacer("POST", "/v1/reservas/\(id)/cerrar", C(resultado: "concretada", cerradaEl: Formato.diaISO(Date()))); estado.version += 1; estado.avisar("Reserva concretada") } }),
-                ("Se cayó", { Task { try? await estado.api.hacer("POST", "/v1/reservas/\(id)/cerrar", C(resultado: "caida", cerradaEl: Formato.diaISO(Date()))); estado.version += 1; estado.avisar("Reserva caída") } }),
+                ("Se concretó", { Task { do { try await estado.api.hacer("POST", "/v1/reservas/\(id)/cerrar", C(resultado: "concretada", cerradaEl: Formato.diaISO(Date()))); estado.version += 1; estado.avisar("Reserva concretada") } catch { estado.avisar(error) } } }),
+                ("Se cayó", { Task { do { try await estado.api.hacer("POST", "/v1/reservas/\(id)/cerrar", C(resultado: "caida", cerradaEl: Formato.diaISO(Date()))); estado.version += 1; estado.avisar("Reserva caída") } catch { estado.avisar(error) } } }),
             ]
         }
     }
@@ -614,11 +712,13 @@ struct ImportacionAPI: Codable {
     struct Nota: Codable, Hashable { var campo: String?; var mensaje: String }
     struct Fila: Codable, Hashable { var fila: Int; var datos: [String: JSONLibre]?; var errores: [Nota]?; var avisos: [Nota]? }
     struct Resultado: Codable { var creadas: Int?; var yaEstaban: Int?; var conErrores: Int? }
+    /// Cada columna del archivo y el campo de Corredor que se reconoció (nil: no se usa).
+    struct Columna: Codable, Hashable { var columna: String; var campo: String?; var ejemplo: String? }
     var id: String
     var tipo: String?
     var archivo: String?
     var estado: String?
-    var columnas: [String]?
+    var columnas: [Columna]?
     var total: Int?
     var validas: Int?
     var conErrores: Int?
@@ -650,7 +750,7 @@ struct Importar: View {
                         Cifra(etiqueta: "Con avisos", valor: "\(i.conAvisos ?? 0)")
                         Cifra(etiqueta: "Con errores", valor: "\(i.conErrores ?? 0)")
                     }
-                    if let c = i.columnas, !c.isEmpty {
+                    if let c = i.columnas?.filter({ $0.campo != nil }).map(\.columna), !c.isEmpty {
                         Text("Reconocimos: \(c.joined(separator: ", "))").estilo(.footnote).foregroundStyle(C.texto2)
                     }
                     VStack(spacing: 0) {

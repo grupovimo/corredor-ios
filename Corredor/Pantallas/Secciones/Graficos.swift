@@ -72,7 +72,7 @@ struct GraficoCobranzaMeses: View {
         for n in (0..<6).reversed() {
             guard let m = cal.date(byAdding: .month, value: -n, to: hoy) else { continue }
             let p = String(Formato.diaISO(m).prefix(7))
-            let x: MesCobranzas? = try? await estado.api.get("/v1/cobranzas", query: [.init(name: "periodo", value: p)])
+            let x: MesCobranzas? = try? await estado.api.get("/v1/cobranzas", query: [.init(name: "mes", value: p)])
             r.append((m, x?.totalCobrado?["ARS"] ?? 0, x?.totalPendiente?["ARS"] ?? 0))
         }
         meses = r.map { (mes: $0.0, cobrado: $0.1, pendiente: $0.2) }
@@ -114,9 +114,8 @@ struct GraficoVisitasSemanas: View {
     private func cargar() async {
         let cal = Calendar(identifier: .iso8601)
         let inicio = cal.date(byAdding: .weekOfYear, value: -7, to: cal.date(from: cal.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())) ?? Date()) ?? Date()
-        let citas: [Cita] = (try? await estado.api.get("/v1/agenda", query: [.init(name: "desde", value: Formato.diaISO(inicio)),
-                                                                            .init(name: "hasta", value: Formato.diaISO(Date())),
-                                                                            .init(name: "limite", value: "500")])) ?? []
+        let citas: [Cita] = (try? await estado.api.todas("/v1/agenda", query: [.init(name: "desde", value: Formato.diaISO(inicio)),
+                                                                            .init(name: "hasta", value: Formato.diaISO(Date()))])) ?? []
         var r: [(Date, Int, Int)] = []
         for n in 0..<8 {
             guard let s = cal.date(byAdding: .weekOfYear, value: n, to: inicio), let fin = cal.date(byAdding: .day, value: 7, to: s) else { continue }

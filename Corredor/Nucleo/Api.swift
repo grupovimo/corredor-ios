@@ -76,9 +76,18 @@ final class Api: @unchecked Sendable {
         var restantes: Int?
     }
 
+    /// La URL de `ruta`. La ruta puede traer su propia query (`/v1/x?y=z`, como las acciones de los
+    /// avisos): `appendingPathComponent` escapaba el «?» y el pedido iba a otra ruta.
+    private func componentes(_ ruta: String, _ query: [URLQueryItem]) -> URLComponents {
+        let partes = ruta.split(separator: "?", maxSplits: 1).map(String.init)
+        var c = URLComponents(url: base.appendingPathComponent(partes.first ?? ruta), resolvingAgainstBaseURL: false)!
+        let propia = partes.count > 1 ? (URLComponents(string: "?" + partes[1])?.queryItems ?? []) : []
+        if !(propia + query).isEmpty { c.queryItems = propia + query }
+        return c
+    }
+
     func pedir(_ metodo: String, _ ruta: String, query: [URLQueryItem] = [], cuerpo: Data? = nil, envio: String? = nil) async throws -> Data {
-        var c = URLComponents(url: base.appendingPathComponent(ruta), resolvingAgainstBaseURL: false)!
-        if !query.isEmpty { c.queryItems = query }
+        let c = componentes(ruta, query)
         var r = URLRequest(url: c.url!, timeoutInterval: 20)
         r.httpMethod = metodo
         r.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -111,6 +120,20 @@ final class Api: @unchecked Sendable {
 
     func get<T: Decodable>(_ ruta: String, query: [URLQueryItem] = []) async throws -> T {
         try decodificar(await pedir("GET", ruta, query: query))
+    }
+
+    /// Una lista entera, de a 200 (el tope de la API) con `desde`. Corta cuando una página viene
+    /// corta o no trae nada nuevo (si el endpoint no pagina, no repite).
+    func todas<T: Decodable & Identifiable>(_ ruta: String, query: [URLQueryItem] = []) async throws -> [T] {
+        var todos: [T] = []
+        var vistos = Set<T.ID>()
+        for _ in 0..<50 {
+            let pagina: [T] = try await get(ruta, query: query + [.init(name: "limite", value: "200"), .init(name: "desde", value: String(todos.count))])
+            let nuevos = pagina.filter { vistos.insert($0.id).inserted }
+            todos += nuevos
+            if pagina.count < 200 || nuevos.isEmpty { break }
+        }
+        return todos
     }
 
     func enviar<T: Decodable, C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C) async throws -> T {
@@ -191,8 +214,7 @@ extension Api {
         cuerpo.append("--\(limite)\r\nContent-Disposition: form-data; name=\"archivo\"; filename=\"\(nombre)\"\r\nContent-Type: \(tipo)\r\n\r\n".data(using: .utf8)!)
         cuerpo.append(datos)
         cuerpo.append("\r\n--\(limite)--\r\n".data(using: .utf8)!)
-        var c = URLComponents(url: base.appendingPathComponent(ruta), resolvingAgainstBaseURL: false)!
-        if !query.isEmpty { c.queryItems = query }
+        let c = componentes(ruta, query)
         var r = URLRequest(url: c.url!, timeoutInterval: 120)
         r.httpMethod = "POST"
         r.setValue("multipart/form-data; boundary=\(limite)", forHTTPHeaderField: "Content-Type")

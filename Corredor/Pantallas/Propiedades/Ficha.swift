@@ -231,7 +231,7 @@ struct FichaPropiedad: View {
         VStack(alignment: .leading, spacing: 8) {
             TituloBloque(texto: "Más")
             VStack(spacing: 0) {
-                filaAccion("pencil", "Editar la propiedad") { estado.abrir(AAltaPropiedad(borrador: p.id)) }
+                filaAccion("pencil", "Editar la propiedad") { estado.abrir(AAltaPropiedad(editar: p.id)) }
                 filaAccion("arrow.triangle.2.circlepath", "Cambiar el estado") { cambiarEstado = true }
                 if p.operacion == "venta" || p.operacion == "alquiler" { filaAccion("hand.raised", "Tomar una reserva") { reservar = true } }
                 if p.operacion == "temporario" || p.tambienTemporario == true { filaAccion("calendar.badge.clock", "Tarifas y disponibilidad") { estado.abrir(ASeccion(clave: "tarifas", id: p.id)) } }
@@ -316,8 +316,7 @@ struct FichaPropiedad: View {
             contratos = ((try? await estado.api.get("/v1/contratos", query: [.init(name: "propiedad", value: id)])) ?? [ContratoAPI]())
                 .filter { $0.estado != "rescindido" && $0.estado != "finalizado" }
             pubs = (try? await estado.api.get("/v1/propiedades/\(id)/publicaciones")) ?? []
-            let s: [Senal] = (try? await estado.api.get("/v1/propiedades/senales")) ?? []
-            senal = s.first { $0.propiedadId == id }
+            senal = (try? await Senal.de([id], api: estado.api))?[id]
             if web == nil { web = (try? await estado.api.get("/v1/inmobiliaria") as Inmobiliaria)?.web }
         } catch let e as ErrorApi { error = e } catch {}
     }
@@ -328,7 +327,10 @@ struct FichaPropiedad: View {
         let nueva = !(p.destacada ?? false)
         self.p?.destacada = nueva
         Haptico.seleccion()
-        Task { try? await estado.cola.enviar("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(destacada: nueva), etiqueta: "Destacar \(p.nombre)") }
+        Task {
+            do { try await estado.cola.enviar("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(destacada: nueva), etiqueta: "Destacar \(p.nombre)") }
+            catch { self.p?.destacada = !nueva; estado.avisar(error) }
+        }
     }
 
     private func ponerEstado(_ p: Propiedad, _ nuevo: String) async {
@@ -338,7 +340,10 @@ struct FichaPropiedad: View {
             try await estado.cola.enviar("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: nuevo), etiqueta: "Estado de \(p.nombre)")
             estado.version += 1
             estado.avisar("Quedó \(Propiedad.estados.first { $0.0 == nuevo }?.1.lowercased() ?? nuevo)") {
-                Task { try? await estado.api.hacer("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: antes)); estado.version += 1 }
+                Task {
+                    do { try await estado.api.hacer("PATCH", "/v1/propiedades/\(p.id)", Cuerpo(estado: antes)); estado.version += 1 }
+                    catch { estado.avisar(error) }
+                }
             }
         } catch { estado.avisar(error) }
     }
@@ -365,7 +370,7 @@ struct FichaPropiedad: View {
         struct Nueva: Decodable { var id: String }
         do {
             let n: Nueva = try await estado.api.enviar("POST", "/v1/propiedades/\(p.id)/duplicar", [String: String]())
-            estado.abrir(AAltaPropiedad(borrador: n.id))
+            estado.abrir(AAltaPropiedad(editar: n.id))
         } catch { estado.avisar(error) }
     }
 
@@ -374,8 +379,8 @@ struct FichaPropiedad: View {
         let tarea = Task {
             try? await Task.sleep(for: .seconds(5))
             if Task.isCancelled { return }
-            try? await estado.api.hacer("DELETE", "/v1/propiedades/\(p.id)")
-            estado.version += 1
+            do { try await estado.api.hacer("DELETE", "/v1/propiedades/\(p.id)"); estado.version += 1 }
+            catch { estado.avisar(error) }
         }
         cerrar()
         estado.avisar("\(p.nombre) va a la papelera") { tarea.cancel() }
@@ -555,8 +560,10 @@ struct HojaCompartir: View {
         Afuera.whatsapp(x.telefono, texto: "Hola \(nombre), te paso \(propiedad.nombre): \(link?.absoluteString ?? "")")
         Task {
             struct Cuerpo: Encodable { var contactoId: String; var canal = "whatsapp" }
-            try? await estado.cola.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: x.contactoId), etiqueta: "Ficha a \(x.nombre)")
-            estado.version += 1
+            do {
+                try await estado.cola.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: x.contactoId), etiqueta: "Ficha a \(x.nombre)")
+                estado.version += 1
+            } catch { estado.avisar(error) }
         }
         cerrar()
     }

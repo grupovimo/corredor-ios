@@ -257,7 +257,7 @@ struct Equipo: View {
                             Spacer()
                             if let l = i.link.flatMap(URL.init(string:)) { ShareLink(item: l) { Image(systemName: "square.and.arrow.up") } }
                         }
-                        .swipeActions { Button("Anular", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/invitaciones/\(i.id)"); await cargar() } } }
+                        .swipeActions { Button("Anular", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/invitaciones/\(i.id)"); await cargar() } catch { estado.avisar(error) } } } }
                     }
                 }
             }
@@ -267,7 +267,7 @@ struct Equipo: View {
                         Text("\(l.usuarioNombre ?? "") · \(l.tipo?.capitalized ?? "Licencia")").estilo(.filaLista)
                         Text("Del \(Fecha.dia(l.desde).map { Formato.diaCompleto($0) } ?? l.desde) al \(Fecha.dia(l.hasta).map { Formato.diaCompleto($0) } ?? l.hasta)").estilo(.footnote).foregroundStyle(C.texto2)
                     }
-                    .swipeActions { Button("Quitar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/licencias/\(l.id)"); await cargar() } } }
+                    .swipeActions { Button("Quitar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/licencias/\(l.id)"); await cargar() } catch { estado.avisar(error) } } } }
                 }
                 Button { licencia = true } label: { Label("Cargar una licencia", systemImage: "plus") }
             }
@@ -311,7 +311,7 @@ struct Equipo: View {
             try await estado.api.hacer("PATCH", "/v1/equipo/\(m.usuarioId)", Cuerpo(rol: r))
             await cargar()
             estado.avisar("\(m.nombre ?? "") ahora es \(ElegirInmobiliaria.rol(r).lowercased())") {
-                Task { try? await estado.api.hacer("PATCH", "/v1/equipo/\(m.usuarioId)", Cuerpo(rol: antes)); await cargar() }
+                Task { do { try await estado.api.hacer("PATCH", "/v1/equipo/\(m.usuarioId)", Cuerpo(rol: antes)); await cargar() } catch { estado.avisar(error) } }
             }
         } catch { estado.avisar(error) }
     }
@@ -371,14 +371,19 @@ struct Integraciones: View {
     @Environment(Estado.self) private var estado
     @State private var conectarWA = false
     @State private var numero: JSONLibre?
-    @State private var ml: JSONLibre?
-    @State private var feeds: JSONLibre?
+    @State private var ml: CuentaML?
+    @State private var feeds: [Feed] = []
+
+    /// `GET /v1/mercadolibre`.
+    struct CuentaML: Codable { var disponible: Bool?; var conectada: Bool?; var apodo: String?; var reautorizar: Bool?; var preguntasSinResponder: Int? }
+    /// `GET /v1/inmobiliaria/feeds`: un feed por portal, con la URL (lleva la clave) y la última lectura.
+    struct Feed: Codable, Identifiable { var portal: String; var url: String; var leidoEn: Date?; var avisos: Int?; var id: String { portal } }
 
     var body: some View {
         List {
             Section(header: Text("WhatsApp"), footer: Text("Las consultas llegan a Mensajes y podés responder desde la app.")) {
-                if let n = numero, let t = n["telefono"]?.texto ?? n["numero"]?.texto {
-                    LabeledContent("Número", value: t)
+                if let n = numero, n["conectado"] == .bool(true) || n["telefono"]?.texto != nil {
+                    LabeledContent("Número", value: n["telefono"]?.texto ?? n["numeroId"]?.texto ?? "Conectado")
                     LabeledContent("Estado", value: n["estado"]?.texto?.capitalized ?? "Conectado")
                 } else {
                     Text("Todavía no conectaste tu número.").foregroundStyle(C.texto2)
@@ -386,18 +391,31 @@ struct Integraciones: View {
                 }
             }
             Section(header: Text("Mercado Libre"), footer: Text("Publicás desde la ficha y respondés las preguntas en Mensajes.")) {
-                if let m = ml, m["conectado"].map({ if case .bool(true) = $0 { return true }; return false }) == true || m["usuario"]?.texto != nil {
-                    LabeledContent("Cuenta", value: m["usuario"]?.texto ?? m["apodo"]?.texto ?? "Conectada")
-                    Button("Desconectar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/mercadolibre"); await cargar() } }
+                if let m = ml, m.conectada == true {
+                    LabeledContent("Cuenta", value: m.apodo?.nonEmpty ?? "Conectada")
+                    if m.reautorizar == true {
+                        Text("Mercado Libre pide volver a conectar la cuenta.").foregroundStyle(C.avisoTinta)
+                        Button("Volver a conectar") { Task { await conectarML() } }
+                    }
+                    Button("Desconectar", role: .destructive) { Task { await desconectarML() } }
+                } else if ml?.disponible == false {
+                    Text("Todavía no está habilitado en Corredor.").foregroundStyle(C.texto2)
                 } else {
                     Button("Conectar Mercado Libre") { Task { await conectarML() } }
                 }
             }
-            if let f = feeds {
-                Section(header: Text("Portales"), footer: Text("Zonaprop, Argenprop y los demás leen tu cartera desde estos links.")) {
-                    ForEach(["zonaprop", "argenprop", "properati", "inmuebles24"], id: \.self) { p in
-                        if let u = f[p]?.texto ?? f["url"]?.texto {
-                            HStack { Text(PublicacionPortal.nombres[p] ?? p.capitalized); Spacer(); ShareLink(item: u) { Image(systemName: "doc.on.doc") } }
+            if !feeds.isEmpty {
+                Section(header: Text("Portales"), footer: Text("Zonaprop y Argenprop leen tu cartera desde estos links. La URL lleva una clave: no la publiques.")) {
+                    ForEach(feeds) { f in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(PublicacionPortal.nombres[f.portal] ?? f.portal.capitalized)
+                                Text(f.leidoEn.map { "Activo · leído \(Formato.hace($0))\(f.avisos.map { " · \(Formato.cantidad($0, "aviso", "avisos"))" } ?? "")" } ?? "Todavía no lo leyó")
+                                    .estilo(.footnote).foregroundStyle(C.texto2)
+                            }
+                            Spacer()
+                            Button { UIPasteboard.general.string = f.url; estado.avisar("Link copiado") } label: { Image(systemName: "doc.on.doc") }
+                                .accessibilityLabel("Copiar el link")
                         }
                     }
                 }
@@ -412,18 +430,30 @@ struct Integraciones: View {
     private func cargar() async {
         numero = try? await estado.api.get("/v1/whatsapp/numero")
         ml = try? await estado.api.get("/v1/mercadolibre")
-        feeds = try? await estado.api.get("/v1/inmobiliaria/feeds")
+        // Sólo el dueño: la URL lleva la clave.
+        if estado.esDuenio { feeds = (try? await estado.api.get("/v1/inmobiliaria/feeds")) ?? [] }
+    }
+
+    private func desconectarML() async {
+        do {
+            try await estado.api.hacer("DELETE", "/v1/mercadolibre")
+            estado.avisar("Desconectaste Mercado Libre")
+            await cargar()
+        } catch { estado.avisar(error) }
     }
 
     private func conectarML() async {
         struct L: Decodable { var url: String }
-        guard let l: L = try? await estado.api.enviar("POST", "/v1/mercadolibre/conectar", [String: String]()), let u = URL(string: l.url) else {
-            return estado.avisar("No se pudo abrir Mercado Libre.", ok: false)
-        }
+        let l: L
+        do { l = try await estado.api.enviar("POST", "/v1/mercadolibre/conectar", [String: String]()) } catch { return estado.avisar(error) }
+        guard let u = URL(string: l.url) else { return estado.avisar("No se pudo abrir Mercado Libre.", ok: false) }
         if let vuelta = try? await HojaWeb().abrir(u), let c = URLComponents(url: vuelta, resolvingAgainstBaseURL: false) {
             struct Cuerpo: Encodable { var codigo: String; var estado: String }
             if let code = c.queryItems?.first(where: { $0.name == "code" })?.value {
-                try? await estado.api.hacer("POST", "/v1/mercadolibre/vuelta", Cuerpo(codigo: code, estado: c.queryItems?.first { $0.name == "state" }?.value ?? ""))
+                do {
+                    let r: CuentaML = try await estado.api.enviar("POST", "/v1/mercadolibre/vuelta", Cuerpo(codigo: code, estado: c.queryItems?.first { $0.name == "state" }?.value ?? ""))
+                    estado.avisar("Listo: conectaste la cuenta \(r.apodo ?? "de Mercado Libre")")
+                } catch { estado.avisar(error) }
             }
         }
         await cargar()
@@ -444,7 +474,7 @@ struct RespuestasGuardadas: View {
                 Button { editando = r } label: {
                     VStack(alignment: .leading, spacing: 2) { Text(r.titulo).estilo(.filaLista).foregroundStyle(C.texto); Text(r.texto).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(2) }
                 }
-                .swipeActions { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/respuestas-guardadas/\(r.id)"); await cargar() } } }
+                .swipeActions { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/respuestas-guardadas/\(r.id)"); await cargar() } catch { estado.avisar(error) } } } }
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -509,7 +539,7 @@ struct Proveedores: View {
                     Spacer()
                     if p.telefono != nil { Button { Afuera.whatsapp(p.telefono) } label: { Image("LogoWhatsApp").resizable().frame(width: 22, height: 22) }.buttonStyle(Presionable()) }
                 }
-                .swipeActions { if estado.esDuenio { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/proveedores/\(p.id)"); await cargar() } } } }
+                .swipeActions { if estado.esDuenio { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/proveedores/\(p.id)"); await cargar() } catch { estado.avisar(error) } } } } }
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -523,7 +553,7 @@ struct Proveedores: View {
         }
     }
 
-    private func cargar() async { lista = (try? await estado.api.get("/v1/proveedores", query: [.init(name: "limite", value: "500")])) ?? [] }
+    private func cargar() async { lista = (try? await estado.api.todas("/v1/proveedores", query: [])) ?? [] }
 
     private func guardar(_ p: Prov) async {
         struct Cuerpo: Encodable { var nombre: String; var cuit: String?; var rubro: String?; var telefono: String?; var email: String?; var notas: String? }
@@ -574,7 +604,7 @@ struct Objetivos: View {
                         .overlay(alignment: .topTrailing) {
                             if let n = o.agenteNombre { Text(n).font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.texto2).padding(10) }
                         }
-                        .contextMenu { if estado.esDuenio { Button("Borrar", role: .destructive) { Task { try? await estado.api.hacer("DELETE", "/v1/objetivos/\(o.id)"); await cargar() } } } }
+                        .contextMenu { if estado.esDuenio { Button("Borrar", role: .destructive) { Task { do { try await estado.api.hacer("DELETE", "/v1/objetivos/\(o.id)"); await cargar() } catch { estado.avisar(error) } } } } }
                 }
             }
             .padding(16)
@@ -640,7 +670,7 @@ struct ListaActas: View {
                 Button { if let p = a.propiedadId { estado.abrir(AFirmas(id: "\(p)/\(a.id)")) } } label: {
                     VStack(alignment: .leading) {
                         Text(a.propiedadTitulo ?? "Acta").estilo(.filaLista).foregroundStyle(C.texto)
-                        Text("\(a.tipo == "devolucion" ? "Devolución" : "Entrega") · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "") · \(a.firmas?.count ?? 0) de 3 firmas").estilo(.footnote).foregroundStyle(C.texto2)
+                        Text("\(a.tipoTexto) · \(a.fecha.flatMap(Fecha.dia).map { Formato.diaCompleto($0) } ?? "") · \(a.firmas?.count ?? 0) de 3 firmas").estilo(.footnote).foregroundStyle(C.texto2)
                     }
                 }
             }
@@ -667,30 +697,64 @@ struct ListaActas: View {
     }
 }
 
-/// Las rendiciones listas para mandar (el dueño las revisa y las emite).
+/// Las rendiciones listas para hacer este mes: los alquileres con el mes cobrado que todavía no tienen
+/// rendición. Como la web, cada una lleva al contrato; «Armar» la crea y abre (el dueño la emite).
 struct RendicionesListas: View {
     @Environment(Estado.self) private var estado
-    @State private var lista: [RendicionAPI] = []
+    @State private var lista: [Lista] = []
+    @State private var armando: String?
+
+    /// `GET /v1/rendiciones/listas`: un cobro sin rendir (no es una rendición todavía: no tiene id).
+    struct Lista: Codable, Identifiable, Hashable {
+        var contratoId: String
+        var periodo: String
+        var propiedadTitulo: String?
+        var propietarioNombre: String?
+        var cobrado: Double?
+        var moneda: String?
+        var id: String { contratoId + periodo }
+        /// «AAAA-MM» (la API manda el primer día del mes).
+        var mes: String { String(periodo.prefix(7)) }
+    }
 
     var body: some View {
         List {
             if lista.isEmpty { Text("Se arman solas con lo cobrado. Acá aparecen cuando están listas.").foregroundStyle(C.texto2) }
             ForEach(lista) { r in
-                Button { if let c = r.contratoId { estado.abrir(ARendicion(contrato: c, id: r.id)) } } label: {
+                Button { estado.abrir(AFichaContrato(id: r.contratoId)) } label: {
                     HStack {
                         VStack(alignment: .leading) {
-                            Text(Formato.mayuscula(ReciboVista.mes(r.periodo))).estilo(.filaLista).foregroundStyle(C.texto)
-                            Text(RendicionAPI.estadoTexto(r.estado)).estilo(.footnote).foregroundStyle(C.texto2)
+                            Text(r.propiedadTitulo ?? "Contrato").estilo(.filaLista).foregroundStyle(C.texto)
+                            Text([r.propietarioNombre, Formato.mayuscula(ReciboVista.mes(r.mes))].compactMap { $0 }.joined(separator: " · "))
+                                .estilo(.footnote).foregroundStyle(C.texto2)
                         }
                         Spacer()
-                        Text(Formato.plata(r.neto ?? 0, r.moneda ?? "ARS")).fontWeight(.semibold)
+                        Text(Formato.plata(r.cobrado ?? 0, r.moneda ?? "ARS")).fontWeight(.semibold).foregroundStyle(C.texto)
                     }
                 }
+                .disabled(armando != nil)
+                .swipeActions { if estado.escribe { Button("Armar") { Task { await armar(r) } }.tint(C.accion) } }
             }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
         .pantallaApilada("Rendiciones")
-        .task(id: estado.version) { lista = (try? await estado.api.get("/v1/rendiciones/listas")) ?? [] }
+        .refreshable { await cargar() }
+        .task(id: estado.version) { await cargar() }
+    }
+
+    private func cargar() async { lista = (try? await estado.api.get("/v1/rendiciones/listas")) ?? [] }
+
+    /// Arma la rendición de ese mes y la abre.
+    private func armar(_ r: Lista) async {
+        armando = r.id
+        defer { armando = nil }
+        struct Cuerpo: Encodable { var periodo: String }
+        struct Nueva: Decodable { var id: String }
+        do {
+            let n: Nueva = try await estado.api.enviar("POST", "/v1/contratos/\(r.contratoId)/rendiciones", Cuerpo(periodo: r.mes))
+            estado.abrir(ARendicion(contrato: r.contratoId, id: n.id))
+            estado.version += 1
+        } catch { estado.avisar(error) }
     }
 }
 
@@ -702,9 +766,11 @@ struct Papelera: View {
             guard let ent = x["entidad"]?.texto, let id = x["id"]?.texto else { return [] }
             return [("Restaurar", {
                 Task {
-                    try? await estado.api.hacer("POST", "/v1/papelera/\(ent)/\(id)/restaurar")
-                    estado.version += 1
-                    estado.avisar("Restaurado")
+                    do {
+                        try await estado.api.hacer("POST", "/v1/papelera/\(ent)/\(id)/restaurar")
+                        estado.version += 1
+                        estado.avisar("Restaurado")
+                    } catch { estado.avisar(error) }
                 }
             })]
         }
@@ -785,7 +851,8 @@ struct Informe: View {
 
     private func exportar(_ r: String) async {
         do {
-            let d = try await estado.api.pedir("GET", "/v1/exportar/\(r)")
+            // Sin ?formato=xlsx la API manda un CSV.
+            let d = try await estado.api.pedir("GET", "/v1/exportar/\(r)", query: [.init(name: "formato", value: "xlsx")])
             let u = FileManager.default.temporaryDirectory.appendingPathComponent("\(r)-\(Formato.diaISO(Date())).xlsx")
             try d.write(to: u)
             exportando = u
@@ -928,7 +995,7 @@ struct MiWeb: View {
             Section(header: Text("Dominio propio"), footer: Text("Apuntá un registro A a 187.41.102.190 (o un CNAME de www). Se conecta solo, con certificado.")) {
                 if let d = dominio?["dominio"]?.texto {
                     LabeledContent(d, value: dominio?["verificado"].map { if case .bool(true) = $0 { return "Conectado" }; return "Verificando" } ?? "Verificando")
-                    Button("Verificar ahora") { Task { try? await estado.api.hacer("POST", "/v1/inmobiliaria/dominio/verificar"); await cargarDominio() } }
+                    Button("Verificar ahora") { Task { do { try await estado.api.hacer("POST", "/v1/inmobiliaria/dominio/verificar"); await cargarDominio() } catch { estado.avisar(error) } } }
                     Button("Quitar el dominio", role: .destructive) { Task { await ponerDominio("") } }
                 } else {
                     TextField("tuinmobiliaria.com.ar", text: $dominioNuevo).textInputAutocapitalization(.never).autocorrectionDisabled().keyboardType(.URL)
@@ -1237,8 +1304,10 @@ struct MiWeb: View {
 
     private func guardarBarrio(_ b: BarrioWeb) async {
         struct Cuerpo: Encodable { var texto: String }
-        try? await estado.api.hacer("PUT", "/v1/web/barrios/\(b.nombre.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? b.nombre)", Cuerpo(texto: b.texto ?? ""))
-        estado.avisar("Guardado el texto de \(b.nombre)")
+        do {
+            try await estado.api.hacer("PUT", "/v1/web/barrios/\(b.nombre)", Cuerpo(texto: b.texto ?? ""))
+            estado.avisar("Guardado el texto de \(b.nombre)")
+        } catch { estado.avisar(error) }
     }
 }
 

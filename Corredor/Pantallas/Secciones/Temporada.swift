@@ -89,7 +89,7 @@ struct Temporada: View {
     }
 
     private func cargar() async {
-        reservas = ((try? await estado.api.get("/v1/temporada/reservas", query: [.init(name: "limite", value: "500")])) ?? [ReservaTemporada]()).sorted { $0.entrada < $1.entrada }
+        reservas = ((try? await estado.api.todas("/v1/temporada/reservas", query: [])) ?? [ReservaTemporada]()).sorted { $0.entrada < $1.entrada }
     }
 
     private func checkin(_ r: ReservaTemporada) async {
@@ -107,7 +107,11 @@ struct Temporada: View {
         do {
             try await estado.api.hacer("PATCH", "/v1/temporada/reservas/\(r.id)", C(estado: e))
             estado.avisar(e == "cancelada" ? "Reserva cancelada" : "Reserva confirmada") {
-                Task { try? await estado.api.hacer("PATCH", "/v1/temporada/reservas/\(r.id)", C(estado: r.estado ?? "pendiente")); await cargar() }
+                Task {
+                    do { try await estado.api.hacer("PATCH", "/v1/temporada/reservas/\(r.id)", C(estado: r.estado ?? "pendiente")) }
+                    catch { estado.avisar(error) }
+                    await cargar()
+                }
             }
             await cargar()
         } catch { estado.avisar(error) }
@@ -227,10 +231,13 @@ struct Emprendimientos: View {
             Button("Cancelar", role: .cancel) {}
             Button("Crear") {
                 Task {
-                    struct C: Encodable { var nombre: String; var tipo = "edificio"; var estado = "en_pozo" }
-                    try? await estado.api.hacer("POST", "/v1/emprendimientos", C(nombre: nombre))
-                    nombre = ""
-                    estado.version += 1
+                    // La API acepta preventa, en_obra o terminado (emprendimientos.Estados).
+                    struct C: Encodable { var nombre: String; var tipo = "edificio"; var estado = "preventa" }
+                    do {
+                        try await estado.api.hacer("POST", "/v1/emprendimientos", C(nombre: nombre))
+                        nombre = ""
+                        estado.version += 1
+                    } catch { estado.avisar(error) }
                 }
             }
         }

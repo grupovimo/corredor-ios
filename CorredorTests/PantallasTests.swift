@@ -36,12 +36,13 @@ final class PantallasTests: XCTestCase {
         """
         let contacto = """
         {"id": "c1", "nombre": "Valeria Gómez", "telefono": "1144712290", "tipo": "comprador", "buscaOperacion": "venta", "buscaAmbientes": 3,
-         "buscaBarrios": ["Palermo", "Belgrano"], "buscaMoneda": "USD", "buscaDesde": 150000, "buscaHasta": 180000}
+         "buscaBarrios": ["Palermo", "Belgrano"], "buscaMoneda": "USD", "buscaDesde": 150000, "buscaHasta": 180000,
+         "origen": "web", "buscaDetalles": ["Con balcón"], "etiquetas": ["Con crédito"], "creadoEn": "2026-11-01T10:00:00Z"}
         """
         let operacion = """
         {"id": "o1", "titulo": "Cabildo 2100", "etapa": "reserva", "valor": 154000, "moneda": "USD", "contactoNombre": "Ana Torres",
          "propiedadTitulo": "Cabildo 2100, 8.º", "agenteNombre": "Sofía Paz", "sena": 3000, "honorariosComprador": 3,
-         "checklist": [{"paso": "boleto", "titulo": "Boleto", "hecho": false}]}
+         "checklist": {"dominio": {"en": "2026-11-10T12:00:00Z", "por": "u1"}}, "adjuntos": [], "propiedadOperacion": "venta"}
         """
         let contrato = """
         {"id": "k1", "tipo": "alquiler", "estado": "vigente", "propiedadId": "p1", "contactoId": "c1", "inicio": "2024-07-01", "fin": "2027-06-30",
@@ -80,7 +81,9 @@ final class PantallasTests: XCTestCase {
             "/v1/avisos/contador": "{\"noLeidos\": 3, \"paraHacer\": 1}",
             "/v1/avisos": """
             {"avisos": [{"id": "v1", "tipo": "whatsapp", "titulo": "Valeria Gómez te escribió", "cuerpo": "¿Sigue disponible?", "url": "/mensajes/w1",
-              "creadoEn": "2026-11-12T12:29:00Z", "acciones": [{"titulo": "Responder", "url": "/mensajes/w1"}]}]}
+              "datos": {}, "accionable": true, "hecho": false, "hechoEn": null, "leido": false, "leidoEn": null, "creadoEn": "2026-11-12T12:29:00Z",
+              "acciones": [{"accion": "responder", "titulo": "Responder", "url": "/mensajes/w1"}]}],
+             "siguiente": null, "noLeidos": 1, "paraHacer": 1}
             """,
             "/v1/avisos/preferencias": """
             {"tipos": [{"tipo": "consulta", "nombre": "Consultas nuevas", "push": true, "mail": false}], "silencio": {"activo": true, "desde": 21, "hasta": 8, "domingos": true}}
@@ -97,17 +100,37 @@ final class PantallasTests: XCTestCase {
             "/v1/propiedades/p1/interesados": "[{\"contactoId\": \"c1\", \"nombre\": \"Valeria Gómez\", \"puntaje\": 0.9, \"visito\": false}]",
             "/v1/propiedades/p1/publicaciones": "[{\"id\": \"x1\", \"portal\": \"mercadolibre\", \"estado\": \"publicada\", \"visitasSemana\": 40, \"consultas\": 3}]",
             "/v1/propiedades/p1/inventario": "[{\"id\": \"i1\", \"ambiente\": \"Living\", \"descripcion\": \"Paredes\", \"estado\": \"bueno\"}]",
-            "/v1/propiedades/p1/actas": "[]",
+            "/v1/propiedades/p1/actas": """
+            [{"id": "a1", "propiedadId": "p1", "contratoId": "k1", "tipo": "entrada", "fecha": "2026-11-01",
+              "items": [{"ambiente": "Living", "descripcion": "Paredes", "cantidad": 1, "estado": "bueno", "notas": null, "fotos": [], "fotosUrl": []}],
+              "observaciones": null, "creadaPor": "u1", "creadoEn": "2026-11-01T12:00:00Z", "firmas": {}}]
+            """,
+            "/v1/contratos/k1/ajuste": """
+            {"indice": "icl", "base": 480000, "vigente": 540000, "vigenteEstimado": false, "ultimoAjuste": "2026-08-01",
+             "proximo": {"fecha": "2027-02-01", "monto": 610000}, "cronograma": [], "faltanDatos": false,
+             "indiceUltimoPeriodo": "2026-11-11", "avisos": {"inquilino": "2026-11-05T14:02:11.123456Z"}}
+            """,
+            "/v1/rendiciones/listas": "[{\"contratoId\": \"k1\", \"periodo\": \"2026-10-01\", \"propiedadTitulo\": \"Mendoza 2350\", \"propietarioNombre\": \"Lucía Méndez\", \"cobrado\": 540000, \"moneda\": \"ARS\"}]",
+            "/v1/actividad": """
+            [{"id": 41, "actorTipo": "usuario", "actorId": "u2", "actorNombre": "Martín Ríos", "accion": "editar", "entidad": "propiedad", "entidadId": "p1",
+              "antes": null, "despues": null, "creadoEn": "2026-11-05T12:00:00Z", "entidadTitulo": "Mendoza 2350"}]
+            """,
             "/v1/inmobiliaria": "{\"id\": \"i1\", \"nombre\": \"Luna Propiedades\", \"web\": \"https://luna.corredor.com.ar\", \"marca\": {\"frase\": \"Hola\"}}",
             "/v1/agenda": "[\(cita)]",
             "/v1/agenda/a1": cita,
             "/v1/contactos": "[\(contacto)]",
             "/v1/contactos/c1": contacto,
             "/v1/contactos/c1/notas": "[{\"id\": \"n1\", \"tipo\": \"whatsapp\", \"texto\": \"Escribió por WhatsApp\", \"ocurrioEn\": \"2026-11-12T12:28:00Z\"}]",
-            "/v1/contactos/c1/propiedades": "[\(prop)]",
+            "/v1/contactos/c1/propiedades": """
+            [{"propiedadId": "p1", "titulo": "Mendoza 2350, 5.º A", "direccion": "Mendoza 2350, 5.º A", "barrio": "Belgrano", "precio": 172000, "moneda": "USD",
+              "fotoId": null, "estado": "visita", "visitaEn": null, "operacionId": null, "puntaje": null, "enviadaEn": null, "reservaVenceEl": null}]
+            """,
             "/v1/operaciones": "[\(operacion)]",
             "/v1/operaciones/o1": operacion,
-            "/v1/operaciones/o1/historial": "[]",
+            "/v1/operaciones/o1/historial": """
+            [{"id": "e1", "tipo": "etapa", "texto": null, "datos": {"desde": "visita", "hasta": "reserva"}, "autorId": "u1", "autorNombre": "Sofía Paz", "creadoEn": "2026-11-11T15:00:00Z"},
+             {"id": "e2", "tipo": "nota", "texto": "Firmó la reserva", "datos": {}, "autorId": "u1", "autorNombre": "Sofía Paz", "creadoEn": "2026-11-11T16:00:00Z"}]
+            """,
             "/v1/contratos": "[\(contrato)]",
             "/v1/contratos/k1": contrato,
             "/v1/contratos/k1/cobros": "[{\"periodo\": \"2026-10\", \"esperado\": 540000, \"cobro\": {\"id\": \"b1\", \"periodo\": \"2026-10\", \"monto\": 540000, \"moneda\": \"ARS\", \"numero\": 482}}]",
