@@ -230,6 +230,8 @@ final class PantallasTests: XCTestCase {
             estado.pestana = .inicio
             RunLoop.main.run(until: Date().addingTimeInterval(0.3))
             let antes = PantallasMostradas.cuenta
+            // Si se cae (como el CALayer en ciclo del 6/11), el log dice en cuál.
+            print("NAVEGACION abre \(nombre)")
             estado.abrir(d)
             RunLoop.main.run(until: Date().addingTimeInterval(0.8))
             if PantallasMostradas.cuenta == antes { rotos.append(nombre) }
