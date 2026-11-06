@@ -35,7 +35,15 @@ jobs:
             -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO \
             | tee compilar.log | xcbeautify --renderer github-actions
       - if: failure()
-        run: grep -E 'error:' compilar.log | sort -u | head -60
+        # Los errores, y si se cayó el compilador (sin «error:»), su pila y el archivo que compilaba.
+        run: |
+          grep -E 'error:' compilar.log | sort -u | head -60
+          grep -n -E -A25 'Stack dump|Please submit a bug report|Segmentation fault|Abort trap|signal [0-9]|unable to type-check|LLVM ERROR|Assertion failed' compilar.log | head -150 || true
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compilar-log
+          path: compilar.log
       - name: Probar
         env:
           # Las capturas de cada pantalla (claro y oscuro) para compararlas con el handoff.
