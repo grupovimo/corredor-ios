@@ -45,6 +45,9 @@ struct Principal: View {
         .fullScreenCover(item: $estado.altaAbierta) { p in
             AltaInmobiliaria(inicial: p.clave).environment(estado).environment(estado.cola)
         }
+        .fullScreenCover(isPresented: $estado.bienvenidaAbierta, onDismiss: { estado.mostrarRecorrido = true }) {
+            Bienvenida().environment(estado).environment(estado.cola)
+        }
         .overlay(alignment: .bottom) {
             if let a = estado.aviso {
                 VistaAviso(aviso: a) { estado.aviso = nil }
@@ -57,8 +60,11 @@ struct Principal: View {
         .animation(.spring(duration: 0.3), value: estado.aviso)
         .overlay { if estado.mostrarRecorrido { Recorrido(visible: $estado.mostrarRecorrido).zIndex(10) } }
         .task {
-            // La primera vez (en cualquier aparato), el recorrido.
-            if !ModoPrueba.activo, estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true { estado.mostrarRecorrido = true }
+            // La primera vez (en cualquier aparato): quien se suma a un equipo pasa antes por su bienvenida
+            // (al cerrarla sigue el recorrido); el dueño, directo al recorrido (el alta va aparte).
+            if !ModoPrueba.activo, estado.usuario?.tourVisto != true, let g: Guia = try? await estado.api.get("/v1/panel/guia"), g.tourVisto != true {
+                if estado.esDuenio { estado.mostrarRecorrido = true } else { estado.bienvenidaAbierta = true }
+            }
         }
         // La suscripción (avisos de prueba y sólo lectura), al día con el tiempo real.
         .task(id: estado.version) { await estado.cargarSuscripcion() }

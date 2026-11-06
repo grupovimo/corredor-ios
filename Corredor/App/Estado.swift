@@ -97,6 +97,8 @@ final class Estado {
     var marcaVersion = 0
     /// El asistente del alta abierto (en un paso, o en el primero que falta).
     var altaAbierta: PasoAlta?
+    /// La bienvenida de quien se suma a un equipo (su foto, su WhatsApp, los avisos y la apariencia).
+    var bienvenidaAbierta = false
     @ObservationIgnored var recargaVivo: Task<Void, Never>?
     let cola: Cola
     private(set) var tokenPush: String?
@@ -401,7 +403,7 @@ final class Estado {
 
     // MARK: Push
 
-    private func pedirPermisoPush() async {
+    func pedirPermisoPush() async {
         let c = UNUserNotificationCenter.current()
         let ajustes = await c.notificationSettings()
         switch ajustes.authorizationStatus {

@@ -256,6 +256,8 @@ final class PantallasTests: XCTestCase {
         }
     }
     func testMiWeb() { montar(MiWeb(), segundos: 2) }
+    /// La bienvenida de quien se suma a un equipo (foto, WhatsApp, avisos y apariencia).
+    func testBienvenida() { montar(Bienvenida(), rol: "agente") }
     func testMasAgente() { montar(MasRaiz(), rol: "agente") }
     func testCita() { montar(FichaCita(id: "a1")) }
     func testNuevaCita() { montar(NuevaCita()) }
