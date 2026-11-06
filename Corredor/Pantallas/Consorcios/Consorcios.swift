@@ -40,7 +40,6 @@ struct Consorcios: View {
         .toolbar { if estado.escribe { Button { nuevo = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nuevo consorcio") } }
         .task(id: estado.version) { await cargar() }
         .sheet(isPresented: $nuevo) { EditarConsorcio(c: nil) }
-        .destinosConsorcios()
     }
 
     private var vacio: some View {
@@ -395,7 +394,6 @@ struct FichaConsorcio: View {
         }
         .task(id: estado.version) { await cargar() }
         .sheet(isPresented: $editando) { EditarConsorcio(c: c) }
-        .destinosConsorcios()
     }
 
     private func cabecera(_ c: ConsorcioAPI) -> some View {

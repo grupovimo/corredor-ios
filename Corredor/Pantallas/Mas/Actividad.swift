@@ -107,6 +107,8 @@ struct Actividad: View {
     @State private var registros: [EntradaActividad]?
     @State private var ia: [AccionIA] = []
     @State private var equipo: [Miembro] = []
+    /// «ia» abre filtrado en lo que hizo la IA («Ver todo» del Inicio).
+    var filtro: String? = nil
     @State private var de = "todo"
     @State private var persona = ""
     @State private var error: ErrorApi?
@@ -139,6 +141,10 @@ struct Actividad: View {
     }
 
     var body: some View {
+        contenido.onAppear { if let filtro, de == "todo" { de = filtro } }
+    }
+
+    private var contenido: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(estado.rol == "agente" ? "Lo que hiciste vos y tu IA, lo último primero." : "Quién hizo qué y cuándo. También lo que hizo la IA de cada persona.")

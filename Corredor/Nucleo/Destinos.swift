@@ -43,7 +43,7 @@ struct ARendicion: Hashable { var contrato: String; var id: String }
 struct AInventario: Hashable { var id: String }
 struct AFirmas: Hashable { var id: String }
 /// 12A Avisos y 12B su configuración.
-struct AAvisos: Hashable {}
+struct AAvisos: Hashable { var aviso: String? = nil; var responder: String? = nil }
 struct AConfigAvisos: Hashable {}
 /// 13A Perfil.
 struct APerfil: Hashable {}
@@ -92,6 +92,9 @@ struct Ruta: Equatable {
             } else if let id, param("arreglar") != nil {
                 // `?arreglar=<portal>`: la ficha con la hoja de «Arreglar» abierta.
                 self.init(.propiedades, AArreglarPropiedad(id: id))
+            } else if let id, p.count > 2, p[2] == "editar", let paso = param("paso") {
+                // `/propiedades/<id>/editar?paso=fotos`: el alta en ese paso.
+                self.init(.propiedades, AEditarEnPaso(id: id, paso: paso))
             } else if let id, param("compartir") == "whatsapp" {
                 // `?compartir=whatsapp&contacto=<id>`: la ficha con la hoja de mandar abierta.
                 self.init(.propiedades, AMandarPropiedad(id: id, contacto: param("contacto")))
@@ -148,7 +151,9 @@ struct Ruta: Equatable {
             } else {
                 self.init(.mas, ASeccion(clave: "inventarios"))
             }
-        case "avisos": self.init(.inicio, AAvisos())
+        case "avisos":
+            // `/avisos?aviso=<id>&responder=<accion>`: ese aviso (y su respuesta) en vez de la lista.
+            self.init(.inicio, AAvisos(aviso: param("aviso"), responder: param("responder")))
         case "perfil": self.init(.inicio, APerfil())
         case "buscar": self.init(.inicio, ABuscar(texto: param("q") ?? ""))
         case "reserva", "reservas": self.init(.mas, id.map { AnyHashable(AReserva(id: $0)) } ?? AnyHashable(ASeccion(clave: "reservas")))
@@ -164,7 +169,29 @@ struct Ruta: Equatable {
         case "conectar-ia":
             if let s = param("solicitud") { self.init(.mas, ASeccion(clave: "autorizar-ia", id: s)) } else { self.init(.mas, ASeccion(clave: "ia")) }
         // Rutas del panel con id (los avisos traen las de la web): la ficha, no la lista.
-        case "consorcios", "consorcio": self.init(.mas, ASeccion(clave: id == nil ? "consorcios" : "consorcio", id: id))
+        case "consorcios", "consorcio":
+            // `/consorcios/<id>/liquidar`, `/consorcios/<id>/trabajos/<t>` y `/consorcios/<id>/<pestaña>`.
+            if let id, p.count > 2 {
+                if p[2] == "liquidar" {
+                    self.init(.mas, ALiquidarConsorcio(consorcio: id, periodo: param("periodo")))
+                } else if p[2] == "trabajos", p.count > 3 {
+                    self.init(.mas, ATrabajoConsorcio(consorcio: id, id: p[3]))
+                } else {
+                    var pedido: String?
+                    if param("vista") == "deudores" { pedido = "deben" }
+                    else if let u = param("unidad") { pedido = "unidad:\(u)" }
+                    else if param("nueva") == "1" || param("nuevo") == "1" { pedido = "nueva" }
+                    else if let r = param("recibo") { pedido = "recibo:\(r)" }
+                    else if param("liquidar") == "1" { pedido = "liquidar" }
+                    self.init(.mas, AFichaConsorcioEn(id: id, pestana: p[2], pedido: pedido))
+                }
+            } else {
+                self.init(.mas, ASeccion(clave: id == nil ? "consorcios" : "consorcio", id: id))
+            }
+        // `/revision?ids=a,b`: sólo esos borradores.
+        case "revision": self.init(.mas, param("ids").map { AnyHashable(ARevisionIds(ids: $0)) } ?? AnyHashable(ASeccion(clave: "revision")))
+        // `/importar?id=<vista previa>`: retomarla.
+        case "importar": self.init(.mas, ASeccion(clave: "importar", id: param("id")))
         case "emprendimientos", "emprendimiento": self.init(.mas, ASeccion(clave: id == nil ? "emprendimientos" : "emprendimiento", id: id))
         default: self.init(.mas, ASeccion(clave: a, id: id))
         }

@@ -77,7 +77,15 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
                     UIApplication.shared.open(u)
                 }
             default:
-                if let ruta { estado.ir(ruta) }
+                let aviso = info["avisoId"] as? String
+                if accion != UNNotificationDefaultActionIdentifier, let aviso {
+                    // Otra acción del aviso (las que pide la API): el aviso con esa acción abierta.
+                    Avisos.abrir(estado, aviso: aviso, responder: accion)
+                } else if let ruta {
+                    estado.ir(ruta)
+                } else if let aviso {
+                    Avisos.abrir(estado, aviso: aviso, responder: nil)
+                }
             }
         }
     }

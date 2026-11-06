@@ -100,7 +100,7 @@ struct Deuda: Codable, Identifiable, Hashable {
         var periodo: String?
         var monto: Double?
         var esperado: Double?
-        var vencio: String?
+        var vence: String?
     }
     var contratoId: String
     var propiedadTitulo: String?

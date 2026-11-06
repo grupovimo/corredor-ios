@@ -76,7 +76,7 @@ final class PantallasTests: XCTestCase {
             "/v1/mercadolibre/preguntas/q1/sugerencia": "{\"sugerencia\": \"¡Hola! Sí, tiene cochera.\", \"fuentes\": [\"Tiene cochera fija\"]}",
             "/v1/contratos/deudas": """
             [{"contratoId": "k1", "propiedadTitulo": "Thames 2240", "contactoNombre": "Lucía Méndez", "moneda": "ARS", "total": 540000,
-              "meses": [{"periodo": "2026-11", "esperado": 540000, "vencio": "2026-11-10"}]}]
+              "meses": [{"periodo": "2026-11", "esperado": 540000, "vence": "2026-11-10"}]}]
             """,
             "/v1/avisos/contador": "{\"noLeidos\": 3, \"paraHacer\": 1}",
             "/v1/avisos": """
@@ -257,7 +257,7 @@ final class PantallasTests: XCTestCase {
         ApiFalsa.respuestas = ["/v1/panel": "{}"]
         montar(InicioRaiz(), rol: "agente")
     }
-    func testBuscar() { montar(Buscar(texto: "Mendoza")) }
+    func testBuscar() { montar(BuscarTodo(texto: "Mendoza")) }
     func testAvisos() { montar(Avisos()) }
     func testConfigAvisos() { montar(ConfigAvisos()) }
     func testPerfil() { montar(Perfil()) }

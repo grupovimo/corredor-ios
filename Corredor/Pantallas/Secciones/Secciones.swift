@@ -20,7 +20,8 @@ struct Seccion: View {
         case "plan", "suscripcion": PantallaPlan()
         case "configuracion", "inmobiliaria": ConfigInmobiliaria()
         case "equipo": Equipo()
-        case "integraciones", "whatsapp", "mercadolibre": Integraciones()
+        case "integraciones", "whatsapp": Integraciones()
+        case "mercadolibre": PantallaMercadoLibre()
         case "respuestas": RespuestasGuardadas()
         case "proveedores": Proveedores()
         case "objetivos": Objetivos()
@@ -28,8 +29,8 @@ struct Seccion: View {
         case "actas": if let id { Inventario(propiedad: id) }
         case "rendiciones": RendicionesListas()
         case "papelera": Papelera()
-        case "actividad": Actividad()
-        case "revision": RevisionIA()
+        case "actividad": Actividad(filtro: id)
+        case "revision": RevisionIA(ids: id)
         case "informe": Informe()
         case "indices": Indices()
         case "vistas": if let id { VistasPropiedad(propiedad: id) }
@@ -45,7 +46,7 @@ struct Seccion: View {
         case "envios": if let id { FichasMandadas(propiedad: id) }
         case "grabaciones": if let id { Grabaciones(propiedad: id) }
         case "reservas-propiedad": if let id { Reservas(ruta: "/v1/propiedades/\(id)/reservas") }
-        case "importar": Importar()
+        case "importar": Importar(retomar: id)
         case "documentos-propiedad": if let id { DocumentosLista(de: "propiedad", id: id) }
         case "documentos-contrato": if let id { DocumentosLista(de: "contrato", id: id) }
         case "bienes": if let id { BienesConsorcio(consorcio: id) }

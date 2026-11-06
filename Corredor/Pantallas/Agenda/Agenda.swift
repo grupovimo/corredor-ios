@@ -22,6 +22,8 @@ struct FranjaAgenda: Identifiable, Hashable {
     var contrato: String?
     var licencia = false
     var accion = "Ver"
+    /// El mes (AAAA-MM) del cobro vencido: «Recordar» abre ese recordatorio.
+    var recordar: String? = nil
 }
 
 /// Un vencimiento o ajuste de un contrato (GET /v1/contratos/vencimientos).
@@ -178,7 +180,7 @@ struct AgendaRaiz: View {
 
     private func franja(_ f: FranjaAgenda) -> some View {
         Button {
-            if f.licencia { licencias = true } else if let c = f.contrato { estado.abrir(AFichaContrato(id: c)) }
+            if f.licencia { licencias = true } else if let c = f.contrato, let mes = f.recordar { estado.abrir(ARecordarMes(contrato: c, periodo: mes)) } else if let c = f.contrato { estado.abrir(AFichaContrato(id: c)) }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: f.icono).font(.system(size: 16, weight: .semibold))
@@ -506,7 +508,8 @@ struct AgendaRaiz: View {
         for d in deudas {
             let apellido = d.contactoNombre.split(separator: " ").last.map(String.init) ?? d.contactoNombre
             f.append(FranjaAgenda(id: "cobro" + d.contratoId + d.periodo, dia: d.vence, texto: "Cobro \(apellido) vencido", largo: "Cobro de \(d.contactoNombre) vencido",
-                                  tono: .rojo, icono: "dollarsign.circle", contrato: d.contratoId, accion: "Recordar"))
+                                  tono: .rojo, icono: "dollarsign.circle", contrato: d.contratoId, accion: "Recordar",
+                                  recordar: String(d.periodo.prefix(7))))
         }
         let hoy = Formato.diaISO(Date())
         let hasta60 = Formato.diaISO(Calendar.current.date(byAdding: .day, value: 60, to: Date()) ?? Date())

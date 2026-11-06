@@ -267,6 +267,7 @@ extension View {
             .destinosCartera()
             .destinosCobranzas()
             .destinosSecciones()
+            .destinosConsorcios()
     }
 }
 
