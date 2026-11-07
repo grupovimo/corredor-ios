@@ -1032,9 +1032,9 @@ struct DictarInventario: View {
         enviando = true
         defer { enviando = false }
         do {
-            struct C: Encodable { var transcripcion: String; var tipoActa: String?; var contratoId: String? }
+            struct C: Encodable { var transcripcion: String; var tipoActa: String?; var contratoId: String?; var armar = true }
             let ok = tipoActa == "entrada" || tipoActa == "salida"
-            // La API responde {grabacion, items} (los ítems que se sumaron con el dictado).
+            // Con `armar`, la API arma los ítems desde el texto y responde {grabacion, items}.
             struct Guardada: Decodable { var grabacion: GrabacionAPI; var items: [ItemInventario]? }
             let g: Guardada = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad)/grabaciones",
                                                           C(transcripcion: dictado.texto, tipoActa: ok && contrato != nil ? tipoActa : nil, contratoId: ok ? contrato : nil))
@@ -1074,7 +1074,13 @@ struct Grabaciones: View {
         .pantallaApilada("Recorridas dictadas")
         .toolbar { if estado.escribe { Button { dictando = true } label: { Image(systemName: "mic") }.accessibilityLabel("Dictar") } }
         .task(id: estado.version) { lista = (try? await estado.api.get("/v1/propiedades/\(propiedad)/grabaciones")) ?? [] }
-        .sheet(isPresented: $dictando) { DictarInventario(propiedad: propiedad) { _ in estado.version += 1 } }
+        .sheet(isPresented: $dictando) {
+            DictarInventario(propiedad: propiedad) { n in
+                estado.version += 1
+                if n > 0 { estado.sugerir("Armamos \(Formato.cantidad(n, "ítem", "ítems")) del inventario.", "Ver", AInventario(id: propiedad)) }
+                else { estado.avisar("Guardamos la recorrida, pero no encontramos ítems. Sumalos a mano en el inventario.", ok: false) }
+            }
+        }
     }
 }
 

@@ -6,7 +6,7 @@ extension View {
     /// Los destinos de Contactos y Operaciones.
     func destinosCartera() -> some View {
         self
-            .navigationDestination(for: AContactos.self) { _ in Contactos() }
+            .navigationDestination(for: AContactos.self) { a in Contactos(libres: a.agente == "libre") }
             .navigationDestination(for: AFichaContacto.self) { c in FichaContacto(id: c.id) }
             .navigationDestination(for: AOperaciones.self) { _ in Operaciones() }
             .navigationDestination(for: AFichaOperacion.self) { o in FichaOperacion(id: o.id) }

@@ -485,7 +485,7 @@ struct InicioRaiz: View {
 
     private func hacerProximo(_ clave: String) {
         switch clave {
-        case "libres": estado.abrir(AContactos())
+        case "libres": estado.abrir(AContactos(agente: "libre"))
         case "propiedad": estado.miraAbierta = true
         case "nueva", "mas": estado.abrir(AAltaPropiedad())
         case "contacto": cargando = .contacto

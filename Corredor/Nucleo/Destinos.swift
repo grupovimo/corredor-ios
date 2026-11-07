@@ -23,7 +23,8 @@ struct AAgendaDia: Hashable { var dia: String? = nil }
 /// Una cita de la agenda.
 struct ACita: Hashable { var id: String }
 /// 8A Contactos.
-struct AContactos: Hashable {}
+/// Los contactos; `agente: "libre"` muestra sólo las consultas sin dueño (`/contactos?agente=libre`).
+struct AContactos: Hashable { var agente: String? = nil }
 /// 8B Ficha de un contacto.
 struct AFichaContacto: Hashable { var id: String }
 /// 9A Tablero de operaciones.
@@ -112,7 +113,7 @@ struct Ruta: Equatable {
             }
         case "agenda": self.init(.inicio, id.map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
         case "mas": self.init(.mas)
-        case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos()))
+        case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos(agente: param("agente") == "libre" ? "libre" : nil)))
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
         case "cobranzas":
             // `/cobranzas?registrar=1&contrato=<id>`: la hoja de «Registrar cobro» abierta.

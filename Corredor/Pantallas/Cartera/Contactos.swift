@@ -25,13 +25,17 @@ struct Contactos: View {
     @State private var q = ""
     @State private var filtro = ""
     @State private var etiqueta: String?
+    /// Sólo las consultas sin dueño (desde «Tomá una consulta sin dueño» del Inicio).
+    @State private var libres: Bool
     @State private var nuevo = false
     @State private var importar = false
     @State private var error: ErrorApi?
     @State private var guardadoEn: Date?
 
+    init(libres: Bool = false) { _libres = State(initialValue: libres) }
+
     private static let porPagina = 60
-    private var filtrado: Bool { !q.isEmpty || etiqueta != nil || !filtro.isEmpty }
+    private var filtrado: Bool { !q.isEmpty || etiqueta != nil || libres || !filtro.isEmpty }
 
     var body: some View {
         ScrollView {
@@ -55,7 +59,7 @@ struct Contactos: View {
                 .accessibilityLabel("Contacto nuevo")
             }
         }
-        .task(id: "\(estado.version)-\(q)-\(filtro)-\(etiqueta ?? "")") {
+        .task(id: "\(estado.version)-\(q)-\(filtro)-\(etiqueta ?? "")-\(libres)") {
             if !q.isEmpty { try? await Task.sleep(for: .milliseconds(250)) }
             if Task.isCancelled { return }
             await cargar()
@@ -69,13 +73,23 @@ struct Contactos: View {
             HStack(spacing: 8) {
                 ForEach(TextosContacto.listas, id: \.clave) { l in
                     let n = l.clave.isEmpty ? resumen?.total : l.tipos.reduce(0) { $0 + (resumen?.tipos?[$1] ?? 0) }
-                    ChipFiltro(texto: l.texto + (n.map { " \(Formato.numero($0))" } ?? ""), activo: filtro == l.clave && etiqueta == nil) {
+                    ChipFiltro(texto: l.texto + (n.map { " \(Formato.numero($0))" } ?? ""), activo: filtro == l.clave && etiqueta == nil && !libres) {
                         filtro = l.clave
                         etiqueta = nil
+                        libres = false
                     }
                 }
                 if let e = resumen?.esperando, e > 0 {
-                    ChipFiltro(texto: "Sin respuesta \(Formato.numero(e))", activo: filtro == "sin_respuesta" && etiqueta == nil) { filtro = "sin_respuesta"; etiqueta = nil }
+                    ChipFiltro(texto: "Sin respuesta \(Formato.numero(e))", activo: filtro == "sin_respuesta" && etiqueta == nil && !libres) { filtro = "sin_respuesta"; etiqueta = nil; libres = false }
+                }
+                if libres {
+                    Button { Haptico.seleccion(); libres = false } label: {
+                        Label("Sin dueño", systemImage: "xmark").labelStyle(TextoDespues()).font(Estilo(tamano: 14, peso: .semibold, relativo: .footnote).font)
+                            .foregroundStyle(C.sobreAccion).padding(.horizontal, 14).frame(height: 36).background(C.accion, in: Capsule())
+                    }
+                    .buttonStyle(Presionable())
+                    .accessibilityLabel("Sin dueño. Quitar el filtro")
+                    .accessibilityAddTraits(.isSelected)
                 }
                 ForEach((resumen?.etiquetas ?? []).prefix(8), id: \.texto) { e in
                     Button { Haptico.seleccion(); etiqueta = etiqueta == e.texto ? nil : e.texto } label: {
@@ -100,9 +114,13 @@ struct Contactos: View {
                             accion: estado.escribe ? ("Nuevo contacto", { nuevo = true }) : nil,
                             secundaria: estado.escribe ? ("Importar del celular o un Excel", { importar = true }) : nil)
                     .padding(.top, 40)
+            } else if lista.isEmpty && libres && q.isEmpty {
+                EstadoVacio(icono: "tray", titulo: "No quedan consultas sin dueño", texto: "Ya las tomó alguien.",
+                            accion: ("Ver todos", { filtro = ""; etiqueta = nil; libres = false }))
+                    .padding(.top, 30)
             } else if lista.isEmpty {
                 EstadoVacio(icono: "magnifyingglass", titulo: "No hay nadie con esa búsqueda", texto: "Probá con el teléfono o un barrio.",
-                            accion: ("Ver todos", { q = ""; filtro = ""; etiqueta = nil }))
+                            accion: ("Ver todos", { q = ""; filtro = ""; etiqueta = nil; libres = false }))
                     .padding(.top, 30)
             } else {
                 if !esperan.isEmpty && !filtrado { bloqueEsperan }
@@ -226,6 +244,7 @@ struct Contactos: View {
         var query: [URLQueryItem] = [.init(name: "limite", value: String(Self.porPagina))]
         if let t = q.nonEmpty { query.append(.init(name: "q", value: String(t.prefix(120)))) }
         if let e = etiqueta { query.append(.init(name: "etiqueta", value: e)) }
+        if libres { query.append(.init(name: "agente", value: "libre")) }
         if filtro == "sin_respuesta" { query.append(.init(name: "esperando", value: "si")) }
         else if let l = TextosContacto.listas.first(where: { $0.clave == filtro && !$0.clave.isEmpty }) { query.append(.init(name: "tipo", value: l.tipos.joined(separator: ","))) }
         let clave = filtrado ? nil : "contactos"
