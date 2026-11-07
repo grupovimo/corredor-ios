@@ -12,6 +12,7 @@ struct ReglamentoConsorcio: View {
     @Environment(Estado.self) private var estado
     var consorcio: String
     @State private var r: R?
+    @State private var error: ErrorApi?
 
     struct R: Codable {
         struct Cambio: Codable, Hashable { var unidad: String?; var columna: String?; var reglamento: Double?; var hoy: Double? }
@@ -43,6 +44,10 @@ struct ReglamentoConsorcio: View {
                 if estado.escribe {
                     Section { Button("Guardar los de hoy como reglamento") { Task { do { try await estado.api.hacer("PUT", "/v1/consorcios/\(consorcio)/reglamento"); await cargar(); estado.avisar("Reglamento guardado") } catch { estado.avisar(error) } } } }
                 }
+            } else if let error {
+                // Sin esto, si la API fallaba se quedaba cargando para siempre.
+                EstadoError(que: "el reglamento", error: error) { Task { await cargar() } }
+                    .listRowBackground(Color.clear).listRowSeparator(.hidden)
             } else { ProgressView() }
         }
         .scrollContentBackground(.hidden).background(FondoApp())
@@ -51,5 +56,12 @@ struct ReglamentoConsorcio: View {
     }
 
     static func num(_ n: Double?) -> String { n.map { String(format: "%.4f", $0).replacingOccurrences(of: ".", with: ",") } ?? "—" }
-    private func cargar() async { r = try? await estado.api.get("/v1/consorcios/\(consorcio)/reglamento") }
+    private func cargar() async {
+        do {
+            r = try await estado.api.get("/v1/consorcios/\(consorcio)/reglamento")
+            error = nil
+        } catch let e as ErrorApi {
+            if r == nil { error = e }
+        } catch {}
+    }
 }

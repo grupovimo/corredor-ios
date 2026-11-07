@@ -173,9 +173,11 @@ struct Indices: View {
     private var resultado: Double? { if let m = monto, let f = factor { return (m * f).rounded() }; return nil }
 
     private var calculadora: some View {
+        // Los rótulos en blanco: el `.foregroundStyle(.white)` de afuera no le gana al C.texto2 de Etiquetado y en tinta 2
+        // no se leían sobre el verde.
         VStack(alignment: .leading, spacing: 12) {
             Label("Calculadora de alquiler", systemImage: "function").estilo(.headline).foregroundStyle(.white)
-            Etiquetado("Alquiler") {
+            Etiquetado("Alquiler", color: .white.opacity(0.8)) {
                 HStack(spacing: 6) {
                     Text("ARS").estilo(.label).foregroundStyle(C.texto2)
                     TextField("", text: $alquiler).keyboardType(.numberPad).estilo(.body16).foregroundStyle(C.texto)
@@ -190,11 +192,11 @@ struct Indices: View {
             }
             .foregroundStyle(.white)
             HStack(spacing: 10) {
-                Etiquetado("Desde") {
+                Etiquetado("Desde", color: .white.opacity(0.8)) {
                     Picker("Desde", selection: $desde) { ForEach(meses, id: \.self) { Text(Self.etiquetaMes($0)).tag($0) } }
                         .pickerStyle(.menu).tint(C.texto).frame(maxWidth: .infinity, minHeight: 44).background(C.superficie, in: .rect(cornerRadius: 12))
                 }
-                Etiquetado("Índice") {
+                Etiquetado("Índice", color: .white.opacity(0.8)) {
                     Picker("Índice", selection: $indice) { Text("ICL").tag("icl"); Text("IPC").tag("ipc"); Text("UVA").tag("uva") }
                         .pickerStyle(.menu).tint(C.texto).frame(maxWidth: .infinity, minHeight: 44).background(C.superficie, in: .rect(cornerRadius: 12))
                 }

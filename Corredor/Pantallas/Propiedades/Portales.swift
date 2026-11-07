@@ -175,7 +175,7 @@ struct Portales: View {
             encabezadoPortal("web", "Tu web",
                              "\(Formato.cantidad(r.difundibles ?? 0, "publicada", "publicadas"))\((r.webVisitasSemana ?? 0) > 0 ? " · \(Formato.cantidad(r.webVisitasSemana ?? 0, "visita esta semana", "visitas esta semana"))" : "")",
                              "Al día", .verde)
-            Text("Todo lo disponible sale solo en tu web. Los borradores no.").estilo(.subhead).foregroundStyle(C.texto2)
+            Text("Todo lo disponible sale solo en tu web. Los borradores no.").estilo(.footnote).foregroundStyle(C.texto2)
             if let v = r.webVisitasSemana, let antes = r.webVisitasSemanaAnterior, antes > 0, let x = ArregloML.variacion(v, antes) {
                 Text("\(x.0) contra la semana anterior").estilo(.footnoteFuerte).foregroundStyle(x.1 ? C.okTinta : C.errorTinta)
             }

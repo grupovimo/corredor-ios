@@ -969,11 +969,15 @@ struct Captadas: View {
                 } else if cargado, !delServidor.isEmpty, visibles.isEmpty {
                     Text(ver == "sin-llamar" ? "Ya llamaste a todos." : "Todas tienen fotos.").estilo(.subhead).foregroundStyle(C.texto2).padding(.top, 10)
                 }
-                Button { estado.miraAbierta = true; cerrar() } label: {
-                    Label("Captar otra", systemImage: "viewfinder").font(Estilo(tamano: 17, peso: .semibold, relativo: .headline).font)
-                        .foregroundStyle(C.sobreAccion).frame(maxWidth: .infinity, minHeight: 52).background(C.accion, in: .rect(cornerRadius: 14, style: .continuous))
+                // Con la lista vacía, el «Captar con MIRA» del estado vacío ya está: «Captar otra» quedaba repetido (y sin
+                // ninguna captada, no hay «otra»).
+                if !(cargado && error == nil && cola.fotos.isEmpty && delServidor.isEmpty) {
+                    Button { estado.miraAbierta = true; cerrar() } label: {
+                        Label("Captar otra", systemImage: "viewfinder").font(Estilo(tamano: 17, peso: .semibold, relativo: .headline).font)
+                            .foregroundStyle(C.sobreAccion).frame(maxWidth: .infinity, minHeight: 52).background(C.accion, in: .rect(cornerRadius: 14, style: .continuous))
+                    }
+                    .padding(.top, 6)
                 }
-                .padding(.top, 6)
             }
             .padding(.horizontal, 16).padding(.vertical, 8)
         }

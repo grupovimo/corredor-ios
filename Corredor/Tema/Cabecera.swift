@@ -294,14 +294,17 @@ extension Fecha {
 /// Un campo con su etiqueta arriba (13/600 en tinta 2).
 struct Etiquetado<Contenido: View>: View {
     var etiqueta: String
+    /// El color del rótulo: sobre un fondo de color (la calculadora de Índices, en verde) va en blanco.
+    var color: Color = C.texto2
     @ViewBuilder var contenido: () -> Contenido
-    init(_ etiqueta: String, @ViewBuilder contenido: @escaping () -> Contenido) {
+    init(_ etiqueta: String, color: Color = C.texto2, @ViewBuilder contenido: @escaping () -> Contenido) {
         self.etiqueta = etiqueta
+        self.color = color
         self.contenido = contenido
     }
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(etiqueta).estilo(.footnoteFuerte).foregroundStyle(C.texto2)
+            Text(etiqueta).estilo(.footnoteFuerte).foregroundStyle(color)
             contenido()
         }
     }

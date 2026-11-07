@@ -349,8 +349,7 @@ struct AltaContrato: View {
         if guardado == "guardando" { return "Guardando…" }
         if guardado == "error" { return "No se guardó" }
         guard guardado != "nada", let g = guardadoEn else { return "Se guarda solo" }
-        let s = max(1, Int(ahora.timeIntervalSince(g).rounded()))
-        return s < 60 ? "Guardado hace \(s) s" : "Guardado hace \(s / 60) min"
+        return Formato.guardadoHace(g, ahora: ahora)
     }
 
     private var pie: some View {

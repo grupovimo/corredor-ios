@@ -33,10 +33,14 @@ struct TarifasTemporada: View {
                     HStack {
                         VStack(alignment: .leading) {
                             Text(t.nombre ?? "Tarifa").estilo(.filaLista).foregroundStyle(C.texto)
-                            Text("\(t.desde) al \(t.hasta)\(t.nochesMinimas.map { " · mínimo \($0) noches" } ?? "")").estilo(.footnote).foregroundStyle(C.texto2)
+                            // Las fechas como fechas («15/12/26»), no como las manda la API («2026-12-15»); las noches
+                            // mínimas abajo.
+                            Text("\(TempFechas.numerico(t.desde)) al \(TempFechas.numerico(t.hasta))").estilo(.footnote).foregroundStyle(C.texto2)
+                            if let n = t.nochesMinimas { Text("mínimo \(n) noches").estilo(.footnote).foregroundStyle(C.texto2) }
                         }
                         Spacer()
-                        Text("\(Formato.plata(t.precio, t.moneda ?? "USD")) / \(TarifaAPI.periodos.first { $0.0 == (t.periodo ?? "temporada") }?.1.lowercased() ?? "temporada")").fontWeight(.semibold).foregroundStyle(C.texto)
+                        Text("\(Formato.plata(t.precio, t.moneda ?? "USD"))\u{00A0}/ \(TarifaAPI.periodos.first { $0.0 == (t.periodo ?? "temporada") }?.1.lowercased() ?? "temporada")").fontWeight(.semibold).foregroundStyle(C.texto)
+                            .padding(.leading, 10)
                     }
                 }
                 .swipeActions { if estado.escribe { Button("Borrar", role: .destructive) { Task { await HojaTarifasTemporada.borrar(t, de: propiedad, estado: estado); await cargar() } } } }

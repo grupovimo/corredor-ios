@@ -432,8 +432,7 @@ struct AltaPropiedad: View {
         if guardado == "guardando" { return "Guardando…" }
         if guardado == "error" { return "No se guardó" }
         guard guardado != "nada", let g = guardadoEn else { return editar != nil ? "Cada cambio se guarda solo" : "Se guarda solo como borrador" }
-        let s = max(1, Int(ahora.timeIntervalSince(g)))
-        return s < 60 ? "Guardado hace \(s) s" : "Guardado hace \(s / 60) min"
+        return Formato.guardadoHace(g, ahora: ahora)
     }
 
     // MARK: Formulario

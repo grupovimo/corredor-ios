@@ -9,6 +9,18 @@ enum Formato {
     static let argentina = Locale(identifier: "es_AR")
     static let zona = TimeZone(identifier: "America/Argentina/Buenos_Aires")!
 
+    /// «Guardado hace 5 s / 3 min / 2 h»; pasado el día, «Guardado el 06/11» (no «hace 1197 min»).
+    static func guardadoHace(_ g: Date, ahora: Date) -> String {
+        let s = max(1, Int(ahora.timeIntervalSince(g).rounded()))
+        if s < 60 { return "Guardado hace \(s) s" }
+        if s < 3600 { return "Guardado hace \(s / 60) min" }
+        if s < 86400 { return "Guardado hace \(s / 3600) h" }
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = zona
+        let d = c.dateComponents([.day, .month], from: g)
+        return String(format: "Guardado el %02d/%02d", d.day ?? 0, d.month ?? 0)
+    }
+
     private static let miles: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal

@@ -126,6 +126,12 @@ enum TempFechas {
     /// «12/1».
     static func corto(_ d: String) -> String { "\(Int(d.dropFirst(8).prefix(2)) ?? 0)/\(d.dropFirst(5).prefix(2))" }
 
+    /// «15/12/26»: la fecha entera como fecha, no como la manda la API («2026-12-15»).
+    static func numerico(_ d: String) -> String {
+        guard d.count >= 10 else { return d }
+        return "\(d.dropFirst(8).prefix(2))/\(d.dropFirst(5).prefix(2))/\(d.dropFirst(2).prefix(2))"
+    }
+
     /// La tarifa que rige una noche (la última cargada gana si se pisan).
     static func tarifaDe(_ ts: [TarifaAPI], _ d: String) -> TarifaAPI? {
         var t: TarifaAPI?

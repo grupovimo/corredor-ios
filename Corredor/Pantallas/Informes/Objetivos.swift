@@ -190,7 +190,7 @@ struct Objetivos: View {
                     Text("de \(Formato.numero(Int(peor.meta)))").estilo(.subhead).foregroundStyle(.white.opacity(0.8))
                 }
                 barra(peor, alto: 10, sobreVerde: true)
-                Text((falta > 0 ? "Te falta \(Formato.numero(falta)) para ir al día." : "¡Vas bien!") + (a.map { " \($0.0)." } ?? "")).estilo(.subhead).foregroundStyle(.white)
+                Text((falta > 0 ? "Te falta \(Formato.numero(falta)) para ir al día." : "¡Vas bien!") + (a.map { " \($0.0.hasSuffix(".") ? String($0.0.dropLast()) : $0.0)." } ?? "")).estilo(.subhead).foregroundStyle(.white)
                 if let a { Button("Ver qué hacer") { estado.abrir(a.1) }.buttonStyle(BotonTonal(alto: 44)) }
             }
             .padding(18).frame(maxWidth: .infinity, alignment: .leading)
