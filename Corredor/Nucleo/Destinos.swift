@@ -120,7 +120,7 @@ struct Ruta: Equatable {
             if param("registrar") == "1" { self.init(.inicio, ARegistrarCobro(contrato: param("contrato"))) } else { self.init(.inicio, ACobranzas()) }
         case "contrato", "contratos":
             if id == "nuevo" {
-                self.init(.inicio, AAltaContrato(borrador: borrador, renovar: param("renovar")))
+                self.init(.inicio, AAltaContrato(borrador: borrador, renovar: param("renovar"), leer: param("leer") == "1"))
             } else if let id, let mes = param("recordar") {
                 // `/contratos/<id>?recordar=AAAA-MM`: el recordatorio de ese mes.
                 self.init(.inicio, ARecordarMes(contrato: id, periodo: mes))

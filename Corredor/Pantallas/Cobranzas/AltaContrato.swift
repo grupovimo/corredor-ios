@@ -177,6 +177,15 @@ struct AltaContrato: View {
     static let pasoDe: [String: Int] = ["tipo": 0, "direccion": 0, "inquilino": 0, "propietario": 0, "garante": 0, "inicio": 1, "fin": 1, "meses": 1,
                                         "monto": 1, "moneda": 1, "diaVencimiento": 1, "ajusteIndice": 2, "ajusteMeses": 2, "ajustePorcentaje": 2,
                                         "garantia": 3, "deposito": 3, "honorarios": 3, "punitorioDiario": 3, "notas": 3]
+    /// En qué paso está cada campo que rechaza la API: partes 0, ajuste 2, condiciones 3, notas 4 y el
+    /// resto (plazo y monto) 1.
+    static func pasoDelCampo(_ c: String) -> Int {
+        if ["propiedadId", "contactoId", "propietarioId", "tipo"].contains(c) || c.hasPrefix("garante") { return 0 }
+        if c.hasPrefix("ajuste") { return 2 }
+        if ["comision", "honorarios", "punitorioDiario", "deposito"].contains(c) { return 3 }
+        if c == "notas" { return 4 }
+        return 1
+    }
     static let nombreDato: [String: String] = ["tipo": "el tipo", "direccion": "la dirección", "inquilino": "el inquilino", "propietario": "el propietario",
                                                "garante": "el garante", "garantia": "la garantía", "inicio": "el inicio", "fin": "el fin", "meses": "la duración",
                                                "monto": "el monto", "moneda": "la moneda", "diaVencimiento": "el día de vencimiento", "ajusteIndice": "el índice",
@@ -813,6 +822,15 @@ struct AltaContrato: View {
         do {
             let datos = try await estado.api.pedir("POST", ruta, cuerpo: Api.codificador.encode(cuerpo()), envio: envioAlta)
             n = try Api.decodificador.decode(Nuevo.self, from: datos)
+        } catch let e as ErrorApi where !e.campos.isEmpty {
+            // La API marcó campos: volver al primer paso que los tiene y marcarlos (como AltaContrato.svelte).
+            creando = false
+            errores = e.campos
+            let enPasos = pasos
+            paso = e.campos.keys.map { Self.pasoDelCampo($0) }.filter { enPasos.contains($0) }.min() ?? paso
+            Haptico.error()
+            estado.avisar(e.detalle.isEmpty ? "Revisá lo marcado." : e.detalle, ok: false)
+            return
         } catch {
             creando = false
             estado.sugerir((error as? ErrorApi).map { $0.detalle.isEmpty ? $0.titulo : $0.detalle } ?? "No se creó el contrato.", "Reintentar") { Task { await crear() } }

@@ -540,19 +540,26 @@ final class PantallasTests: XCTestCase {
         destinos += claves.map { ("Seccion-\($0)", AnyHashable(ASeccion(clave: $0))) }
         destinos += conId.map { ("Seccion-\($0)", AnyHashable(ASeccion(clave: $0, id: "x1"))) }
 
-        var rotos: [String] = []
-        for (nombre, d) in destinos {
+        // Vaciar la pila y apilar enseguida a veces hace que SwiftUI descarte el push (la animación de
+        // volver todavía corre): cada destino tiene un segundo intento. Un placeholder de verdad no muestra
+        // la pantalla en ninguno de los dos.
+        func mostro(_ d: AnyHashable, espera: TimeInterval) -> Bool {
             estado.pilas = [:]
             estado.pestana = .inicio
-            RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+            RunLoop.main.run(until: Date().addingTimeInterval(espera))
             let antes = PantallasMostradas.cuenta
-            // Si se cae (como el CALayer en ciclo del 6/11), el log dice en cuál.
-            print("NAVEGACION abre \(nombre)")
             estado.abrir(d)
-            // Hasta 3 s, cortando apenas aparece: con el runner cargado, 0,8 s fijos a veces no alcanzaban.
             let limite = Date().addingTimeInterval(3)
             while PantallasMostradas.cuenta == antes && Date() < limite { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
-            if PantallasMostradas.cuenta == antes { rotos.append(nombre) }
+            return PantallasMostradas.cuenta != antes
+        }
+        var rotos: [String] = []
+        for (nombre, d) in destinos {
+            // Si se cae (como el CALayer en ciclo del 6/11), el log dice en cuál.
+            print("NAVEGACION abre \(nombre)")
+            if mostro(d, espera: 0.5) { continue }
+            print("NAVEGACION reintenta \(nombre)")
+            if !mostro(d, espera: 1.5) { rotos.append(nombre) }
         }
         ventana.isHidden = true
         XCTAssertEqual(rotos, [], "Estos destinos no muestran su pantalla (¿placeholder de SwiftUI?): \(rotos)")

@@ -658,13 +658,13 @@ enum Cobrar {
                 estado.version += 1
             }
         }
-        // El aviso muestra «Deshacer»; «Mandar recibo» queda en la fila de lo cobrado (VistaAviso
-        // muestra una sola acción).
-        _ = recibo
+        let avisoId = estado.aviso?.id
         return Task {
             do {
                 let c = try await pedido.value
                 if caja.deshecho { return nil }
+                // «Deshacer» y «Mandar recibo» juntos en el aviso, como la web (si sigue siendo este aviso).
+                if let recibo, estado.aviso?.id == avisoId { estado.aviso?.accion = ("Mandar recibo", { recibo(c) }) }
                 alListo?(c)
                 Haptico.exito()
                 estado.version += 1
