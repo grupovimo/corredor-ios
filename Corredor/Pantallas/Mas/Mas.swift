@@ -66,7 +66,7 @@ struct MasRaiz: View {
                 .init(titulo: "Cartera", items: [it("contactos", "Contactos"), it("operaciones", "Operaciones"), it("reservas", "Reservas"),
                                                  it("emprendimientos", "Emprendimientos"), it("temporada", "Temporada")]),
                 .init(titulo: "Alquileres", items: [it("cobranzas", "Cobranzas"), it("contratos", "Contratos"), it("rendiciones", "Rendiciones"),
-                                                    it("inventarios", "Actas de entrega"), it("indices", "Índices"), it("consorcios", "Consorcios"),
+                                                    it("inventarios", "Inventarios"), it("indices", "Índices"), it("consorcios", "Consorcios"),
                                                     it("proveedores", "Proveedores")]),
                 .init(titulo: "Difusión", items: [it("difusion", "Portales"), it("respuestas", "Respuestas guardadas"), it("importar", "Importar la cartera")]),
                 .init(titulo: "Equipo", items: [it("objetivos", "Objetivos"), it("informe", "Informe"), it("revision", "Revisión de la IA"), it("actividad", "Actividad")]),

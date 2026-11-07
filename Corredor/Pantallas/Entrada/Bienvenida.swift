@@ -159,6 +159,7 @@ struct Bienvenida: View {
     /// Sus propiedades (Propiedades, «Mías»).
     private func verCartera() {
         cerrar()
+        estado.carteraDe = "yo"
         estado.pestana = .propiedades
     }
 

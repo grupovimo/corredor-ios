@@ -15,32 +15,11 @@ extension Api {
     /// él, como la web). Devuelve la respuesta cruda.
     @discardableResult
     func pedirConCampos<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C?, envio: String? = nil) async throws -> Data {
-        var r = URLRequest(url: base.appendingPathComponent(ruta), timeoutInterval: 30)
-        r.httpMethod = metodo
-        r.setValue("application/json", forHTTPHeaderField: "Accept")
-        if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        if let envio { r.setValue(envio, forHTTPHeaderField: "Idempotency-Key") }
-        if let cuerpo {
-            r.httpBody = try Api.codificador.encode(cuerpo)
-            r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        let datos: Data
-        let resp: URLResponse
         do {
-            (datos, resp) = try await http.data(for: r)
-        } catch let e as URLError {
-            if e.code == .cancelled { throw CancellationError() }
-            throw ErrorCampos(api: .sinRed, campos: [:])
+            return try await pedir(metodo, ruta, cuerpo: try cuerpo.map { try Api.codificador.encode($0) }, envio: envio)
+        } catch let e as ErrorApi {
+            throw ErrorCampos(api: e, campos: e.campos)
         }
-        guard let h = resp as? HTTPURLResponse else { throw ErrorCampos(api: .desconocido, campos: [:]) }
-        if (200..<300).contains(h.statusCode) { return datos }
-        let p = (try? JSONDecoder().decode(ProblemaApi.self, from: datos)) ?? ProblemaApi()
-        let e = ErrorApi(estado: h.statusCode, codigo: p.code ?? "interno", titulo: p.title ?? "Algo salió mal",
-                         detalle: p.detail ?? "Probá de nuevo en un rato.")
-        if e.sinSesion, token != nil, let alPerderSesion { await alPerderSesion() }
-        var campos: [String: String] = [:]
-        for c in p.issues ?? [] { if let k = c.path, let m = c.message { campos[k] = m } }
-        throw ErrorCampos(api: e, campos: campos)
     }
 }
 

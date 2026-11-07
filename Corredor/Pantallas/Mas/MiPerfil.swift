@@ -333,7 +333,7 @@ struct MiPerfil: View {
 
     private static let accesos: [(String, String, AnyHashable)] = [
         ("person.2", "Contactos", AContactos()), ("rectangle.split.3x1", "Operaciones", AOperaciones()),
-        ("doc.text", "Contratos y cobranzas", ACobranzas()), ("checklist", "Actas de entrega", ASeccion(clave: "inventarios")),
+        ("doc.text", "Contratos y cobranzas", ACobranzas()), ("checklist", "Inventarios", ASeccion(clave: "inventarios")),
         ("flag", "Objetivo del mes", ASeccion(clave: "objetivos")), ("bell", "Avisos", AAvisos()),
         ("gearshape", "Configuración, consorcios e informes", ASeccion(clave: "mas")),
     ]

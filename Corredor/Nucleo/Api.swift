@@ -10,6 +10,8 @@ struct ErrorApi: Error, Equatable {
     var restantes: Int?
     /// Segundos para volver a probar (429).
     var reintentarEn: Int?
+    /// Los errores por campo del problem+json (`issues: [{path, message}]`): «direccion» → «Poné la dirección.».
+    var campos: [String: String] = [:]
 
     var sinConexion: Bool { codigo == "sin_conexion" }
     var sinSesion: Bool { estado == 401 && codigo == "sin_sesion" }
@@ -74,6 +76,7 @@ final class Api: @unchecked Sendable {
         var title: String?
         var detail: String?
         var restantes: Int?
+        var issues: [ProblemaApi.Campo]?
     }
 
     /// La URL de `ruta`. La ruta puede traer su propia query (`/v1/x?y=z`, como las acciones de los
@@ -111,7 +114,11 @@ final class Api: @unchecked Sendable {
         let p = (try? JSONDecoder().decode(Problema.self, from: datos)) ?? Problema()
         let e = ErrorApi(estado: h.statusCode, codigo: p.code ?? "interno", titulo: p.title ?? "Algo salió mal",
                          detalle: p.detail ?? "Probá de nuevo en un rato.", restantes: p.restantes,
-                         reintentarEn: h.value(forHTTPHeaderField: "Retry-After").flatMap(Int.init))
+                         reintentarEn: h.value(forHTTPHeaderField: "Retry-After").flatMap(Int.init),
+                         campos: Dictionary((p.issues ?? []).compactMap { c -> (String, String)? in
+                             guard let k = c.path else { return nil }
+                             return (k, c.message ?? "Revisá este dato.")
+                         }, uniquingKeysWith: { a, _ in a }))
         if e.sinSesion, token != nil, let alPerderSesion {
             await alPerderSesion()
         }
@@ -204,7 +211,12 @@ struct Archivo: Codable, Identifiable, Hashable {
 extension Api {
     /// Sube un archivo (multipart, campo `archivo`).
     func subir(_ datos: Data, nombre: String, tipo: String, uso: String) async throws -> Archivo {
-        try Api.decodificador.decode(Archivo.self, from: try await multipart("/v1/archivos", query: [URLQueryItem(name: "uso", value: uso)], datos: datos, nombre: nombre, tipo: tipo))
+        // Los topes de la API por uso (dominio/archivos): se cortan acá antes de subir de balde.
+        let tope = (["foto": 15, "marca": 5] as [String: Int])[uso] ?? 25
+        if datos.count > tope << 20 {
+            throw ErrorApi(estado: 422, codigo: "muy_grande", titulo: "Archivo muy grande", detalle: "El archivo pasa de \(tope) MB.")
+        }
+        return try Api.decodificador.decode(Archivo.self, from: try await multipart("/v1/archivos", query: [URLQueryItem(name: "uso", value: uso)], datos: datos, nombre: nombre, tipo: tipo))
     }
 
     /// Un POST multipart (campo `archivo`) a cualquier ruta: la respuesta cruda.
@@ -222,7 +234,7 @@ extension Api {
         if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         r.httpBody = cuerpo
         let (d, resp): (Data, URLResponse)
-        do { (d, resp) = try await URLSession.shared.data(for: r) } catch { throw ErrorApi.sinRed }
+        do { (d, resp) = try await http.data(for: r) } catch { throw ErrorApi.sinRed }
         guard let h = resp as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
             struct P: Decodable { var detail: String?; var title: String? }
             let p = try? JSONDecoder().decode(P.self, from: d)

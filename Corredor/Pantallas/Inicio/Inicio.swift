@@ -679,22 +679,6 @@ struct ListaPendientes: View {
     }
 }
 
-/// «Objetivo de noviembre · 3 de 5» con la barra oro.
-struct TarjetaObjetivo: View {
-    var o: Objetivo
-    var body: some View {
-        let meta = o.meta ?? 0
-        let avance = o.avance ?? 0
-        let falta = max(0, meta - avance)
-        let palabras = Objetivo.metricas[o.metrica ?? ""] ?? ("operación cerrada", "operaciones cerradas")
-        let dias = o.hasta.flatMap(Fecha.dia).map { max(0, Calendar.current.dateComponents([.day], from: Date(), to: $0).day ?? 0) } ?? 0
-        TarjetaAvance(titulo: "Objetivo de \(Formato.mesDe(Date()))", cifra: "\(Formato.numero(Int(avance))) de \(Formato.numero(Int(meta)))",
-                      avance: meta > 0 ? avance / meta : 0,
-                      degrade: [Color(hex: 0xE9AD44), Color(hex: 0xF2BB57)],
-                      pie: falta > 0 ? "Te faltan \(Formato.cantidad(Int(falta), palabras.0, palabras.1)) · quedan \(Formato.cantidad(dias, "día", "días"))" : "¡Llegaste al objetivo!")
-    }
-}
-
 /// Una tarjeta con título, cifra a la derecha, barra de 10 y un pie.
 struct TarjetaAvance: View {
     var titulo: String

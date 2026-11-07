@@ -727,6 +727,8 @@ struct RespuestaML: View {
     @State private var texto = ""
     @State private var fuentes: [String] = []
     @State private var enviando = false
+    /// «3 amb · 74 m² · Martín · 214 visitas esta semana», como la tarjeta de la pregunta en el panel.
+    @State private var linea = ""
 
     private var prohibido: Bool {
         texto.range(of: #"\d{6,}|@|\b(\d{2,4}[\s-]?){3,}\b"#, options: .regularExpression) != nil
@@ -741,7 +743,8 @@ struct RespuestaML: View {
                             Foto(url: prop.miniatura).frame(width: 64, height: 64).clipShape(.rect(cornerRadius: 12))
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(prop.nombre).font(Estilo(tamano: 16, peso: .bold, relativo: .body).font).foregroundStyle(C.texto)
-                                Text("\(prop.operacionTexto.capitalized) · \(prop.ambientes.map { "\($0) amb · " } ?? "")\(prop.precioTexto)").estilo(.texto14).foregroundStyle(C.texto2)
+                                Text("\(prop.operacionTexto.capitalized) · \(prop.precioTexto)").estilo(.texto14).foregroundStyle(C.texto2)
+                                if !linea.isEmpty { Text(linea).estilo(.footnote).foregroundStyle(C.texto2) }
                                 HStack(spacing: 6) {
                                     Image("LogoMercadoLibre").resizable().scaledToFit().frame(height: 14)
                                     Text("Publicada en Mercado Libre").font(Estilo(tamano: 12, peso: .regular, relativo: .caption).font).foregroundStyle(C.texto2)
@@ -794,9 +797,19 @@ struct RespuestaML: View {
         }
         .pantallaApilada("Mercado Libre")
         .task {
-            let l: [PreguntaML] = (try? await estado.api.get("/v1/mercadolibre/preguntas", query: [.init(name: "limite", value: "200")])) ?? []
-            p = l.first { $0.id == id }
-            if let pid = p?.propiedadId { prop = try? await estado.api.get("/v1/propiedades/\(pid)") }
+            let d = (try? await estado.api.pedir("GET", "/v1/mercadolibre/preguntas", query: [.init(name: "limite", value: "200")])) ?? Data()
+            p = ((try? Api.decodificador.decode([PreguntaML].self, from: d)) ?? []).first { $0.id == id }
+            let semana = ((try? Api.decodificador.decode([PreguntaListaML].self, from: d)) ?? []).first { $0.id == id }?.visitasSemana
+            if let pid = p?.propiedadId {
+                prop = try? await estado.api.get("/v1/propiedades/\(pid)")
+                let equipo: [Miembro] = (try? await estado.api.get("/v1/equipo")) ?? []
+                let pubs: [PublicacionLista] = (try? await estado.api.todas("/v1/publicaciones", query: [.init(name: "portal", value: "mercadolibre")])) ?? []
+                let total = pubs.first { $0.propiedadId == pid }?.visitas
+                let agente = prop?.agenteId.flatMap { a in equipo.first { $0.usuarioId == a }?.completo.components(separatedBy: " ").first }
+                linea = [prop?.ambientes.map { "\($0) amb" }, prop?.superficie.map { "\(Formato.numero(Int($0))) m²" }, agente,
+                         (semana ?? pubs.first { $0.propiedadId == pid }?.visitasSemana).map { "\(Formato.numero($0)) visitas esta semana" } ?? total.map { "\(Formato.numero($0)) visitas" }]
+                    .compactMap { $0 }.joined(separator: " · ")
+            }
             struct Sug: Decodable { var sugerencia: String?; var fuentes: [String]? }
             if p?.respuesta == nil, let s: Sug = try? await estado.api.get("/v1/mercadolibre/preguntas/\(id)/sugerencia") {
                 if texto.isEmpty { texto = s.sugerencia ?? "" }

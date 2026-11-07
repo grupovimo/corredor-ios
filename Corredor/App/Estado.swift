@@ -105,6 +105,9 @@ final class Estado {
     var altaAbierta: PasoAlta?
     /// La bienvenida de quien se suma a un equipo (su foto, su WhatsApp, los avisos y la apariencia).
     var bienvenidaAbierta = false
+    /// La pestaña Propiedades arranca con este agente («yo»: la bienvenida y `/propiedades?agente=yo`);
+    /// se usa una vez.
+    var carteraDe: String?
     /// La invitación que se está viendo antes de aceptarla (el token del link), en una hoja sobre todo.
     var invitacionAbierta: InvitacionAbierta?
     /// El ingreso en modo «Creá tu cuenta» (el link `ingresar?alta=1` o el de crear la web).
@@ -225,21 +228,6 @@ final class Estado {
             throw Clerk.ErrorClerk(codigo: "sin_clave")
         }
         try await canjear(try await clerk.conGoogle())
-    }
-
-    /// 1B «Entrar con mail»: manda el código.
-    func pedirCodigo(email: String) async throws -> Clerk.IntentoMail {
-        guard let clerk = Clerk(publicable: Bundle.main.object(forInfoDictionaryKey: "ClerkPublicable") as? String) else {
-            throw Clerk.ErrorClerk(codigo: "sin_clave")
-        }
-        return try await clerk.pedirCodigo(email: email)
-    }
-
-    func ingresarConCodigo(_ i: Clerk.IntentoMail, codigo: String) async throws {
-        guard let clerk = Clerk(publicable: Bundle.main.object(forInfoDictionaryKey: "ClerkPublicable") as? String) else {
-            throw Clerk.ErrorClerk(codigo: "sin_clave")
-        }
-        try await canjear(try await clerk.conCodigo(i, codigo: codigo))
     }
 
     /// El JWT de una sesión de Clerk (ingreso con mail y contraseña, recuperar el acceso) → la sesión.

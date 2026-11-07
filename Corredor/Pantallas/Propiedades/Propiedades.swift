@@ -61,6 +61,8 @@ struct PropiedadesRaiz: View {
     @State private var viendoCopia = false
     @State private var web: String?
     @State private var compartir: Propiedad?
+    /// «Agendar visita» de una fila: la nueva visita con esa propiedad ya puesta.
+    @State private var agendar: Propiedad?
     @State private var guardadas: [VistaGuardada] = VistaGuardada.todas()
     @State private var seleccionando = false
     @State private var marcadas: Set<String> = []
@@ -96,12 +98,16 @@ struct PropiedadesRaiz: View {
             }
         }
         .modifier(MarcoCartera(titulo: titulo))
+        .onChange(of: estado.carteraDe, initial: true) {
+            if titulo == nil, let a = estado.carteraDe { filtros.agente = a; estado.carteraDe = nil }
+        }
         .task(id: ClaveCartera(version: estado.version, filtros: filtros)) { await cargar() }
         .task(id: busqueda) {
             try? await Task.sleep(for: .milliseconds(300))
             if !Task.isCancelled, busqueda.trimmingCharacters(in: .whitespaces) != filtros.q { filtros.q = busqueda.trimmingCharacters(in: .whitespaces) }
         }
         .sheet(item: $compartir) { p in HojaCompartir(propiedad: p, web: web).presentationDetents([.medium, .large]) }
+        .sheet(item: $agendar) { p in NuevaCita(propiedad: p).presentationDetents([.large]) }
         .sheet(isPresented: $hojaFiltros) {
             HojaFiltrosCartera(filtros: $filtros, resumen: resumen, equipo: equipo, conAgentes: esDuenioOAdmin).hojaTLW([.large])
         }
@@ -430,7 +436,7 @@ struct PropiedadesRaiz: View {
         .contextMenu {
             Button { compartir = p } label: { Label("Mandar la ficha", systemImage: "square.and.arrow.up") }
             if estado.escribe {
-                Button { estado.abrir(AAgendaDia()) } label: { Label("Agendar visita", systemImage: "calendar.badge.plus") }
+                Button { agendar = p } label: { Label("Agendar visita", systemImage: "calendar.badge.plus") }
                 Button { estado.abrir(AAltaPropiedad(editar: p.id)) } label: { Label("Editar", systemImage: "pencil") }
                 Button { publicar(p) } label: { Label(p.publicada == false ? "Publicar" : "Despublicar", systemImage: p.publicada == false ? "arrow.up.circle" : "eye.slash") }
                 Button { seleccionando = true; marcar(p.id) } label: { Label("Seleccionar", systemImage: "checkmark.circle") }

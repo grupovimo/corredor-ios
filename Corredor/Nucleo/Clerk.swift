@@ -144,43 +144,6 @@ final class Clerk {
     }
 }
 
-extension Clerk {
-    /// Un ingreso con código por mail a medio hacer: el intento (o el alta, si la persona es nueva) y
-    /// el token del cliente de Clerk.
-    struct IntentoMail {
-        fileprivate var id: String
-        fileprivate var alta: Bool
-        fileprivate var cliente: String
-    }
-
-    /// Mail: manda el código de 6 números. Si la persona no existe en Clerk, arranca el alta.
-    func pedirCodigo(email: String) async throws -> IntentoMail {
-        do {
-            let (r, cliente) = try await pedir("/client/sign_ins", "POST", cuerpo: ["identifier": email])
-            guard let id = r.response?.id,
-                  let mail = r.response?.supported_first_factors?.first(where: { $0.strategy == "email_code" })?.email_address_id else {
-                throw ErrorClerk(codigo: "sin_codigo")
-            }
-            let (_, c2) = try await pedir("/client/sign_ins/\(id)/prepare_first_factor", "POST",
-                                          cuerpo: ["strategy": "email_code", "email_address_id": mail], cliente: cliente)
-            return IntentoMail(id: id, alta: false, cliente: c2)
-        } catch let e as ErrorClerk where e.codigo == "form_identifier_not_found" {
-            let (r, cliente) = try await pedir("/client/sign_ups", "POST", cuerpo: ["email_address": email])
-            guard let id = r.response?.id else { throw ErrorClerk(codigo: "clerk_no_responde") }
-            let (_, c2) = try await pedir("/client/sign_ups/\(id)/prepare_verification", "POST",
-                                          cuerpo: ["strategy": "email_code"], cliente: cliente)
-            return IntentoMail(id: id, alta: true, cliente: c2)
-        }
-    }
-
-    /// El código que llegó por mail → JWT de sesión de Clerk.
-    func conCodigo(_ i: IntentoMail, codigo: String) async throws -> String {
-        let ruta = i.alta ? "/client/sign_ups/\(i.id)/attempt_verification" : "/client/sign_ins/\(i.id)/attempt_first_factor"
-        let (r, cliente) = try await pedir(ruta, "POST", cuerpo: ["strategy": "email_code", "code": codigo], cliente: i.cliente)
-        return try await terminar(r, cliente: cliente)
-    }
-}
-
 /// La hoja web del sistema para el ida y vuelta con Google.
 @MainActor
 final class HojaWeb: NSObject, ASWebAuthenticationPresentationContextProviding {

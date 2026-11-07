@@ -158,6 +158,7 @@ struct VistaAviso: View {
             Text(aviso.texto).estilo(.subhead).foregroundStyle(Color(hex: 0xE8EFE9))
                 .lineLimit(2)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            // Con las dos (p. ej. «Cobro registrado» con «Mandar recibo»), la acción y al lado «Deshacer».
             if let a = aviso.accion {
                 Button(a.0) {
                     a.1()
@@ -165,7 +166,8 @@ struct VistaAviso: View {
                 }
                 .font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font)
                 .foregroundStyle(C.oro)
-            } else if let d = aviso.deshacer {
+            }
+            if let d = aviso.deshacer {
                 Button("Deshacer") {
                     d()
                     cerrar()

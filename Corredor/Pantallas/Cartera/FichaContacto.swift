@@ -232,7 +232,7 @@ struct FichaContacto: View {
                         }
                         .buttonStyle(Presionable())
                         if (p.estado ?? "nueva") == "nueva" && estado.escribe {
-                            Button("Mandar") { Task { await mandar(p, a: c) } }.buttonStyle(BotonTonal())
+                            Button("Mandar") { estado.abrir(AMandarPropiedad(id: p.propiedadId, contacto: c.id)) }.buttonStyle(BotonTonal())
                         } else if p.precio != nil {
                             Text(p.precioTexto).font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).foregroundStyle(C.texto)
                         }
@@ -485,21 +485,6 @@ struct FichaContacto: View {
         } catch { estado.avisar(error) }
     }
 
-    /// «Mandar»: deja escrita la ficha en la charla de WhatsApp con este contacto y la anota como enviada.
-    private func mandar(_ p: PropiedadDeContacto, a c: Contacto) async {
-        struct Envio: Encodable { var contactoId: String; var canal = "whatsapp" }
-        struct Conv: Decodable { var id: String }
-        struct Cuerpo: Encodable { var contactoId: String }
-        do {
-            let prop: Propiedad = try await estado.api.get("/v1/propiedades/\(p.propiedadId)")
-            let web = await Documentos.inmobiliaria(estado.api)?.web
-            let x: Conv = try await estado.api.enviar("POST", "/v1/whatsapp/conversaciones", Cuerpo(contactoId: c.id))
-            if let t = Charla.textoFicha(primer, prop, web: web) { BorradorChat.textos[x.id] = t }
-            try await estado.api.hacer("POST", "/v1/propiedades/\(p.propiedadId)/envios", Envio(contactoId: c.id))
-            estado.abrir(AChat(id: x.id))
-        } catch { estado.avisar(error) }
-    }
-
     /// A la papelera; «Deshacer» la restaura.
     private func borrar() async {
         let n = c?.nombre ?? "El contacto"
@@ -648,21 +633,11 @@ extension Api {
     /// Como `hacer`, pero si la API rechaza los datos (400/422) devuelve los errores por campo
     /// (problem+json `issues`: path → message) en vez de tirar el error. Sin señal tira `ErrorApi.sinRed`.
     func hacerValidando<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C) async throws -> [String: String] {
-        var r = URLRequest(url: base.appendingPathComponent(ruta), timeoutInterval: 20)
-        r.httpMethod = metodo
-        r.setValue("application/json", forHTTPHeaderField: "Accept")
-        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        r.setValue(UUID().uuidString, forHTTPHeaderField: "Idempotency-Key")
-        if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        r.httpBody = try Api.codificador.encode(cuerpo)
-        let datos: Data
-        let resp: URLResponse
-        do { (datos, resp) = try await http.data(for: r) } catch { throw ErrorApi.sinRed }
-        guard let h = resp as? HTTPURLResponse else { throw ErrorApi.desconocido }
-        if (200..<300).contains(h.statusCode) { return [:] }
-        let p = try? JSONDecoder().decode(ProblemaApi.self, from: datos)
-        let campos = Dictionary((p?.issues ?? []).compactMap { c in c.path.map { ($0, c.message ?? "Revisá este dato.") } }, uniquingKeysWith: { a, _ in a })
-        if (h.statusCode == 400 || h.statusCode == 422), !campos.isEmpty { return campos }
-        throw ErrorApi(estado: h.statusCode, codigo: p?.code ?? "interno", titulo: p?.title ?? "Algo salió mal", detalle: p?.detail ?? "Probá de nuevo en un rato.")
+        do {
+            _ = try await pedir(metodo, ruta, cuerpo: try Api.codificador.encode(cuerpo), envio: UUID().uuidString)
+            return [:]
+        } catch let e as ErrorApi where (e.estado == 400 || e.estado == 422) && !e.campos.isEmpty {
+            return e.campos
+        }
     }
 }

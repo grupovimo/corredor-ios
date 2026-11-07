@@ -66,7 +66,7 @@ struct Equipo: View {
         .task(id: estado.version) { await cargar() }
         .sheet(isPresented: $invitando) { InvitarAlEquipo { await cargar() } }
         .sheet(isPresented: $verLicencias) {
-            LicenciasEquipo(licencias: licencias, equipo: equipo) { await cargar() }
+            LicenciasAgenda().hojaTLW([.large])
         }
         .confirmacion($confirmar)
         .navigationDestination(for: ACarteraAgente.self) { c in CarteraAgente(usuario: c.usuario, nombre: c.nombre) }
@@ -302,125 +302,6 @@ struct InvitarAlEquipo: View {
             link = i.link ?? ""
             await alInvitar()
         } catch { campos = estado.camposDe(error) }
-    }
-}
-
-// MARK: - Licencias
-
-/// «Licencias y ausencias»: quién falta y hasta cuándo (lo que el Inicio muestra en «El equipo hoy»).
-/// Cada uno carga la suya; el dueño, la de cualquiera. Quitar es al toque, con «Deshacer».
-struct LicenciasEquipo: View {
-    @Environment(Estado.self) private var estado
-    @Environment(\.dismiss) private var cerrar
-    var licencias: [Licencia]
-    var equipo: [Miembro]
-    var alCambiar: () async -> Void
-    @State private var quitadas: Set<String> = []
-    @State private var quien = ""
-    @State private var tipo = "licencia"
-    @State private var desde = Date()
-    @State private var hasta = Date()
-    @State private var guardando = false
-    @State private var error: String?
-
-    static let tipos: [(String, String)] = [("licencia", "Licencia"), ("vacaciones", "Vacaciones"), ("enfermedad", "Enfermedad"), ("tramite", "Trámite")]
-    static let nombre: [String: String] = ["licencia": "De licencia", "vacaciones": "De vacaciones", "enfermedad": "Por enfermedad", "tramite": "Trámite"]
-
-    private var yo: String { estado.usuario?.id ?? "" }
-    private var visibles: [Licencia] { licencias.filter { !quitadas.contains($0.id) } }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section {
-                    Text(Formato.sinViudas("Quién falta y hasta cuándo. El Inicio lo muestra en «El equipo hoy».")).estilo(.footnote).foregroundStyle(C.texto2)
-                }
-                .listRowBackground(Color.clear)
-                if !visibles.isEmpty {
-                    Section("Las que siguen") { ForEach(visibles) { l in fila(l) } }
-                }
-                Section("Cargar una") {
-                    if estado.esDuenio {
-                        Picker("Quién", selection: $quien) {
-                            ForEach(equipo.filter { $0.rol != "lector" || $0.usuarioId == yo }) { m in
-                                Text(m.usuarioId == yo ? "\(m.completo) (vos)" : m.completo).tag(m.usuarioId)
-                            }
-                        }
-                    }
-                    Segmentado(opciones: Self.tipos, elegido: $tipo).listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
-                    DatePicker("Desde", selection: $desde, displayedComponents: .date)
-                    DatePicker("Hasta", selection: $hasta, in: desde..., displayedComponents: .date)
-                    ErrorDeCampo(texto: error)
-                }
-            }
-            .scrollContentBackground(.hidden).background(FondoApp())
-            .navigationTitle("Licencias y ausencias").navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button { Task { await guardar() } } label: { if guardando { ProgressView() } else { Text("Cargar") } }.disabled(guardando)
-                }
-            }
-        }
-        .onAppear { quien = yo }
-    }
-
-    private func fila(_ l: Licencia) -> some View {
-        HStack(spacing: 12) {
-            AvatarIniciales(nombre: l.usuarioNombre ?? "", tam: 36, fondo: C.errorFondo, tinta: C.errorTinta)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(l.usuarioId == yo ? "Vos" : (l.usuarioNombre ?? "")).estilo(.filaLista).foregroundStyle(C.texto)
-                Text("\(Self.nombre[l.tipo ?? ""] ?? "De licencia") · \(l.desde == l.hasta ? "el \(Relativa.corta(l.desde))" : "del \(Relativa.corta(l.desde)) al \(Relativa.corta(l.hasta))")")
-                    .estilo(.footnote).foregroundStyle(C.texto2)
-            }
-            Spacer()
-            if estado.esDuenio || l.usuarioId == yo {
-                Button("Quitar") { Task { await quitar(l) } }.buttonStyle(.borderless).foregroundStyle(C.accion)
-            }
-        }
-    }
-
-    private struct Cuerpo: Encodable { var usuarioId: String; var tipo: String; var desde: String; var hasta: String; var nota: String? }
-
-    private func guardar() async {
-        let d = Formato.diaISO(desde), h = Formato.diaISO(hasta)
-        if h < d { error = "La vuelta tiene que ser después de la salida."; return }
-        error = nil
-        guardando = true
-        defer { guardando = false }
-        let usuario = estado.esDuenio ? (quien.isEmpty ? yo : quien) : yo
-        do {
-            let l: Licencia = try await estado.api.enviar("POST", "/v1/licencias", Cuerpo(usuarioId: usuario, tipo: tipo, desde: d, hasta: h))
-            await alCambiar()
-            estado.version += 1
-            let quienTexto = l.usuarioId == yo ? "Quedaste" : "\((l.usuarioNombre ?? "").split(separator: " ").first.map(String.init) ?? "") queda"
-            estado.avisar("\(quienTexto) \((Self.nombre[l.tipo ?? ""] ?? "De licencia").lowercased()) hasta el \(Relativa.corta(l.hasta))") {
-                Task {
-                    do { try await estado.api.hacer("DELETE", "/v1/licencias/\(l.id)"); estado.version += 1 } catch { estado.avisar("No se guardó", ok: false) }
-                }
-            }
-            cerrar()
-        } catch let e as ErrorApi { error = e.detalle.isEmpty ? e.titulo : e.detalle } catch { estado.avisar(error) }
-    }
-
-    private func quitar(_ l: Licencia) async {
-        quitadas.insert(l.id)
-        do {
-            try await estado.api.hacer("DELETE", "/v1/licencias/\(l.id)")
-            estado.version += 1
-            estado.avisar("Quitaste la licencia de \(l.usuarioId == yo ? "vos" : ((l.usuarioNombre ?? "").split(separator: " ").first.map(String.init) ?? ""))") {
-                Task {
-                    do {
-                        try await estado.api.hacer("POST", "/v1/licencias", Cuerpo(usuarioId: l.usuarioId, tipo: l.tipo ?? "licencia", desde: l.desde, hasta: l.hasta, nota: l.nota))
-                        estado.version += 1
-                    } catch { estado.avisar("No se guardó", ok: false) }
-                    quitadas.remove(l.id)
-                }
-            }
-        } catch {
-            quitadas.remove(l.id)
-            estado.avisar(error)
-        }
     }
 }
 
