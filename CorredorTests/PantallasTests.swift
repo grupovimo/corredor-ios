@@ -549,7 +549,9 @@ final class PantallasTests: XCTestCase {
             // Si se cae (como el CALayer en ciclo del 6/11), el log dice en cuál.
             print("NAVEGACION abre \(nombre)")
             estado.abrir(d)
-            RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+            // Hasta 3 s, cortando apenas aparece: con el runner cargado, 0,8 s fijos a veces no alcanzaban.
+            let limite = Date().addingTimeInterval(3)
+            while PantallasMostradas.cuenta == antes && Date() < limite { RunLoop.main.run(until: Date().addingTimeInterval(0.1)) }
             if PantallasMostradas.cuenta == antes { rotos.append(nombre) }
         }
         ventana.isHidden = true
