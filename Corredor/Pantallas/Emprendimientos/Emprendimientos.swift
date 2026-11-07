@@ -24,7 +24,9 @@ struct NuevosLotes: View {
         NavigationStack {
             Form {
                 TextField("Manzana", text: $manzana)
+                // Si «Desde» pasa a «Hasta», «Hasta» lo acompaña (la API no acepta un rango al revés).
                 Stepper("Desde el lote \(desde)", value: $desde, in: 1...999)
+                    .onChange(of: desde) { _, d in if hasta < d { hasta = d } }
                 Stepper("Hasta el lote \(hasta)", value: $hasta, in: desde...999)
                 TextField("Superficie m²", value: $superficie, format: .number).keyboardType(.decimalPad)
                 TextField("Frente m", value: $frente, format: .number).keyboardType(.decimalPad)

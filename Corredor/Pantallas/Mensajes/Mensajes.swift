@@ -679,6 +679,10 @@ struct AudioMensaje: View {
             .frame(height: 26)
         }
         .frame(width: 196)
+        // Al terminar vuelve a «Escuchar» (AVPlayer no lo hace solo: quedaba en pausa).
+        .onReceive(NotificationCenter.default.publisher(for: AVPlayerItem.didPlayToEndTimeNotification)) { n in
+            if let item = n.object as? AVPlayerItem, item == reproductor?.currentItem { sonando = false }
+        }
     }
 }
 
