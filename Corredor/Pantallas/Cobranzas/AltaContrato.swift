@@ -265,7 +265,8 @@ struct AltaContrato: View {
                 .safeAreaInset(edge: .bottom) { pie }
             }
         }
-        .background(C.fondo)
+        // Apilada lleva el fondo con grano de las demás pantallas apiladas; en hoja, el liso.
+        .background { if apilada { FondoApp() } else { C.fondo } }
         .navigationTitle(titulo).navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if !apilada {
