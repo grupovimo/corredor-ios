@@ -80,6 +80,9 @@ struct Ruta: Equatable {
         if let u = URL(string: texto), u.scheme == "corredor" {
             t = ([u.host ?? ""] + u.pathComponents.filter { $0 != "/" }).joined(separator: "/")
         } else if let u = URL(string: texto), u.scheme == "https" {
+            guard u.host() == Vinculos.base.host() || u.host() == "www.corredor.com.ar" else { return nil }
+            // Un link del panel: lo que es sólo de la web (o `?web=1`) se abre en la web dentro de la app (Vinculos).
+            if Vinculos.soloWeb(u.path) || items.contains(where: { $0.name == "web" }) { self = Vinculos.web(u); return }
             t = u.path
         }
         let p = t.split(separator: "/").map(String.init)
@@ -111,7 +114,8 @@ struct Ruta: Equatable {
             } else {
                 self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })
             }
-        case "agenda": self.init(.inicio, id.map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
+        // `/agenda/<id>` o `/agenda?cita=<id>` (los avisos): esa cita; si no, el día.
+        case "agenda": self.init(.inicio, (id ?? param("cita")).map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
         case "mas": self.init(.mas)
         case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos(agente: param("agente") == "libre" ? "libre" : nil)))
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
@@ -153,8 +157,9 @@ struct Ruta: Equatable {
                 self.init(.mas, ASeccion(clave: "inventarios"))
             }
         case "avisos":
-            // `/avisos?aviso=<id>&responder=<accion>`: ese aviso (y su respuesta) en vez de la lista.
-            self.init(.inicio, AAvisos(aviso: param("aviso"), responder: param("responder")))
+            // `/avisos/configurar` (el mail del informe): qué avisos llegan. `/avisos?aviso=<id>&responder=<accion>`:
+            // ese aviso (y su respuesta) en vez de la lista.
+            if id == "configurar" { self.init(.inicio, AConfigAvisos()) } else { self.init(.inicio, AAvisos(aviso: param("aviso"), responder: param("responder"))) }
         case "perfil": self.init(.inicio, APerfil())
         case "buscar": self.init(.inicio, ABuscar(texto: param("q") ?? ""))
         case "reserva", "reservas": self.init(.mas, id.map { AnyHashable(AReserva(id: $0)) } ?? AnyHashable(ASeccion(clave: "reservas")))
@@ -194,7 +199,10 @@ struct Ruta: Equatable {
         // `/importar?id=<vista previa>`: retomarla.
         case "importar": self.init(.mas, ASeccion(clave: "importar", id: param("id")))
         case "emprendimientos", "emprendimiento": self.init(.mas, ASeccion(clave: id == nil ? "emprendimientos" : "emprendimiento", id: id))
-        default: self.init(.mas, ASeccion(clave: a, id: id))
+        // Otra sección de Más por su nombre; si la app no la tiene, la web dentro de la app.
+        default:
+            guard Vinculos.secciones.contains(a) else { self = Vinculos.web(Vinculos.base.appending(path: p.joined(separator: "/"))); return }
+            self.init(.mas, ASeccion(clave: a, id: id))
         }
     }
 

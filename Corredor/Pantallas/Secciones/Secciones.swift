@@ -58,6 +58,8 @@ struct Seccion: View {
         case "invitacion": if let id { VerInvitacion(token: id) }
         case "invitaciones": PegarInvitacion()
         case "empezar": CrearOtraInmobiliaria()
+        // Un link del panel que la app no tiene (Vinculos): la web dentro de la app.
+        case "en-la-web": if let id, let u = URL(string: id) { NavegadorWeb(url: u).ignoresSafeArea().toolbar(.hidden, for: .navigationBar) }
         default: EstadoVacio(icono: "questionmark.folder", titulo: "No encontramos esta sección").frame(maxHeight: .infinity).background(FondoApp())
         }
     }
