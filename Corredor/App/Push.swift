@@ -11,7 +11,8 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         // 14B–14C: un WhatsApp o una pregunta de ML se responden sin abrir la app; un cobro se registra
-        // pidiendo desbloquear el iPhone.
+        // pidiendo desbloquear el iPhone. La consulta (`/contactos/<id>`) no tiene un canal donde mandar
+        // la respuesta: se llama o se abre, sin «Responder».
         let responder = UNTextInputNotificationAction(identifier: "responder", title: "Responder", options: [.authenticationRequired],
                                                       textInputButtonTitle: "Enviar", textInputPlaceholder: "Escribí tu respuesta")
         let ver = UNNotificationAction(identifier: "ver", title: "Abrir", options: [.foreground])
@@ -20,7 +21,7 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
         let hecha = UNNotificationAction(identifier: "hecha", title: "Marcar como hecha", options: [.authenticationRequired])
         UNUserNotificationCenter.current().setNotificationCategories([
             UNNotificationCategory(identifier: "mensaje", actions: [responder, ver], intentIdentifiers: []),
-            UNNotificationCategory(identifier: "consulta", actions: [responder, llamar, ver], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "consulta", actions: [llamar, ver], intentIdentifiers: []),
             UNNotificationCategory(identifier: "cobro", actions: [cobrar, ver], intentIdentifiers: []),
             UNNotificationCategory(identifier: "visita", actions: [ver, hecha], intentIdentifiers: []),
         ])
@@ -64,7 +65,7 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
             switch accion {
             case "responder":
                 guard let texto = respuesta?.trimmingCharacters(in: .whitespacesAndNewlines), !texto.isEmpty else { return }
-                Task { await Delegado.responder(estado, ruta: ruta, texto: texto, info: info) }
+                Task { await Delegado.responder(estado, ruta: ruta, rutaTexto: info["ruta"] as? String, texto: texto) }
             case "hecha":
                 if let id = (ruta?.destino as? ACita)?.id ?? info["citaId"] as? String {
                     Task {
@@ -75,6 +76,9 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
             case "llamar":
                 if let t = info["telefono"] as? String, let u = URL(string: "tel://" + t.filter { $0.isNumber || $0 == "+" }) {
                     UIApplication.shared.open(u, options: [:], completionHandler: nil)
+                } else if let ruta {
+                    // Sin teléfono en el aviso: el contacto, para llamarlo desde ahí.
+                    estado.ir(ruta)
                 }
             default:
                 let aviso = info["avisoId"] as? String
@@ -90,21 +94,41 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
         }
     }
 
-    /// 14C: la respuesta escrita en el aviso va al chat de WhatsApp o a la pregunta de ML.
+    private struct SinDestino: Error {}
+
+    /// 14C: la respuesta escrita en el aviso va al chat de WhatsApp o a la pregunta de ML. Si el aviso no
+    /// lleva a ninguno de los dos, o la API no la toma, no se da por mandada: se avisa con lo escrito.
     @MainActor
-    private static func responder(_ estado: Estado, ruta: Ruta?, texto: String, info: [AnyHashable: Any]) async {
+    private static func responder(_ estado: Estado, ruta: Ruta?, rutaTexto: String?, texto: String) async {
         struct Mensaje: Encodable { var texto: String }
         do {
             if let c = ruta?.destino as? AChat {
                 try await estado.api.hacer("POST", "/v1/whatsapp/conversaciones/\(c.id)/mensajes", Mensaje(texto: texto))
             } else if let p = ruta?.destino as? APreguntaML {
                 try await estado.api.hacer("POST", "/v1/mercadolibre/preguntas/\(p.id)/respuesta", Mensaje(texto: texto))
+            } else {
+                throw SinDestino()
             }
             estado.version += 1
         } catch {
-            // Si no salió, se abre el chat con lo escrito para mandarlo a mano.
+            noSeMando(estado, ruta: ruta, rutaTexto: rutaTexto, texto: texto)
+        }
+    }
+
+    /// La respuesta no salió. Con la app abierta, el aviso de abajo y el chat; en segundo plano, una
+    /// notificación con lo escrito que, al tocarla, abre la conversación para mandarlo a mano.
+    @MainActor
+    private static func noSeMando(_ estado: Estado, ruta: Ruta?, rutaTexto: String?, texto: String) {
+        if UIApplication.shared.applicationState == .active {
             if let ruta { estado.ir(ruta) }
             estado.avisar("No se mandó la respuesta. Probá desde el chat.", ok: false)
+            return
         }
+        let c = UNMutableNotificationContent()
+        c.title = "No se mandó tu respuesta"
+        c.body = Formato.sinViudas("Escribiste: «\(texto)». Tocá acá para mandarla desde Corredor.")
+        c.sound = .default
+        if let rutaTexto { c.userInfo = ["ruta": rutaTexto] }
+        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "no-se-mando-\(UUID().uuidString)", content: c, trigger: nil))
     }
 }

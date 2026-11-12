@@ -28,10 +28,15 @@ struct PantallaPlan: View {
                         nota("person.badge.key", "El plan lo elige y lo paga el dueño de la inmobiliaria. Si necesitás algo que tu plan no trae, pedíselo.")
                     } else if s.conMercadoPago {
                         nota("creditcard", "Tu plan se paga con Mercado Pago. Para pasarlo al App Store, primero da de baja el débito acá abajo.")
+                    } else if s.pagaAfuera {
+                        nota("creditcard", s.medio == "google"
+                             ? "Tu plan se paga con Google Play y se administra desde ahí. Para pasarlo al App Store, primero cancelalo en Google Play."
+                             : "Tu plan se administra donde lo contrataste. Para pasarlo al App Store, primero dalo de baja ahí.")
                     }
                     Segmentado(opciones: [("mes", "Mensual"), ("anio", "Anual · 2 meses gratis")], elegido: $ciclo)
                     ForEach(s.planes) { p in tarjetaPlan(p, s) }
-                    if estado.esDuenio { ticket(s) }
+                    // Con otro medio no se compra acá: sin ticket ni letra chica de Apple.
+                    if estado.esDuenio, !s.pagaAfuera { ticket(s) }
                     if estado.esDuenio, !s.cobros.isEmpty { cobros(s) }
                     if estado.esDuenio, s.medio == "mercadopago", s.renueva { baja(s) }
                 } else {
@@ -96,7 +101,7 @@ struct PantallaPlan: View {
     private func detalle(_ s: Suscripcion) -> String {
         switch s.estado {
         case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, después queda en sólo lectura: nada se borra."
-        case "activa": return s.medio == "apple" ? "Se paga con el App Store, desde el iPhone." : "Se debita solo con Mercado Pago."
+        case "activa": return s.comoSePaga
         case "baja": return "Elegí un plan para seguir sin cortes. Lo que ya pagaste no se pierde."
         default: return "Todo lo tuyo sigue acá y lo podés ver. Para volver a cargar, elegí un plan: se activa en el momento."
         }
@@ -226,7 +231,7 @@ struct PantallaPlan: View {
                 Label { Text(Formato.sinViudas("Hoy cargan \(s.agentes.usados) personas y este plan es para \(Formato.cantidad(plan.agentes, "persona", "personas")). Pasá \(Formato.cantidad(sobran, "persona", "personas")) a lector en Equipo o elegí un plan más grande.")).estilo(.footnote) } icon: { Image(systemName: "person.2") }
                     .foregroundStyle(C.oroTinta).padding(10).background(C.avisoFondo, in: .rect(cornerRadius: 10))
             }
-            if !s.conMercadoPago {
+            if !s.pagaAfuera {
             Button {
                 Task { await comprar(plan) }
             } label: {

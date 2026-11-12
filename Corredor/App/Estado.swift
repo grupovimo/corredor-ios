@@ -165,14 +165,22 @@ final class Estado {
             try await cargarSesion()
             if conFaceID { bloqueada = true }
             entrarSegunInmobiliaria()
-        } catch let e as ErrorApi where e.sinConexion {
-            // Sin señal se entra igual con lo guardado (E4: «Sin conexión»).
-            sesion = Guardado.leer(Sesion.self, clave: "sesion")?.0
-            if conFaceID { bloqueada = true }
-            fase = sesion?.inmobiliariaId == nil ? .afuera : .adentro
-        } catch {
+        } catch let e as ErrorApi where e.estado == 401 || e.codigo == "cuenta_borrada" {
+            // La sesión ya no vale (o la cuenta se borró): de vuelta al ingreso.
             olvidarSesion()
             fase = .afuera
+            if e.codigo == "cuenta_borrada" { avisar(e.detalle, ok: false) }
+        } catch {
+            // Sin señal, la API caída o una respuesta que no se entiende: no se cierra la sesión. Se entra
+            // con lo guardado (E4: «Sin conexión») y se avisa; lo demás se pide de nuevo al volver.
+            sesion = Guardado.leer(Sesion.self, clave: "sesion")?.0
+            if conFaceID { bloqueada = true }
+            // Sin nada guardado no hay con qué entrar; el token queda para el próximo intento.
+            fase = sesion?.inmobiliariaId == nil ? .afuera : .adentro
+            // Sin señal ya lo dice la marca de «Sin conexión»; si es la API, se avisa acá.
+            if (error as? ErrorApi)?.sinConexion != true {
+                avisar("No pudimos conectar con Corredor. Ves lo último guardado.", ok: false)
+            }
         }
     }
 

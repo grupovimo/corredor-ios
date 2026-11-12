@@ -23,6 +23,10 @@ targets:
       Release: Config/Corredor.xcconfig
     sources:
       - path: Corredor
+        excludes: [PrivacyInfo.xcprivacy]
+      # El manifiesto de privacidad (lo pide App Store Connect): como recurso, explícito.
+      - path: Corredor/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Compartido
     dependencies:
       - target: CorredorWidgets
@@ -113,6 +117,9 @@ targets:
       Release: Config/Corredor.xcconfig
     sources:
       - path: CorredorWidgets
+        excludes: [PrivacyInfo.xcprivacy]
+      - path: CorredorWidgets/PrivacyInfo.xcprivacy
+        buildPhase: resources
       - path: Compartido
     entitlements:
       path: CorredorWidgets/CorredorWidgets.entitlements

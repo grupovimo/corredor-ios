@@ -646,7 +646,8 @@ struct HorarioSilencio: View {
     }
 }
 
-/// Borrar la cuenta (lo pide Apple): se confirma escribiendo BORRAR.
+/// Borrar la cuenta (lo pide Apple): se confirma escribiendo BORRAR. La API la desactiva en el momento y
+/// borra los datos personales a los 30 días; en ese tiempo se recupera por mail.
 struct BorrarCuenta: View {
     @Environment(Estado.self) private var estado
     @State private var texto = ""
@@ -655,8 +656,12 @@ struct BorrarCuenta: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("¿Borrás tu cuenta?").estilo(.titulo)
-            Text(Formato.sinViudas("Se eliminan tu nombre, tu mail, tu teléfono y tus sesiones. Las operaciones, contratos y conversaciones quedan en la inmobiliaria, sin tu nombre. Esto no se puede deshacer."))
+            Text(Formato.sinViudas("Tu cuenta se desactiva ahora y tus datos personales se borran a los 30 días."))
+                .estilo(.subhead).foregroundStyle(C.texto)
+            Text(Formato.sinViudas("En esos 30 días la recuperás escribiendo a hola@corredor.com.ar. Después no se puede deshacer."))
                 .estilo(.subhead).foregroundStyle(C.texto2)
+            Text(Formato.sinViudas("Las operaciones, contratos y conversaciones quedan en la inmobiliaria, sin tu nombre."))
+                .estilo(.footnote).foregroundStyle(C.texto3)
             Link("Términos y privacidad", destination: Api.web().appendingPathComponent("terminos")).font(Estilo.subheadFuerte.font)
             TextField("Escribí BORRAR", text: $texto).textInputAutocapitalization(.characters).campoCorredor()
             Button("Borrar mi cuenta") {
@@ -665,6 +670,7 @@ struct BorrarCuenta: View {
                     do {
                         try await estado.api.hacer("DELETE", "/v1/auth/cuenta")
                         await estado.salir()
+                        estado.avisar("Tu cuenta quedó desactivada.")
                     } catch { estado.avisar(error) }
                     borrando = false
                 }

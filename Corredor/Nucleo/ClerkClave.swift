@@ -168,18 +168,19 @@ final class ClerkMail {
     private static let comunes: Set<String> = [
         "1234567890", "12345678910", "qwertyuiop", "contraseña", "contrasena", "password12", "password123", "argentina1",
         "0123456789", "1111111111", "abcdefghij", "corredor123", "inmobiliaria", "iloveyou12", "boca123456", "river12345",
+        "12345678", "123456789", "password", "qwertyui", "abcdefgh", "corredor", "argentina", "iloveyou",
     ]
 
     /// Los requisitos de la contraseña nueva que se tildan solos (2c).
     static func requisitos(_ clave: String) -> (largo: Bool, comun: Bool) {
-        (clave.count >= 10, !clave.isEmpty && !esComun(clave))
+        (clave.count >= 8, !clave.isEmpty && !esComun(clave))
     }
 
     private static func esComun(_ c: String) -> Bool {
         let x = c.lowercased()
         if comunes.contains(x) { return true }
         if x.count > 1, let p = x.first, x.allSatisfy({ $0 == p }) { return true }
-        return x.hasPrefix("0123456789") || x.hasPrefix("1234567890") || x.hasPrefix("9876543210")
+        return x.hasPrefix("01234567") || x.hasPrefix("12345678") || x.hasPrefix("98765432")
     }
 
     /// El error de Clerk como lo lee la persona.

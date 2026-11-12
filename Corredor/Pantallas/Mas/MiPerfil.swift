@@ -324,7 +324,7 @@ struct MiPerfil: View {
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
             .tarjeta()
-            Text(Formato.sinViudas("Al borrar tu cuenta se eliminan tus datos personales. Las operaciones y contratos quedan en la inmobiliaria."))
+            Text(Formato.sinViudas("Al borrar tu cuenta se desactiva en el momento y tus datos personales se borran a los 30 días. Las operaciones y contratos quedan en la inmobiliaria."))
                 .estilo(.footnote).foregroundStyle(C.texto3).multilineTextAlignment(.center).frame(maxWidth: .infinity)
             Text("Corredor \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 .estilo(.footnote).foregroundStyle(C.texto3).frame(maxWidth: .infinity)

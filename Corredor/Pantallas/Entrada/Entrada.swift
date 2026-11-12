@@ -18,7 +18,7 @@ struct FondoVerde: View {
 }
 
 /// 1A–1B Bienvenida: «De la consulta al contrato firmado.», Apple, Google y mail. En modo «Creá tu
-/// cuenta» (el link de crear la web) dice que es gratis los primeros 30 días.
+/// cuenta» (el link de crear la web) dice que es gratis los primeros 14 días.
 struct Entrada: View {
     @Environment(Estado.self) private var estado
     @State private var ocupado = false
@@ -46,7 +46,7 @@ struct Entrada: View {
                     if estado.ingresoAlta {
                         VStack(spacing: 4) {
                             Text("Creá tu cuenta").font(Estilo(tamano: 20, peso: .bold, relativo: .title3).font).foregroundStyle(.white)
-                            Text("Gratis los primeros 30 días. Sin tarjeta.").estilo(.subhead).foregroundStyle(Color(hex: 0xCFE0D8))
+                            Text("Gratis los primeros 14 días. Sin tarjeta.").estilo(.subhead).foregroundStyle(Color(hex: 0xCFE0D8))
                         }
                     }
                 }
@@ -129,6 +129,11 @@ struct Entrada: View {
         }
         if let a = e as? ErrorApi {
             if a.sinConexion { return a.detalle }
+            // 409 cuenta_borrada: la cuenta se borró y está en sus 30 días; el detalle de la API dice cómo
+            // recuperarla.
+            if a.codigo == "cuenta_borrada" {
+                return a.detalle.isEmpty ? "Tu cuenta está desactivada. Para recuperarla, escribinos a hola@corredor.com.ar." : a.detalle
+            }
             return api[a.codigo] ?? "No pudimos completar el ingreso. Probá de nuevo."
         }
         return "No pudimos completar el ingreso. Probá de nuevo."
@@ -200,7 +205,7 @@ struct IngresoMail: View {
     private var pasoMail: some View {
         VStack(alignment: .leading, spacing: 16) {
             Text(estado.ingresoAlta ? "Creá tu cuenta" : "Entrar con mail").estilo(.titulo)
-            Text(estado.ingresoAlta ? "Gratis los primeros 30 días. Sin tarjeta." : "Si es tu primera vez, se crea tu cuenta.")
+            Text(estado.ingresoAlta ? "Gratis los primeros 14 días. Sin tarjeta." : "Si es tu primera vez, se crea tu cuenta.")
                 .estilo(.subhead).foregroundStyle(C.texto2)
             TextField("tu@mail.com", text: $email)
                 .textContentType(.emailAddress).keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled()
@@ -303,7 +308,7 @@ struct RequisitosClave: View {
     var body: some View {
         let r = ClerkMail.requisitos(clave)
         VStack(alignment: .leading, spacing: 6) {
-            fila(r.largo, "10 caracteres o más")
+            fila(r.largo, "8 caracteres o más")
             fila(r.comun, "No es una de las más usadas")
             if distinta { fila(false, "Distinta a la anterior") }
         }

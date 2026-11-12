@@ -28,5 +28,19 @@ final class CorredorTests: XCTestCase {
         XCTAssertTrue(s.pideAtencion)
         XCTAssertEqual(s.planes.first?.producto("anio"), "ar.com.corredor.app.inicial.anio")
         XCTAssertFalse(s.conMercadoPago)
+        XCTAssertFalse(s.pagaAfuera)
+    }
+
+    func testClaveDeOchoCaracteres() {
+        XCTAssertTrue(ClerkMail.requisitos("casa1234").largo)
+        XCTAssertFalse(ClerkMail.requisitos("casa123").largo)
+        XCTAssertFalse(ClerkMail.requisitos("12345678").comun)
+        XCTAssertFalse(ClerkMail.requisitos("password").comun)
+    }
+
+    func testIngresoConCuentaBorrada() {
+        let e = ErrorApi(estado: 409, codigo: "cuenta_borrada", titulo: "Cuenta borrada",
+                         detalle: "Borraste tu cuenta el 10/11. Escribinos a hola@corredor.com.ar para recuperarla.")
+        XCTAssertEqual(Entrada.mensaje(e), e.detalle)
     }
 }

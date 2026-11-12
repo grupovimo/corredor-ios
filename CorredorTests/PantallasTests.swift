@@ -455,17 +455,20 @@ final class PantallasTests: XCTestCase {
         return u
     }()
 
-    private func montar<V: View>(_ vista: V, rol: String = "duenio", segundos: Double = 3, nombre: String = #function) {
-        montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: false)
-        if Self.capturas != nil { montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: true) }
+    private func montar<V: View>(_ vista: V, rol: String = "duenio", segundos: Double = 3, nombre: String = #function,
+                                 preparar: (Estado) -> Void = { _ in }) {
+        montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: false, preparar: preparar)
+        if Self.capturas != nil { montarEn(vista, rol: rol, segundos: segundos, nombre: nombre, oscuro: true, preparar: preparar) }
     }
 
-    private func montarEn<V: View>(_ vista: V, rol: String, segundos: Double, nombre: String, oscuro: Bool) {
+    private func montarEn<V: View>(_ vista: V, rol: String, segundos: Double, nombre: String, oscuro: Bool,
+                                   preparar: (Estado) -> Void = { _ in }) {
         let conf = URLSessionConfiguration.ephemeral
         conf.protocolClasses = [ApiFalsa.self]
         let estado = Estado(api: Api(base: URL(string: "https://api.prueba")!, token: "x", http: URLSession(configuration: conf)))
         estado.sesion = Sesion(usuario: .init(id: "u1", email: "mariana@luna.test", nombre: "Mariana", apellido: "Luna"), inmobiliariaId: "i1", rol: rol,
                                inmobiliarias: [.init(inmobiliariaId: "i1", slug: "luna", nombre: "Luna Propiedades", rol: rol)])
+        preparar(estado)
         let raiz = NavigationStack { vista.destinos() }
             .environment(estado)
             .environment(estado.cola)
@@ -643,6 +646,46 @@ final class PantallasTests: XCTestCase {
         }
     }
     func testEntrada() { montar(Entrada()) }
+    /// «Creá tu cuenta»: la prueba es de 14 días.
+    func testIngresoMailAlta() { montar(IngresoMail()) { $0.ingresoAlta = true } }
+    func testRequisitosClave() { montar(RequisitosClave(clave: "corredor1")) }
+    /// Borrar la cuenta: se desactiva ahora y los datos se borran a los 30 días.
+    func testBorrarCuenta() { montar(BorrarCuenta()) }
+
+    /// Tu plan según con qué se paga: con Google Play u otro medio no se compra desde el iPhone.
+    private func suscripcion(medio: String?, renueva: Bool = true) throws -> Suscripcion {
+        let m = medio.map { "\"\($0)\"" } ?? "null"
+        let json = """
+        {"estado":"activa","plan":"profesional","ciclo":"mes","medio":\(m),"pruebaHasta":"2026-10-19T12:00:00Z",
+         "pagadoHasta":"2026-12-12T12:00:00Z","vigenteHasta":"2026-12-12T12:00:00Z","diasRestantes":30,"renueva":\(renueva),
+         "proximoCobro":"2026-12-12T12:00:00Z","importe":69900,"moneda":"ARS","esperando":null,"soloLectura":false,"enPrueba":false,
+         "agentes":{"usados":2,"cupo":5},"planes":[{"id":"profesional","nombre":"Profesional","resumen":"Para equipos","agentes":5,
+         "precioMes":69900,"precioAnio":699000,"incluye":["Hasta 5 personas"],"destacado":true,"appleMes":"ar.com.corredor.app.profesional.mes",
+         "appleAnio":"ar.com.corredor.app.profesional.anio"}],"mercadoPago":false,"cobros":[]}
+        """
+        return try Api.decodificador.decode(Suscripcion.self, from: Data(json.utf8))
+    }
+    func testPlanConGoogle() throws {
+        let s = try suscripcion(medio: "google")
+        XCTAssertTrue(s.pagaAfuera)
+        XCTAssertEqual(s.comoSePaga, "Se paga con Google Play, desde Android.")
+        montar(PantallaPlan()) { $0.suscripcion = s }
+    }
+    func testPlanConApple() throws {
+        let s = try suscripcion(medio: "apple")
+        XCTAssertFalse(s.pagaAfuera)
+        montar(PantallaPlan()) { $0.suscripcion = s }
+    }
+    func testPlanConOtroMedio() throws {
+        let s = try suscripcion(medio: "transferencia")
+        XCTAssertTrue(s.pagaAfuera)
+        XCTAssertEqual(s.comoSePaga, "Se administra donde lo contrataste.")
+        montar(PantallaPlan()) { $0.suscripcion = s }
+    }
+    func testPlanGoogleSinRenovar() throws {
+        // Con Google dado de baja ya se puede pasar al App Store.
+        XCTAssertFalse(try suscripcion(medio: "google", renueva: false).pagaAfuera)
+    }
     func testElegirInmobiliaria() { montar(ElegirInmobiliaria()) }
     func testBloqueo() { montar(Bloqueo(), segundos: 1) }
     func testPrincipal() { montar(Principal()) }

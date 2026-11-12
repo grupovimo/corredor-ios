@@ -75,6 +75,20 @@ struct Suscripcion: Decodable, Equatable {
 
     /// Se paga con Mercado Pago desde la web (no se puede cambiar desde el iPhone).
     var conMercadoPago: Bool { medio == "mercadopago" && renueva && !soloLectura }
+
+    /// Se renueva con un medio que no es Apple (Mercado Pago, Google Play u otro): desde el iPhone no se
+    /// compra, porque Apple cobraría y la API rechazaría la compra sin reintegro. Se administra ahí.
+    var pagaAfuera: Bool { renueva && !soloLectura && medio.map { !$0.isEmpty && $0 != "apple" } == true }
+
+    /// Con qué se paga, dicho como en la cabecera de «Tu plan».
+    var comoSePaga: String {
+        switch medio {
+        case "apple": return "Se paga con el App Store, desde el iPhone."
+        case "mercadopago": return "Se debita solo con Mercado Pago."
+        case "google": return "Se paga con Google Play, desde Android."
+        default: return "Se administra donde lo contrataste."
+        }
+    }
 }
 
 /// El App Store: los productos de los planes, la compra (con la inmobiliaria como appAccountToken) y las
