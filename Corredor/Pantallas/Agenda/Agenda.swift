@@ -514,7 +514,7 @@ struct AgendaRaiz: View {
         let hoy = Formato.diaISO(Date())
         let hasta60 = Formato.diaISO(Calendar.current.date(byAdding: .day, value: 60, to: Date()) ?? Date())
         let lics: [Licencia] = (try? await estado.api.get("/v1/licencias", query: [.init(name: "desde", value: min(desde, hoy)), .init(name: "hasta", value: max(hasta, hasta60))])) ?? []
-        let ausente = ["licencia": "de licencia", "vacaciones": "de vacaciones", "enfermedad": "de licencia", "tramite": "de trámite"]
+        let ausente = ["licencia": "de licencia", "vacaciones": "de vacaciones", "personal": "ausente", "tramite": "de trámite"]
         for l in lics {
             var d = max(l.desde, desde)
             var vueltas = 0

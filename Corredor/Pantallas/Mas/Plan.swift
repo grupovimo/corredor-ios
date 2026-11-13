@@ -100,10 +100,10 @@ struct PantallaPlan: View {
 
     private func detalle(_ s: Suscripcion) -> String {
         switch s.estado {
-        case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, después queda en sólo lectura: nada se borra."
+        case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, queda en sólo lectura 90 días para que exportes tus datos, y después se borran."
         case "activa": return s.comoSePaga
         case "baja": return "Elegí un plan para seguir sin cortes. Lo que ya pagaste no se pierde."
-        default: return "Todo lo tuyo sigue acá y lo podés ver. Para volver a cargar, elegí un plan: se activa en el momento."
+        default: return "Todo lo tuyo sigue acá y lo podés ver y exportar durante 90 días; después se borra. Para volver a cargar, elegí un plan: se activa en el momento."
         }
     }
 
@@ -253,7 +253,7 @@ struct PantallaPlan: View {
             }
             .buttonStyle(BotonTexto(alto: 40))
             }
-            Text(Formato.sinViudas("La suscripción se cobra a tu cuenta de Apple y se renueva sola cada \(cada) al mismo precio, salvo que la des de baja al menos 24 horas antes de que termine el período, desde Ajustes › tu nombre › Suscripciones. Al vencer, tu inmobiliaria queda en sólo lectura y nada se borra."))
+            Text(Formato.sinViudas("La suscripción se cobra a tu cuenta de Apple y se renueva sola cada \(cada) al mismo precio, salvo que la des de baja al menos 24 horas antes de que termine el período, desde Ajustes › tu nombre › Suscripciones. Al vencer, tu inmobiliaria queda en sólo lectura 90 días para que exportes tus datos; después se borran."))
                 .estilo(.caption).foregroundStyle(C.texto3).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 16) {
                 Link("Términos de uso", destination: Api.web().appending(path: "terminos"))
@@ -452,7 +452,7 @@ struct AvisoPlan: View {
 
     private func texto(_ s: Suscripcion) -> String {
         switch s.estado {
-        case "vencida": return estado.esDuenio ? "Tu prueba terminó: estás en sólo lectura. Todo sigue acá." : "La inmobiliaria está en sólo lectura."
+        case "vencida": return estado.esDuenio ? "Tu prueba terminó: estás en sólo lectura. Tus datos quedan 90 días." : "La inmobiliaria está en sólo lectura."
         case "baja": return "Tu plan no se renueva: termina el \(Formato.dia(s.vigenteHasta))."
         default: return s.diasRestantes <= 1 ? "Hoy es el último día de tu prueba gratis." : "Te quedan \(s.diasRestantes) días de prueba gratis."
         }

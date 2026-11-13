@@ -610,7 +610,7 @@ struct EquipoHoyInicio: View {
 
     static let nombres: [String: (String, String)] = ["visita": ("visita", "visitas"), "llamado": ("llamado", "llamados"), "firma": ("firma", "firmas"),
                                                       "tasacion": ("tasación", "tasaciones"), "otro": ("cita", "citas")]
-    static let ausente: [String: String] = ["licencia": "de licencia", "vacaciones": "de vacaciones", "enfermedad": "de licencia por enfermedad", "tramite": "de trámite"]
+    static let ausente: [String: String] = ["licencia": "de licencia", "vacaciones": "de vacaciones", "personal": "ausente", "tramite": "de trámite"]
 
     private func que(_ p: PersonaHoy) -> String {
         if let l = p.licencia { return Self.ausente[l.tipo] ?? "de licencia" }

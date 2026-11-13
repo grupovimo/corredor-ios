@@ -224,8 +224,8 @@ struct LicenciasAgenda: View {
     @State private var error: String?
     @State private var guardando = false
 
-    static let tipos = [("licencia", "Licencia"), ("vacaciones", "Vacaciones"), ("enfermedad", "Enfermedad"), ("tramite", "Trámite")]
-    static let nombre = ["licencia": "De licencia", "vacaciones": "De vacaciones", "enfermedad": "Por enfermedad", "tramite": "Trámite"]
+    static let tipos = [("licencia", "Licencia"), ("vacaciones", "Vacaciones"), ("personal", "Personal"), ("tramite", "Trámite")]
+    static let nombre = ["licencia": "De licencia", "vacaciones": "De vacaciones", "personal": "Por motivos personales", "tramite": "Trámite"]
 
     private var yo: String { estado.usuario?.id ?? "" }
 
