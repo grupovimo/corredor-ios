@@ -32,7 +32,7 @@ struct ARecordarMes: Hashable { var contrato: String; var periodo: String }
 struct AContratosFiltro: Hashable { var vista: String? = nil; var indice: String? = nil }
 /// El alta de un contrato a pantalla completa: seguir un borrador (`/contratos/nuevo?borrador=`) o
 /// renovar (`?renovar=`).
-struct AAltaContrato: Hashable { var borrador: String? = nil; var renovar: String? = nil; var leer = false }
+struct AAltaContrato: Hashable { var borrador: String? = nil; var renovar: String? = nil }
 /// La rendición «como la ve el propietario» (`/rendiciones/<id>?contrato=<c>&vista=1`).
 struct ARendicionVista: Hashable { var contrato: String; var id: String }
 

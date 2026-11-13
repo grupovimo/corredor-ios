@@ -72,7 +72,6 @@ struct Contratos: View {
     @State private var vencimientos: [String: EventoContrato] = [:]
     @State private var filtro = "vigentes"
     @State private var nuevo = false
-    @State private var leerPDF = false
     @State private var cobrando: ACobrar?
     @State private var mensaje: PedidoMensaje?
     @State private var error: ErrorApi?
@@ -169,8 +168,7 @@ struct Contratos: View {
                     if todos.isEmpty {
                         EstadoVacio(icono: "doc.text", titulo: "Todavía no hay contratos",
                                     texto: "Corredor calcula cada ajuste y arma los\u{00A0}cobros.",
-                                    accion: estado.escribe ? ("Cargar contrato", { leerPDF = false; nuevo = true }) : nil,
-                                    secundaria: estado.escribe ? ("Subir el PDF y que lo lea", { leerPDF = true; nuevo = true }) : nil).padding(.top, 30)
+                                    accion: estado.escribe ? ("Cargar contrato", { nuevo = true }) : nil).padding(.top, 30)
                     } else {
                         tarjetas
                         chips
@@ -206,10 +204,7 @@ struct Contratos: View {
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if estado.escribe {
-                Menu {
-                    Button { leerPDF = false; nuevo = true } label: { Label("Nuevo contrato", systemImage: "square.and.pencil") }
-                    Button { leerPDF = true; nuevo = true } label: { Label("Subir el PDF y que lo lea", systemImage: "doc.viewfinder") }
-                } label: { Image(systemName: "plus") }.accessibilityLabel("Nuevo contrato")
+                Button { nuevo = true } label: { Image(systemName: "plus") }.accessibilityLabel("Nuevo contrato")
             }
         }
         .onAppear {
@@ -218,7 +213,7 @@ struct Contratos: View {
             if let indice { filtro = indice } else if let vista { filtro = vista }
         }
         .task(id: estado.version) { await cargar() }
-        .sheet(isPresented: $nuevo) { AltaContrato(leer: leerPDF) }
+        .sheet(isPresented: $nuevo) { AltaContrato() }
         .sheet(item: $cobrando) { c in HojaCobro(item: c) }
         .hojaMensaje($mensaje)
     }

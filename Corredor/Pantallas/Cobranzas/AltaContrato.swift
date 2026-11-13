@@ -156,12 +156,12 @@ struct BorradorContratoAPI: Decodable, Identifiable {
 
 /// El alta de un contrato (/contratos/nuevo): pasos cortos (Partes → Plazo y monto → Ajuste →
 /// Condiciones → Documentos; una venta saltea Ajuste), validación por paso, guardado solo en un
-/// borrador de /v1/borradores?clase=contrato («Guardado hace 2 s», «Seguir después») y «Subir el PDF y
-/// que lo lea». Con `renovar` arranca desde el contrato anterior; con `operacion`, desde la operación.
+/// borrador de /v1/borradores?clase=contrato («Guardado hace 2 s», «Seguir después»). Con `renovar`
+/// arranca desde el contrato anterior; con `operacion`, desde la operación. El contrato se carga a
+/// mano: no se manda a ninguna IA.
 struct AltaContrato: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
-    var leer = false
     var renovar: String? = nil
     var operacion: String? = nil
     /// Seguir un borrador (el de la web, el de otro aparato).
@@ -173,10 +173,6 @@ struct AltaContrato: View {
     static let titulos = ["¿Quiénes firman?", "Plazo y monto", "¿Cómo se ajusta?", "Condiciones", "Documentos"]
     static let indices: [(String?, String, String)] = [("icl", "ICL", "BCRA, diario"), ("ipc", "IPC", "INDEC, mensual"), ("uva", "UVA", "BCRA, diario"),
                                                         ("fijo", "Fijo", "un porcentaje"), (nil, "Sin ajuste", "monto fijo")]
-    /// En qué paso se revisa cada dato leído (para marcar «No se lee bien» donde corresponde).
-    static let pasoDe: [String: Int] = ["tipo": 0, "direccion": 0, "inquilino": 0, "propietario": 0, "garante": 0, "inicio": 1, "fin": 1, "meses": 1,
-                                        "monto": 1, "moneda": 1, "diaVencimiento": 1, "ajusteIndice": 2, "ajusteMeses": 2, "ajustePorcentaje": 2,
-                                        "garantia": 3, "deposito": 3, "honorarios": 3, "punitorioDiario": 3, "notas": 3]
     /// En qué paso está cada campo que rechaza la API: partes 0, ajuste 2, condiciones 3, notas 4 y el
     /// resto (plazo y monto) 1.
     static func pasoDelCampo(_ c: String) -> Int {
@@ -186,11 +182,6 @@ struct AltaContrato: View {
         if c == "notas" { return 4 }
         return 1
     }
-    static let nombreDato: [String: String] = ["tipo": "el tipo", "direccion": "la dirección", "inquilino": "el inquilino", "propietario": "el propietario",
-                                               "garante": "el garante", "garantia": "la garantía", "inicio": "el inicio", "fin": "el fin", "meses": "la duración",
-                                               "monto": "el monto", "moneda": "la moneda", "diaVencimiento": "el día de vencimiento", "ajusteIndice": "el índice",
-                                               "ajusteMeses": "cada cuánto ajusta", "ajustePorcentaje": "el porcentaje", "deposito": "el depósito",
-                                               "honorarios": "los honorarios", "punitorioDiario": "el punitorio", "notas": "las notas"]
 
     @State private var d = DatosContratoAlta()
     @State private var paso = 0
@@ -207,13 +198,6 @@ struct AltaContrato: View {
     @State private var espera: Task<Void, Never>?
     @State private var fila: Task<Void, Never>?
     @State private var envioAlta = UUID().uuidString
-    // Leer el PDF.
-    @State private var leyendo = false
-    @State private var leidoDe: String?
-    @State private var dudosos: [String] = []
-    @State private var sugeridos: [String: String] = [:]
-    @State private var eligiendoLectura = false
-    @State private var fotoLectura: PhotosPickerItem?
     // Elegir y subir.
     @State private var eligiendo: String?
     @State private var eligiendoDoc = false
@@ -254,11 +238,6 @@ struct AltaContrato: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             cabeza.id("arriba")
-                            if !dudososAca.isEmpty {
-                                Label("No se lee bien en el contrato: \(dudososAca.compactMap { Self.nombreDato[$0] }.joined(separator: ", ")). Revisalo.", systemImage: "questionmark.circle")
-                                    .estilo(.footnote).foregroundStyle(C.avisoTinta).padding(12).frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(C.avisoFondo, in: .rect(cornerRadius: 12))
-                            }
                             switch paso {
                             case 0: pasoPartes
                             case 1: pasoPlazo
@@ -291,16 +270,6 @@ struct AltaContrato: View {
         .onChange(of: d) { _, _ in programarGuardado() }
         .onChange(of: paso) { _, _ in programarGuardado() }
         .sheet(item: Binding(get: { eligiendo.map { Eleccion(id: $0) } }, set: { eligiendo = $0?.id })) { e in eleccion(e.id) }
-        .fileImporter(isPresented: $eligiendoLectura, allowedContentTypes: [.pdf, .image]) { r in
-            if case .success(let u) = r { Task { await leerArchivo(u) } }
-        }
-        .onChange(of: fotoLectura) { _, i in
-            guard let i else { return }
-            Task {
-                if let datos = try? await i.loadTransferable(type: Data.self) { await leerDatos(UIImage(data: datos)?.jpegData(compressionQuality: 0.85) ?? datos, nombre: "Contrato.jpg", tipo: "image/jpeg") }
-                fotoLectura = nil
-            }
-        }
         .fileImporter(isPresented: $eligiendoDoc, allowedContentTypes: [.pdf, .image], allowsMultipleSelection: true) { r in
             if case .success(let us) = r { Task { for u in us { await subirDocArchivo(u) } } }
         }
@@ -370,17 +339,14 @@ struct AltaContrato: View {
 
     // MARK: Paso 0 · Partes
 
-    private var yaLeido: Bool { !dudosos.isEmpty || !sugeridos.isEmpty || d.documentos.contains { $0.id == leidoDe } }
-
     @ViewBuilder private var pasoPartes: some View {
         if idBorrador == nil && renovar == nil && operacion == nil && !paraSeguir.isEmpty && d == DatosContratoAlta() { aMedioCargar }
-        tarjetaLeer
         Etiquetado("Contrato de") {
             Segmentado(opciones: [("alquiler", "Alquiler"), ("venta", "Venta")], elegido: $d.tipo)
         }
-        campoElegir("Propiedad", d.propiedad, sugerido: sugeridos["propiedad"], dudoso: dudosos.contains("direccion"), error: errores["propiedadId"], clave: "propiedad", opcional: false)
-        campoElegir(d.alquiler ? "Inquilino" : "Comprador", d.inquilino, sugerido: sugeridos["inquilino"], dudoso: dudosos.contains("inquilino"), error: errores["contactoId"], clave: "inquilino", opcional: false)
-        campoElegir("Propietario", d.propietario, sugerido: sugeridos["propietario"], dudoso: dudosos.contains("propietario"), error: errores["propietarioId"], clave: "propietario", opcional: true)
+        campoElegir("Propiedad", d.propiedad, error: errores["propiedadId"], clave: "propiedad", opcional: false)
+        campoElegir(d.alquiler ? "Inquilino" : "Comprador", d.inquilino, error: errores["contactoId"], clave: "inquilino", opcional: false)
+        campoElegir("Propietario", d.propietario, error: errores["propietarioId"], clave: "propietario", opcional: true)
         if d.alquiler {
             Etiquetado("Garante (opcional)") {
                 VStack(spacing: 8) {
@@ -393,42 +359,17 @@ struct AltaContrato: View {
         }
     }
 
-    private var tarjetaLeer: some View {
-        Menu {
-            Button { eligiendoLectura = true } label: { Label("Un archivo (PDF)", systemImage: "doc") }
-            PhotosPicker(selection: $fotoLectura, matching: .images) { Label("Una foto", systemImage: "camera") }
-        } label: {
-            HStack(spacing: 12) {
-                Group {
-                    if leyendo { ProgressView() } else { Image(systemName: yaLeido ? "checkmark.circle.fill" : "sparkles").font(.system(size: 22)) }
-                }
-                .foregroundStyle(yaLeido ? C.okTinta : C.accion).frame(width: 32)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(leyendo ? "Leyendo el contrato…" : yaLeido ? "Leímos el contrato" : "Subir el PDF y que lo lea").estilo(.subheadFuerte).foregroundStyle(C.texto)
-                    Text(leyendo ? "Tarda unos segundos." : yaLeido ? "Revisá cada paso. Podés subir otro." : "O una foto. Completamos lo que se lea.").estilo(.footnote).foregroundStyle(C.texto2)
-                }
-                Spacer()
-            }
-            .padding(14).background(yaLeido ? C.okFondo : C.superficie, in: .rect(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(C.linea2, style: StrokeStyle(lineWidth: 1, dash: yaLeido ? [] : [5])))
-        }
-        .disabled(leyendo)
-    }
-
-    private func campoElegir(_ etiqueta: String, _ v: ElegidoAlta?, sugerido: String?, dudoso: Bool, error: String?, clave: String, opcional: Bool) -> some View {
+    private func campoElegir(_ etiqueta: String, _ v: ElegidoAlta?, error: String?, clave: String, opcional: Bool) -> some View {
         Etiquetado(etiqueta + (opcional ? " (opcional)" : "")) {
             HStack(spacing: 6) {
             Button { eligiendo = clave } label: {
                 HStack(spacing: 10) {
                     Image(systemName: clave == "propiedad" ? "house" : "person").foregroundStyle(C.texto2)
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(v?.nombre ?? (sugerido.map { "¿\($0)?" } ?? "Elegí")).estilo(.body).foregroundStyle(v == nil ? C.texto3 : C.texto)
-                        if let det = v?.detalle { Text(det).estilo(.footnote).foregroundStyle(C.texto2) } else if v == nil, sugerido != nil {
-                            Text("Lo leímos del contrato: tocá para buscarlo o cargarlo").estilo(.footnote).foregroundStyle(C.avisoTinta)
-                        }
+                        Text(v?.nombre ?? "Elegí").estilo(.body).foregroundStyle(v == nil ? C.texto3 : C.texto)
+                        if let det = v?.detalle { Text(det).estilo(.footnote).foregroundStyle(C.texto2) }
                     }
                     Spacer()
-                    if dudoso { Text("Revisá").font(Estilo(tamano: 12, peso: .bold, relativo: .caption).font).foregroundStyle(C.avisoTinta).padding(.horizontal, 8).frame(height: 22).background(C.avisoFondo, in: Capsule()) }
                     Chevron()
                 }
                 .padding(.horizontal, 14).frame(minHeight: 50)
@@ -659,22 +600,19 @@ struct AltaContrato: View {
     @ViewBuilder private func eleccion(_ clave: String) -> some View {
         switch clave {
         case "propiedad":
-            ElegirPropiedadAlta(operacion: d.tipo, sugerido: sugeridos["propiedad"]) { p in
+            ElegirPropiedadAlta(operacion: d.tipo) { p in
                 d.propiedad = p
-                sugeridos["propiedad"] = nil
                 errores["propiedadId"] = nil
                 Task { await propietarioDe(p) }
             }
         case "inquilino":
-            ElegirParteAlta(tipo: d.alquiler ? "inquilino" : "comprador", sugerido: sugeridos["inquilino"]) { c in
+            ElegirParteAlta(tipo: d.alquiler ? "inquilino" : "comprador") { c in
                 d.inquilino = c
-                sugeridos["inquilino"] = nil
                 errores["contactoId"] = nil
             }
         default:
-            ElegirParteAlta(tipo: "propietario", sugerido: sugeridos["propietario"]) { c in
+            ElegirParteAlta(tipo: "propietario") { c in
                 d.propietario = c
-                sugeridos["propietario"] = nil
             }
         }
     }
@@ -718,8 +656,6 @@ struct AltaContrato: View {
         errores = [:]
         return true
     }
-
-    private var dudososAca: [String] { paso == 0 ? [] : dudosos.filter { Self.pasoDe[$0] == paso } }
 
     private func seguir() async {
         guard !creando else { return }
@@ -876,7 +812,6 @@ struct AltaContrato: View {
         tDia = String(d.diaVencimiento)
         ultimoGuardado = firma()
         cargado = true
-        if leer { eligiendoLectura = true }
     }
 
     private func seguirBorrador(_ b: BorradorContratoAPI) {
@@ -939,103 +874,6 @@ struct AltaContrato: View {
         if o.moneda == "ARS" || o.moneda == "USD" { d.moneda = o.moneda ?? "ARS" }
         if let v = o.valor, v > 0 { d.monto = v }
         if let p = d.propiedad { await propietarioDe(p) }
-    }
-
-    // MARK: Leer el PDF
-
-    private func leerArchivo(_ u: URL) async {
-        let acceso = u.startAccessingSecurityScopedResource()
-        defer { if acceso { u.stopAccessingSecurityScopedResource() } }
-        guard let datos = try? Data(contentsOf: u) else { estado.avisar("No se pudo leer el archivo.", ok: false); return }
-        await leerDatos(datos, nombre: u.lastPathComponent, tipo: u.pathExtension.lowercased() == "pdf" ? "application/pdf" : "image/jpeg")
-    }
-
-    struct ParteLeida: Decodable { var nombre: String; var telefono: String? }
-    struct Leido: Decodable {
-        var tipo: String?; var inquilino: ParteLeida?; var propietario: ParteLeida?; var garante: ParteLeida?; var garantia: String?; var direccion: String?
-        var inicio: String?; var fin: String?; var meses: Int?; var monto: Double?; var moneda: String?; var ajusteIndice: String?; var ajusteMeses: Int?
-        var ajustePorcentaje: Double?; var deposito: Double?; var honorarios: Double?; var punitorioDiario: Double?; var diaVencimiento: Int?
-        var notas: String?; var dudosos: [String]?
-    }
-
-    private func leerDatos(_ datos: Data, nombre: String, tipo: String) async {
-        guard !leyendo else { return }
-        leyendo = true
-        defer { leyendo = false }
-        struct Lectura: Decodable { var datos: Leido; var prueba: Bool? }
-        struct C: Encodable { var archivoId: String }
-        do {
-            let sub = try await estado.api.subir(datos, nombre: nombre, tipo: tipo, uso: "documento")
-            let r: Lectura = try await estado.api.enviar("POST", "/v1/contratos/leer", C(archivoId: sub.id))
-            let l = r.datos
-            var nuevo = Self.aplicarLectura(d, l)
-            if !nuevo.documentos.contains(where: { $0.id == sub.id }) {
-                nuevo.documentos.append(DocumentoAlta(id: sub.id, nombre: sub.nombre ?? nombre, tipo: sub.tipo ?? tipo, bytes: sub.bytes ?? datos.count))
-            }
-            if d.propiedad == nil, let dir = l.direccion { nuevo.propiedad = await encontrar("propiedad", dir, nil) }
-            if d.inquilino == nil, let n = l.inquilino?.nombre { nuevo.inquilino = await encontrar("contacto", n, n) }
-            if d.propietario == nil, let n = l.propietario?.nombre { nuevo.propietario = await encontrar("contacto", n, n) }
-            let antes = d
-            let antesTextos = (tHonorarios, tComision, tPunitorio, tPorcentaje, tDia, tMeses)
-            d = nuevo
-            textosDesdeDatos()
-            leidoDe = sub.id
-            var s: [String: String] = [:]
-            if nuevo.propiedad == nil, let x = l.direccion { s["propiedad"] = x }
-            if nuevo.inquilino == nil, let x = l.inquilino?.nombre { s["inquilino"] = x }
-            if nuevo.propietario == nil, let x = l.propietario?.nombre { s["propietario"] = x }
-            sugeridos = s
-            dudosos = (l.dudosos ?? []).filter { Self.pasoDe[$0] != nil }
-            if antes.propiedad == nil, let p = nuevo.propiedad { await propietarioDe(p) }
-            let texto = r.prueba == true ? "Datos de prueba: la lectura no está configurada"
-                : dudosos.isEmpty ? "Lo leímos. Revisá y seguí"
-                : "Lo leímos. Revisá \(dudosos.count == 1 ? "lo marcado" : "las \(dudosos.count) cosas marcadas")"
-            estado.avisar(texto) {
-                d = antes
-                (tHonorarios, tComision, tPunitorio, tPorcentaje, tDia, tMeses) = antesTextos
-                dudosos = []
-                sugeridos = [:]
-                leidoDe = nil
-            }
-        } catch {
-            estado.avisar("No se pudo leer · \((error as? ErrorApi)?.detalle ?? "probá de nuevo")", ok: false)
-        }
-    }
-
-    /// Una sola coincidencia, o la que se llama igual: se elige sola. Si no, queda sugerida.
-    private func encontrar(_ tipo: String, _ q: String, _ igual: String?) async -> ElegidoAlta? {
-        guard let r: [Resultado] = try? await estado.api.get("/v1/buscar", query: [.init(name: "tipo", value: tipo), .init(name: "q", value: q)]) else { return nil }
-        let x = igual.flatMap { n in r.first { Self.mismoNombre($0.titulo, n) } } ?? (r.count == 1 ? r.first : nil)
-        return x.map { ElegidoAlta(id: $0.id, nombre: $0.titulo, detalle: $0.subtitulo) }
-    }
-
-    /// Lo leído pisa lo cargado sólo donde se leyó algo; las partes y la propiedad se buscan aparte.
-    static func aplicarLectura(_ d: DatosContratoAlta, _ l: Leido) -> DatosContratoAlta {
-        var x = d
-        let positivo: (Double?) -> Double? = { v in v.flatMap { $0.isFinite && $0 > 0 ? $0 : nil } }
-        if l.tipo == "alquiler" || l.tipo == "venta" { x.tipo = l.tipo! }
-        if let i = l.inicio, Fecha.dia(i) != nil { x.inicio = i }
-        var meses: Double? = positivo(l.meses.map(Double.init))
-        if meses == nil, let i = l.inicio.flatMap(Fecha.dia), let f = l.fin.flatMap(Fecha.dia) {
-            meses = max(1, (f.timeIntervalSince(i) / (30.44 * 86400)).rounded())
-        }
-        if let m = meses { x.meses = Int(m.rounded()) }
-        if let m = positivo(l.monto) { x.monto = m }
-        if l.moneda == "ARS" || l.moneda == "USD" { x.moneda = l.moneda! }
-        if let dv = l.diaVencimiento, (1...28).contains(dv) { x.diaVencimiento = dv }
-        if let i = l.ajusteIndice, ["icl", "ipc", "uva", "fijo"].contains(i) { x.indice = i }
-        if let m = positivo(l.ajusteMeses.map(Double.init)) { x.ajusteMeses = Int(m.rounded()) }
-        if let p = positivo(l.ajustePorcentaje) { x.ajustePorcentaje = p }
-        if let p = positivo(l.deposito) { x.deposito = p }
-        if let p = positivo(l.honorarios) { x.honorarios = p }
-        if let p = positivo(l.punitorioDiario) { x.punitorioDiario = p }
-        if let g = l.garante?.nombre.nonEmpty {
-            x.garanteNombre = g
-            if let t = l.garante?.telefono?.nonEmpty { x.garanteTelefono = t }
-        }
-        let notas = [l.garantia.map { "Garantía: \($0)" }, l.notas?.nonEmpty].compactMap { $0 }.joined(separator: "\n")
-        if !notas.isEmpty && !x.notas.contains(notas) { x.notas = [x.notas.trimmingCharacters(in: .whitespacesAndNewlines), notas].filter { !$0.isEmpty }.joined(separator: "\n\n") }
-        return x
     }
 
     // MARK: Documentos
@@ -1102,18 +940,12 @@ struct AltaContrato: View {
         guard let n else { return "" }
         return (n.rounded() == n ? String(Int(n)) : String(n)).replacingOccurrences(of: ".", with: ",")
     }
-
-    /// «Martín  Ríos» y «martin rios» son el mismo nombre.
-    static func mismoNombre(_ a: String, _ b: String) -> Bool {
-        let n: (String) -> String = { $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current).split(whereSeparator: \.isWhitespace).joined(separator: " ") }
-        return n(a) == n(b)
-    }
 }
 
 /// El alta apilada desde una ruta (`/contratos/nuevo?borrador=` o `?renovar=`).
 struct AltaContratoPantalla: View {
     var destino: AAltaContrato
-    var body: some View { AltaContrato(leer: destino.leer, renovar: destino.renovar, borrador: destino.borrador, apilada: true) }
+    var body: some View { AltaContrato(renovar: destino.renovar, borrador: destino.borrador, apilada: true) }
 }
 
 // MARK: - Elegir propiedad y partes
@@ -1123,7 +955,6 @@ struct ElegirPropiedadAlta: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     var operacion: String
-    var sugerido: String?
     var alElegir: (ElegidoAlta) -> Void
     @State private var q = ""
     @State private var res: [ElegidoAlta] = []
@@ -1149,7 +980,6 @@ struct ElegirPropiedadAlta: View {
             .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Calle, barrio o código")
             .navigationTitle("Elegí la propiedad").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } } }
-            .onAppear { if let sugerido, q.isEmpty { q = sugerido } }
             .task(id: q) {
                 try? await Task.sleep(for: .milliseconds(200))
                 if Task.isCancelled { return }
@@ -1176,7 +1006,6 @@ struct ElegirParteAlta: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
     var tipo: String
-    var sugerido: String?
     var alElegir: (ElegidoAlta) -> Void
     @State private var q = ""
     @State private var res: [ElegidoAlta] = []
@@ -1203,7 +1032,6 @@ struct ElegirParteAlta: View {
             .searchable(text: $q, placement: .navigationBarDrawer(displayMode: .always), prompt: "Nombre o teléfono")
             .navigationTitle("Elegí \(Self.tipos[tipo]?.lowercased() ?? "el contacto")").navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } } }
-            .onAppear { if let sugerido, q.isEmpty { q = sugerido } }
             .task(id: q) {
                 try? await Task.sleep(for: .milliseconds(200))
                 if Task.isCancelled { return }
