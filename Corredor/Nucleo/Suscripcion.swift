@@ -51,6 +51,8 @@ struct Suscripcion: Decodable, Equatable {
     var esperando: String?
     var soloLectura: Bool
     var enPrueba: Bool
+    /// Cuándo se borran los datos si no elige un plan (sólo vencida y con la purga prendida; si no, nil).
+    var borraEn: Date?
     var agentes: Agentes
     var planes: [Plan]
     var mercadoPago: Bool

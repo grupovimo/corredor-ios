@@ -124,7 +124,7 @@ struct CorredorEnTuIA: View {
                 }
             }
             paso(2, "Pegala en tu asistente como «conector» o «servidor MCP»")
-            Text(Formato.sinViudas("Te va a pedir que entres a Corredor y autorices. Usás tu cuenta de siempre: Google, Apple o mail."))
+            Text(Formato.sinViudas("Te va a pedir que entres a Corredor y autorices. Usás la misma cuenta con la que entrás a Corredor."))
                 .estilo(.footnote).foregroundStyle(C.texto2)
             paso(3, "Elegí qué puede hacer")
             permiso("eye", C.okTinta, "Leer cartera, contactos, agenda y contratos", "sólo lo que tu rol ve", prendido: .constant(true), bloqueado: true)

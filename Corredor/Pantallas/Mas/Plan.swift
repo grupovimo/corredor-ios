@@ -103,7 +103,9 @@ struct PantallaPlan: View {
         case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, queda en sólo lectura 90 días para que exportes tus datos, y después se borran."
         case "activa": return s.comoSePaga
         case "baja": return "Elegí un plan para seguir sin cortes. Lo que ya pagaste no se pierde."
-        default: return "Todo lo tuyo sigue acá y lo podés ver y exportar durante 90 días; después se borra. Para volver a cargar, elegí un plan: se activa en el momento."
+        default:
+            let hasta = s.borraEn.map { "hasta el \(Formato.fechaLarga($0)), cuando se borra" } ?? "durante 90 días; después se borra"
+            return "Todo lo tuyo sigue acá y lo podés ver y exportar \(hasta). Para volver a cargar, elegí un plan: se activa en el momento."
         }
     }
 
@@ -452,7 +454,10 @@ struct AvisoPlan: View {
 
     private func texto(_ s: Suscripcion) -> String {
         switch s.estado {
-        case "vencida": return estado.esDuenio ? "Tu prueba terminó: estás en sólo lectura. Tus datos quedan 90 días." : "La inmobiliaria está en sólo lectura."
+        case "vencida":
+            guard estado.esDuenio else { return "La inmobiliaria está en sólo lectura." }
+            if let b = s.borraEn { return "Estás en sólo lectura. Si no elegís un plan, el \(Formato.fechaLarga(b)) se borran tus datos." }
+            return "Tu prueba terminó: estás en sólo lectura. Tus datos quedan 90 días."
         case "baja": return "Tu plan no se renueva: termina el \(Formato.dia(s.vigenteHasta))."
         default: return s.diasRestantes <= 1 ? "Hoy es el último día de tu prueba gratis." : "Te quedan \(s.diasRestantes) días de prueba gratis."
         }

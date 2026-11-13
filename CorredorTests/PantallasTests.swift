@@ -686,6 +686,20 @@ final class PantallasTests: XCTestCase {
         // Con Google dado de baja ya se puede pasar al App Store.
         XCTAssertFalse(try suscripcion(medio: "google", renueva: false).pagaAfuera)
     }
+    /// Plan vencido con la fecha de borrado que manda la API: el detalle dice hasta cuándo se pueden exportar.
+    func testPlanVencidoBorraEn() throws {
+        var s = try suscripcion(medio: nil, renueva: false)
+        s.estado = "vencida"
+        s.soloLectura = true
+        s.borraEn = Date(timeIntervalSince1970: 1_802_260_800)
+        montar(PantallaPlan()) { $0.suscripcion = s }
+        XCTAssertNotNil(s.borraEn)
+    }
+    func testBorraEnSeLee() throws {
+        let json = #"{"estado":"vencida","ciclo":"mes","pruebaHasta":"2026-10-19T12:00:00Z","vigenteHasta":"2026-10-19T12:00:00Z","diasRestantes":0,"renueva":false,"soloLectura":true,"enPrueba":false,"borraEn":"2027-02-10T12:00:00Z","agentes":{"usados":1,"cupo":null},"planes":[],"mercadoPago":false,"cobros":[]}"#
+        let s = try Api.decodificador.decode(Suscripcion.self, from: Data(json.utf8))
+        XCTAssertNotNil(s.borraEn)
+    }
     func testElegirInmobiliaria() { montar(ElegirInmobiliaria()) }
     func testBloqueo() { montar(Bloqueo(), segundos: 1) }
     func testPrincipal() { montar(Principal()) }

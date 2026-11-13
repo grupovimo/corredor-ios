@@ -50,6 +50,7 @@ struct FichaContacto: View {
     @State private var editando: String?
     @State private var agendar: AgendarDesdeFicha?
     @State private var nuevaOp = false
+    @State private var suprimir = false
     @State private var dictado = Dictado()
     @State private var base = ""
     @State private var dictandoDesde: Date?
@@ -91,10 +92,17 @@ struct FichaContacto: View {
                     Button { agendar = AgendarDesdeFicha(dia: Date(), hora: nil) } label: { Label("Agendar visita", systemImage: "calendar") }
                     Button { nuevaOp = true } label: { Label("Nueva operación", systemImage: "rectangle.split.3x1") }
                     Button(role: .destructive) { Task { await borrar() } } label: { Label("Mandar a la papelera", systemImage: "trash") }
+                    if estado.esDuenio {
+                        Button(role: .destructive) { suprimir = true } label: { Label("Borrar sus datos", systemImage: "person.crop.circle.badge.xmark") }
+                    }
                 } label: { Image(systemName: "ellipsis.circle") }.accessibilityLabel("Más")
             }
         }
         .task(id: estado.version) { await cargar() }
+        .confirmationDialog("¿Borrar los datos de \(c?.nombre ?? "este contacto")?", isPresented: $suprimir, titleVisibility: .visible) {
+            Button("Borrar sus datos", role: .destructive) { Task { await borrarDatos() } }
+            Button("No", role: .cancel) {}
+        } message: { Text("Es para cuando te lo pide. Borramos su ficha y todo lo suyo, y en el historial queda que se borró, sin sus datos. No se puede deshacer.") }
         .sheet(item: Binding(get: { editando.map { HojaEditar(id: $0) } }, set: { editando = $0?.id })) { s in
             if let c { EditarContacto(contacto: c, soloBusca: s.id == "busca") }
         }
@@ -483,6 +491,23 @@ struct FichaContacto: View {
             estado.avisar("Anotado en la ficha")
             estado.version += 1
         } catch { estado.avisar(error) }
+    }
+
+    /// Cuando la persona lo pide (ley de datos personales): a la papelera y de ahí, del todo. Sólo el dueño.
+    /// Si algo depende todavía del contacto (una operación), queda en la papelera y se avisa por qué.
+    private func borrarDatos() async {
+        do {
+            try await estado.api.hacer("DELETE", "/v1/contactos/\(id)")
+        } catch { estado.avisar(error); return }
+        do {
+            try await estado.api.hacer("DELETE", "/v1/papelera/contacto/\(id)")
+            cerrar()
+            estado.avisar("Borramos sus datos")
+        } catch let e as ErrorApi {
+            cerrar()
+            estado.avisar("Quedó en la papelera: \(e.detalle)")
+        } catch { estado.avisar(error) }
+        estado.version += 1
     }
 
     /// A la papelera; «Deshacer» la restaura.

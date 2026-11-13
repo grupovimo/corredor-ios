@@ -531,7 +531,7 @@ struct MiraRaiz: View {
             Image(systemName: "camera.badge.ellipsis").font(.system(size: 38)).foregroundStyle(C.oro)
                 .frame(width: 84, height: 84).background(C.oro.opacity(0.16), in: .rect(cornerRadius: 26, style: .continuous))
             Text("MIRA necesita la cámara").font(Estilo(tamano: 24, peso: .bold, tracking: -0.02, relativo: .title2).font)
-            Text("Activala en Ajustes › Corredor › Cámara. Sólo la usamos para leer carteles.").estilo(.body16)
+            Text("Activala en Ajustes › Corredor › Cámara. Sólo la usamos para leer carteles y sacarles fotos a las propiedades.").estilo(.body16)
                 .foregroundStyle(Color(hex: 0xCFE0D8)).multilineTextAlignment(.center)
             Button("Abrir Ajustes") { if let u = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(u, options: [:], completionHandler: nil) } }
                 .font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font).foregroundStyle(Color(hex: 0x1A1405))
