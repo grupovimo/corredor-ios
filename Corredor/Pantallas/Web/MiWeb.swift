@@ -647,7 +647,7 @@ struct MiWeb: View {
                 Label("1. Lo compraste en NIC.ar u otro registro", systemImage: "checkmark.circle.fill").foregroundStyle(C.okTinta)
                 let registros: [JSONLibre] = { if case .lista(let l)? = dominio?["registros"] { return l }; return [] }()
                 let principal = registros.first
-                Label("2. Cargaste \(principal?["tipo"]?.texto == "A" ? "el registro A" : "el CNAME") \(principal?["valor"]?.texto ?? "")",
+                Label("2. Cargaste \(principal?["tipo"]?.texto == "A" ? "el registro A" : "el CNAME") \(principal?["valor"]?.texto ?? "") y el TXT",
                       systemImage: verificado ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(verificado ? C.okTinta : C.texto)
                 if !verificado {
