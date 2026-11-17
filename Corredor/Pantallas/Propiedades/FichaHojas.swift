@@ -161,8 +161,10 @@ struct HojaCompartir: View {
     private func anotar(_ contactoId: String, _ primero: String) async {
         struct Cuerpo: Encodable { var contactoId: String; var canal = "whatsapp" }
         struct Envio: Decodable { var id: String; var enviadaEn: Date? }
+        // La misma Idempotency-Key directo y en la cola: el envío no se anota dos veces.
+        let clave = UUID().uuidString
         do {
-            let e: Envio = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: contactoId))
+            let e: Envio = try await estado.api.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: contactoId), envio: clave)
             mandadas[contactoId] = e.enviadaEn ?? Date()
             estado.version += 1
             estado.avisar("Anotamos que se la mandaste a \(primero)") {
@@ -176,7 +178,7 @@ struct HojaCompartir: View {
             }
         } catch let e as ErrorApi where e.sinConexion {
             // Sin señal, el envío se anota cuando vuelva (el WhatsApp igual salió).
-            _ = try? await estado.cola.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: contactoId), etiqueta: "Ficha a \(primero)")
+            _ = try? await estado.cola.enviar("POST", "/v1/propiedades/\(propiedad.id)/envios", Cuerpo(contactoId: contactoId), etiqueta: "Ficha a \(primero)", envio: clave)
         } catch {
             // Si no se anota, el WhatsApp igual salió.
         }

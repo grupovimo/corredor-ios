@@ -452,8 +452,10 @@ struct FichaContacto: View {
         struct Cuerpo: Encodable { var tipo = "nota"; var texto: String }
         guardando = true
         defer { guardando = false }
+        // La misma Idempotency-Key directo y en la cola: si la primera llegó sin respuesta, no queda dos veces.
+        let envio = UUID().uuidString
         do {
-            let n: NotaContacto = try await estado.api.enviar("POST", "/v1/contactos/\(id)/notas", Cuerpo(texto: String(t.prefix(5000))))
+            let n: NotaContacto = try await estado.api.enviar("POST", "/v1/contactos/\(id)/notas", Cuerpo(texto: String(t.prefix(5000))), envio: envio)
             nota = ""
             estado.avisar("Nota guardada") {
                 Task {
@@ -467,7 +469,7 @@ struct FichaContacto: View {
             return true
         } catch let e as ErrorApi where e.sinConexion {
             do {
-                try await estado.cola.enviar("POST", "/v1/contactos/\(id)/notas", Cuerpo(texto: t), etiqueta: "Nota en \(c?.nombre ?? "")")
+                try await estado.cola.enviar("POST", "/v1/contactos/\(id)/notas", Cuerpo(texto: String(t.prefix(5000))), etiqueta: "Nota en \(c?.nombre ?? "")", envio: envio)
                 nota = ""
                 estado.avisar("Sin señal · la nota se guarda cuando vuelva")
                 return true
@@ -632,9 +634,11 @@ struct EditarContacto: View {
                             agenteId: contacto == nil ? estado.usuario?.id : c.agenteId)
         let metodo = contacto == nil ? "POST" : "PUT"
         let ruta = contacto.map { "/v1/contactos/\($0.id)" } ?? "/v1/contactos"
+        // La misma Idempotency-Key en el primer intento y en la cola (el alta no se duplica).
+        let envio = UUID().uuidString
         do {
             // Primero directo (para ver los errores por campo); sin señal, a la cola.
-            let campos = try await estado.api.hacerValidando(metodo, ruta, cuerpo)
+            let campos = try await estado.api.hacerValidando(metodo, ruta, cuerpo, envio: envio)
             if !campos.isEmpty {
                 errores = campos
                 error = "Revisá los datos marcados."
@@ -645,7 +649,7 @@ struct EditarContacto: View {
             cerrar()
         } catch let e as ErrorApi where e.sinConexion {
             do {
-                try await estado.cola.enviar(metodo, ruta, cuerpo, etiqueta: contacto == nil ? "Alta de \(c.nombre)" : "Cambios en \(c.nombre)")
+                try await estado.cola.enviar(metodo, ruta, cuerpo, etiqueta: contacto == nil ? "Alta de \(c.nombre)" : "Cambios en \(c.nombre)", envio: envio)
                 estado.avisar("Sin señal · se guarda cuando vuelva")
                 estado.version += 1
                 cerrar()
@@ -657,9 +661,9 @@ struct EditarContacto: View {
 extension Api {
     /// Como `hacer`, pero si la API rechaza los datos (400/422) devuelve los errores por campo
     /// (problem+json `issues`: path → message) en vez de tirar el error. Sin señal tira `ErrorApi.sinRed`.
-    func hacerValidando<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C) async throws -> [String: String] {
+    func hacerValidando<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C, envio: String = UUID().uuidString) async throws -> [String: String] {
         do {
-            _ = try await pedir(metodo, ruta, cuerpo: try Api.codificador.encode(cuerpo), envio: UUID().uuidString)
+            _ = try await pedir(metodo, ruta, cuerpo: try Api.codificador.encode(cuerpo), envio: envio)
             return [:]
         } catch let e as ErrorApi where (e.estado == 400 || e.estado == 422) && !e.campos.isEmpty {
             return e.campos

@@ -29,6 +29,9 @@ final class Api: @unchecked Sendable {
     var token: String?
     /// Se llama cuando la API dice que la sesión ya no vale (401 sin_sesion): la app vuelve al ingreso.
     var alPerderSesion: (@MainActor () -> Void)?
+    /// Se llama cuando la API dice que no hay inmobiliaria elegida (409 sin_inmobiliaria: se fue del equipo o
+    /// la borraron): la app recarga la sesión y lleva a elegir otra.
+    var alPerderInmobiliaria: (@MainActor () -> Void)?
     let http: URLSession
 
     init(base: URL, token: String? = nil, http: URLSession = .shared) {
@@ -119,10 +122,16 @@ final class Api: @unchecked Sendable {
                              guard let k = c.path else { return nil }
                              return (k, c.message ?? "Revisá este dato.")
                          }, uniquingKeysWith: { a, _ in a }))
-        if e.sinSesion, token != nil, let alPerderSesion {
-            await alPerderSesion()
-        }
+        await reaccionar(estado: e.estado, codigo: e.codigo)
         throw e
+    }
+
+    /// Lo que la app hace sola con ciertos errores, en cualquier pedido: 401 sin_sesion → al ingreso;
+    /// 409 sin_inmobiliaria → a elegir la inmobiliaria.
+    fileprivate func reaccionar(estado: Int, codigo: String) async {
+        guard token != nil else { return }
+        if estado == 401, codigo == "sin_sesion", let alPerderSesion { await alPerderSesion() }
+        if estado == 409, codigo == "sin_inmobiliaria", let alPerderInmobiliaria { await alPerderInmobiliaria() }
     }
 
     func get<T: Decodable>(_ ruta: String, query: [URLQueryItem] = []) async throws -> T {
@@ -143,8 +152,9 @@ final class Api: @unchecked Sendable {
         return todos
     }
 
-    func enviar<T: Decodable, C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C) async throws -> T {
-        try decodificar(await pedir(metodo, ruta, cuerpo: Api.codificador.encode(cuerpo)))
+    /// `envio`: la Idempotency-Key (la misma que se usa si después va a la cola sin conexión).
+    func enviar<T: Decodable, C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C, envio: String? = nil) async throws -> T {
+        try decodificar(await pedir(metodo, ruta, cuerpo: Api.codificador.encode(cuerpo), envio: envio))
     }
 
     /// Un pedido sin respuesta (204).
@@ -236,9 +246,12 @@ extension Api {
         let (d, resp): (Data, URLResponse)
         do { (d, resp) = try await http.data(for: r) } catch { throw ErrorApi.sinRed }
         guard let h = resp as? HTTPURLResponse, (200..<300).contains(h.statusCode) else {
-            struct P: Decodable { var detail: String?; var title: String? }
+            struct P: Decodable { var detail: String?; var title: String?; var code: String? }
             let p = try? JSONDecoder().decode(P.self, from: d)
-            throw ErrorApi(estado: (resp as? HTTPURLResponse)?.statusCode ?? 0, codigo: "archivo", titulo: p?.title ?? "No se subió",
+            let estado = (resp as? HTTPURLResponse)?.statusCode ?? 0
+            // La sesión vencida (o sin inmobiliaria) también se nota al subir un archivo, como en los demás pedidos.
+            await reaccionar(estado: estado, codigo: p?.code ?? "")
+            throw ErrorApi(estado: estado, codigo: "archivo", titulo: p?.title ?? "No se subió",
                            detalle: p?.detail ?? "No se pudo subir el archivo.")
         }
         return d

@@ -668,8 +668,7 @@ struct BorrarCuenta: View {
                 borrando = true
                 Task {
                     do {
-                        try await estado.api.hacer("DELETE", "/v1/auth/cuenta")
-                        await estado.salir()
+                        try await estado.borrarCuenta()
                         estado.avisar("Tu cuenta quedó desactivada.")
                     } catch { estado.avisar(error) }
                     borrando = false

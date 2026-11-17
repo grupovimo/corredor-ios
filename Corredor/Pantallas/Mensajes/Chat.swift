@@ -14,6 +14,9 @@ struct Chat: View {
     @State private var mensajes: [MensajeWA] = []
     @State private var enviados: [MensajeWA] = []
     @State private var ocultos: Set<String> = []
+    /// Los mensajes locales que quedaron en la cola sin señal (su id → la Idempotency-Key del cambio): cuando
+    /// la cola los sube, el real llega con la lista y el local se saca (no se ve dos veces).
+    @State private var encolados: [String: String] = [:]
     @State private var texto = ""
     @State private var chip: String?
     @State private var adjunto: Archivo?
@@ -689,7 +692,10 @@ struct Chat: View {
         if let m: [MensajeWA] = try? await estado.api.get("/v1/whatsapp/conversaciones/\(id)/mensajes", query: [.init(name: "limite", value: "200")]) {
             mensajes = m.sorted { $0.ocurrioEn < $1.ocurrioEn }
             let ids = Set(mensajes.map(\.id))
-            enviados = enviados.filter { !ids.contains($0.id) && ($0.local ? $0.estado != "enviado" : true) }
+            let enCola = Set(estado.cola.cambios.map(\.clave))
+            let subidos = Set(encolados.filter { !enCola.contains($0.value) }.keys)
+            encolados = encolados.filter { !subidos.contains($0.key) }
+            enviados = enviados.filter { !ids.contains($0.id) && !subidos.contains($0.id) && ($0.local ? $0.estado != "enviado" : true) }
         }
     }
 
@@ -720,8 +726,14 @@ struct Chat: View {
                 enviados.append(m)
             } else {
                 struct Cuerpo: Encodable { var texto: String }
-                let subio = try await estado.cola.enviar("POST", "/v1/whatsapp/conversaciones/\(id)/mensajes", Cuerpo(texto: t), etiqueta: "Mensaje a \(nombre)")
-                if subio { enviados.removeAll { $0.id == tmp.id } } else { estado.avisar("Sin señal: lo que escribas sale cuando vuelva.") }
+                let clave = UUID().uuidString
+                let subio = try await estado.cola.enviar("POST", "/v1/whatsapp/conversaciones/\(id)/mensajes", Cuerpo(texto: t), etiqueta: "Mensaje a \(nombre)", envio: clave)
+                if subio {
+                    enviados.removeAll { $0.id == tmp.id }
+                } else {
+                    encolados[tmp.id] = clave
+                    estado.avisar("Sin señal: lo que escribas sale cuando vuelva.")
+                }
             }
             await cargarMensajes()
         } catch {

@@ -19,6 +19,8 @@ struct NuevosLotes: View {
     @State private var fondo: Double?
     @State private var precio: Double?
     @State private var moneda = "USD"
+    /// Mientras manda, «Crear» no se puede volver a tocar (no se crean los lotes dos veces).
+    @State private var mandando = false
 
     var body: some View {
         NavigationStack {
@@ -39,7 +41,9 @@ struct NuevosLotes: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancelar") { cerrar() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Crear") {
+                        mandando = true
                         Task {
+                            defer { mandando = false }
                             struct C: Encodable { var manzana: String; var desde: Int; var hasta: Int; var superficie: Double?; var frente: Double?; var fondo: Double?; var precio: Double?; var moneda: String }
                             struct R: Decodable { var creados: Int?; var salteados: Int? }
                             do {
@@ -51,6 +55,7 @@ struct NuevosLotes: View {
                             } catch { estado.avisar(error) }
                         }
                     }
+                    .disabled(mandando)
                 }
             }
         }

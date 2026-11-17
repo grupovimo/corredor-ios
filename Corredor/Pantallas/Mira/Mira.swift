@@ -101,6 +101,15 @@ final class ColaMira {
         }
     }
 
+    /// Al cerrar sesión o cambiar de inmobiliaria: no queda nada de la anterior, ni las fotos en disco
+    /// ni lo pendiente de leer.
+    func olvidar() {
+        fotos = []
+        abrir = nil
+        try? FileManager.default.removeItem(at: ColaMira.carpeta)
+        persistir()
+    }
+
     private func persistir() { Guardado.guardar(fotos, clave: "mira") }
 }
 

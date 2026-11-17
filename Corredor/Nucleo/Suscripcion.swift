@@ -105,6 +105,9 @@ final class Tienda {
     private var escuchando: Task<Void, Never>?
     /// Quién recibe las transacciones (la API de la sesión) y de qué inmobiliaria son.
     var api: Api?
+    /// Sólo el dueño paga el plan: con otro rol, la API rechaza la compra (403) y la transacción quedaría
+    /// sin terminar dando vueltas. Se pone al entrar a cada inmobiliaria.
+    var esDuenio = false
 
     func cargar(_ ids: [String]) async {
         guard !ids.isEmpty, productos.isEmpty || !Set(ids).isSubset(of: Set(productos.keys)) else { return }
@@ -117,45 +120,48 @@ final class Tienda {
 
     /// Escucha las transacciones que no vienen de una compra hecha acá (y las que quedaron sin terminar).
     func escuchar() {
-        guard escuchando == nil else { return }
+        guard escuchando == nil, esDuenio else { return }
         escuchando = Task { [weak self] in
-            for await r in Transaction.unfinished { _ = try? await self?.procesar(r) }
-            for await r in Transaction.updates { _ = try? await self?.procesar(r) }
+            for await r in Transaction.unfinished where self?.esDuenio == true { _ = try? await self?.procesar(r) }
+            for await r in Transaction.updates where self?.esDuenio == true { _ = try? await self?.procesar(r) }
         }
     }
 
-    enum Resultado { case listo(Suscripcion), cancelada, pendiente }
+    /// `listo`: la API ya la registró; la suscripción se vuelve a pedir (GET /v1/suscripcion).
+    enum Resultado { case listo, cancelada, pendiente }
 
     func comprar(_ producto: Product, inmobiliaria: String) async throws -> Resultado {
         var opciones: Set<Product.PurchaseOption> = []
         if let u = UUID(uuidString: inmobiliaria) { opciones.insert(.appAccountToken(u)) }
         switch try await producto.purchase(options: opciones) {
         case .success(let r):
-            guard let s = try await procesar(r) else { return .pendiente }
-            return .listo(s)
+            return try await procesar(r) ? .listo : .pendiente
         case .pending: return .pendiente
         case .userCancelled: return .cancelada
         @unknown default: return .cancelada
         }
     }
 
-    /// «Restaurar compras»: vuelve a mandar a la API lo que el App Store tiene vigente.
-    func restaurar() async throws -> Suscripcion? {
+    /// «Restaurar compras»: vuelve a mandar a la API lo que el App Store tiene vigente. `true` si la API
+    /// registró alguna (la suscripción se vuelve a pedir después).
+    func restaurar() async throws -> Bool {
         try await AppStore.sync()
-        var ultima: Suscripcion?
+        var alguna = false
         for await r in Transaction.currentEntitlements {
-            if let s = try? await procesar(r) { ultima = s }
+            if (try? await procesar(r)) == true { alguna = true }
         }
-        return ultima
+        return alguna
     }
 
+    /// Manda la transacción firmada a la API y, si la registró, la termina. Lo que devuelve la API no se
+    /// lee acá: que no se entienda la respuesta no puede dejar la transacción sin terminar.
     @discardableResult
-    private func procesar(_ r: VerificationResult<Transaction>) async throws -> Suscripcion? {
-        guard case .verified(let t) = r else { return nil }
-        guard let api else { return nil }
+    private func procesar(_ r: VerificationResult<Transaction>) async throws -> Bool {
+        guard case .verified(let t) = r else { return false }
+        guard let api else { return false }
         struct Cuerpo: Encodable { var transaccion: String }
-        let s: Suscripcion = try await api.enviar("POST", "/v1/suscripcion/apple", Cuerpo(transaccion: r.jwsRepresentation))
+        _ = try await api.pedir("POST", "/v1/suscripcion/apple", cuerpo: Api.codificador.encode(Cuerpo(transaccion: r.jwsRepresentation)))
         await t.finish()
-        return s
+        return true
     }
 }

@@ -646,7 +646,10 @@ enum Cobrar {
         let cuerpo = Cuerpo(periodo: String(a.periodo.prefix(7)), monto: conceptos.isEmpty ? monto : nil, medio: medio,
                             conceptos: conceptos.isEmpty ? nil : conceptos, pagadoEl: pagadoEl)
         let ruta = "/v1/contratos/\(a.contratoId)/cobros"
-        let pedido = Task<Cobro, Error> { try await estado.api.enviar("POST", ruta, cuerpo) }
+        // La misma Idempotency-Key en el primer intento y en la cola: si el primero llegó y se cortó la
+        // respuesta, la cola no lo cobra dos veces.
+        let envio = UUID().uuidString
+        let pedido = Task<Cobro, Error> { try await estado.api.enviar("POST", ruta, cuerpo, envio: envio) }
         let caja = CajaCobro()
         estado.avisar(texto) {
             caja.deshecho = true
@@ -672,7 +675,7 @@ enum Cobrar {
             } catch let e as ErrorApi where e.sinConexion {
                 if caja.deshecho { return nil }
                 do {
-                    try await estado.cola.enviar("POST", ruta, cuerpo, etiqueta: "Cobro de \(a.nombre ?? a.propiedad ?? "")")
+                    try await estado.cola.enviar("POST", ruta, cuerpo, etiqueta: "Cobro de \(a.nombre ?? a.propiedad ?? "")", envio: envio)
                     estado.avisar("Sin señal · el cobro queda en cola")
                 } catch { mostrar?(); estado.avisar(error) }
                 return nil

@@ -316,9 +316,14 @@ struct PantallaPlan: View {
         bajando = true
         defer { bajando = false; confirmarBaja = false }
         do {
-            let s: Suscripcion = try await estado.api.enviar("POST", "/v1/suscripcion/baja", [String: String]())
-            estado.suscripcion = s
-            estado.avisar("Listo, no se renueva más. Seguís con todo hasta el \(Formato.fechaLarga(s.vigenteHasta)).")
+            try await estado.api.hacer("POST", "/v1/suscripcion/baja", [String: String]())
+            // La respuesta puede ser sólo el estado: la suscripción entera se vuelve a pedir.
+            await estado.cargarSuscripcion()
+            if let s = estado.suscripcion {
+                estado.avisar("Listo, no se renueva más. Seguís con todo hasta el \(Formato.fechaLarga(s.vigenteHasta)).")
+            } else {
+                estado.avisar("Listo, no se renueva más.")
+            }
         } catch { estado.avisar(error) }
     }
 
@@ -354,8 +359,8 @@ struct PantallaPlan: View {
         defer { comprando = false }
         do {
             switch try await tienda.comprar(p, inmobiliaria: inmo) {
-            case .listo(let s):
-                estado.suscripcion = s
+            case .listo:
+                await estado.cargarSuscripcion()
                 Haptico.exito()
                 estado.avisar("¡Listo! Tu plan \(plan.nombre) quedó activo.")
             case .pendiente:
@@ -372,8 +377,8 @@ struct PantallaPlan: View {
         restaurando = true
         defer { restaurando = false }
         do {
-            if let s = try await tienda.restaurar() {
-                estado.suscripcion = s
+            if try await tienda.restaurar() {
+                await estado.cargarSuscripcion()
                 estado.avisar("Listo, recuperamos tu plan.")
             } else {
                 estado.avisar("No encontramos compras de Corredor en esta cuenta de Apple.", ok: false)

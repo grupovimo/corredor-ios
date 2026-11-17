@@ -131,6 +131,7 @@ final class Estado {
         self.api = a
         cola = Cola(api: a)
         a.alPerderSesion = { [weak self] in self?.sesionPerdida() }
+        a.alPerderInmobiliaria = { [weak self] in self?.inmobiliariaPerdida() }
         cola.alSubir = { [weak self] in self?.version += 1 }
     }
 
@@ -179,7 +180,11 @@ final class Estado {
             fase = sesion?.inmobiliariaId == nil ? .afuera : .adentro
             // Sin señal ya lo dice la marca de «Sin conexión»; si es la API, se avisa acá.
             if (error as? ErrorApi)?.sinConexion != true {
-                avisar("No pudimos conectar con Corredor. Ves lo último guardado.", ok: false)
+                if fase == .adentro {
+                    avisar("No pudimos conectar con Corredor. Ves lo último guardado.", ok: false)
+                } else {
+                    avisar("Corredor no responde. Probá de nuevo en un rato.", ok: false)
+                }
             }
         }
     }
@@ -213,7 +218,9 @@ final class Estado {
             invitacionAbierta = InvitacionAbierta(token: t)
         }
         // Las compras del App Store que llegan solas (renovaciones, otro dispositivo) van a la API.
+        // Sólo con el dueño: el plan lo paga él (con otro rol la API las rechaza).
         Tienda.compartida.api = api
+        Tienda.compartida.esDuenio = esDuenio
         Tienda.compartida.escuchar()
         await cargarEstructura()
         await cargarSuscripcion()
@@ -301,6 +308,8 @@ final class Estado {
             pilas = [:]
             estructura = nil
             ponerAcento(nil)
+            // Lo pendiente de la anterior no se sube a la nueva (la cola, MIRA) ni se ven sus números.
+            olvidarInmobiliaria()
         }
         sesion = s
         Guardado.guardar(s, clave: "sesion")
@@ -331,12 +340,54 @@ final class Estado {
         fase = .afuera
     }
 
+    /// Borrar la cuenta: primero se saca este iPhone de los avisos (después ya no hay sesión para hacerlo),
+    /// después el DELETE, y la sesión se olvida acá (la API ya la cerró: no se llama a salir).
+    func borrarCuenta() async throws {
+        if let t = tokenPush { try? await api.hacer("DELETE", "/v1/push/dispositivos/\(t)") }
+        try await api.hacer("DELETE", "/v1/auth/cuenta")
+        olvidarSesion()
+        fase = .afuera
+    }
+
     private func sesionPerdida() {
         olvidarSesion()
         fase = .afuera
         avisar("Tu sesión venció. Entrá de nuevo.", ok: false)
     }
 
+    /// 409 sin_inmobiliaria en cualquier pedido (lo sacaron del equipo, la borraron): se recarga la
+    /// sesión y se va a elegir otra (o a crear una), sin nada de la anterior.
+    private func inmobiliariaPerdida() {
+        guard fase == .adentro else { return }
+        fase = .eligiendo
+        Guardado.borrarTodo()
+        pilas = [:]
+        estructura = nil
+        ponerAcento(nil)
+        altaAbierta = nil
+        olvidarInmobiliaria()
+        avisar("Elegí o creá una inmobiliaria para seguir.", ok: false)
+        Task {
+            if let s: Sesion = try? await api.get("/v1/auth/sesion") {
+                sesion = s
+                Guardado.guardar(s, clave: "sesion")
+            }
+        }
+    }
+
+    /// Lo que es de una inmobiliaria y no puede pasar a otra cuenta ni a otra inmobiliaria: la cola sin
+    /// conexión, las fotos de MIRA, las insignias y la suscripción.
+    private func olvidarInmobiliaria() {
+        cola.vaciar()
+        ColaMira.compartida.olvidar()
+        Insignias.compartidas.olvidar()
+        sinLeer = 0
+        avisosPendientes = 0
+        suscripcion = nil
+        Tienda.compartida.esDuenio = false
+    }
+
+    /// Olvida la sesión en este iPhone (sin avisarle a la API): el token, lo guardado y lo pendiente.
     private func olvidarSesion() {
         estructura = nil
         ponerAcento(nil)
@@ -346,7 +397,7 @@ final class Estado {
         sesion = nil
         pilas = [:]
         Guardado.borrarTodo()
-        cola.vaciar()
+        olvidarInmobiliaria()
         SesionCompartida.guardar(token: nil, api: api.base)
     }
 
@@ -504,6 +555,10 @@ final class Cola {
         var creado = Date()
         var intentos = 0
         var error: String?
+        /// La Idempotency-Key con que se mandó la primera vez (si la pantalla ya probó con una); si no, el id.
+        var envio: String?
+
+        var clave: String { envio ?? id.uuidString }
     }
 
     private(set) var cambios: [Cambio] = []
@@ -517,13 +572,14 @@ final class Cola {
         cambios = Guardado.leer([Cambio].self, clave: Cola.clave)?.0 ?? []
     }
 
-    /// Manda el cambio ya; si no hay señal, queda en la cola y devuelve `false`.
+    /// Manda el cambio ya; si no hay señal, queda en la cola y devuelve `false`. `envio`: la Idempotency-Key
+    /// del primer intento, si la pantalla ya lo mandó por su lado (así el reintento de la cola no lo duplica).
     @discardableResult
-    func enviar<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C?, etiqueta: String) async throws -> Bool {
+    func enviar<C: Encodable>(_ metodo: String, _ ruta: String, _ cuerpo: C?, etiqueta: String, envio: String? = nil) async throws -> Bool {
         let d = try cuerpo.map { try Api.codificador.encode($0) }
-        var c = Cambio(metodo: metodo, ruta: ruta, cuerpo: d, etiqueta: etiqueta)
+        var c = Cambio(metodo: metodo, ruta: ruta, cuerpo: d, etiqueta: etiqueta, envio: envio)
         do {
-            _ = try await api.pedir(metodo, ruta, cuerpo: d, envio: c.id.uuidString)
+            _ = try await api.pedir(metodo, ruta, cuerpo: d, envio: c.clave)
             return true
         } catch let e as ErrorApi where e.sinConexion {
             c.intentos = 1
@@ -540,7 +596,7 @@ final class Cola {
             defer { subiendo = false }
             for c in cambios {
                 do {
-                    _ = try await api.pedir(c.metodo, c.ruta, cuerpo: c.cuerpo, envio: c.id.uuidString)
+                    _ = try await api.pedir(c.metodo, c.ruta, cuerpo: c.cuerpo, envio: c.clave)
                     cambios.removeAll { $0.id == c.id }
                     alSubir?()
                 } catch let e as ErrorApi where e.sinConexion {
