@@ -61,6 +61,21 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
         let accion = response.actionIdentifier
         let respuesta = (response as? UNTextInputNotificationResponse)?.userText
         await MainActor.run {
+            let aviso = info["avisoId"] as? String
+            // Lo que sólo abre una pantalla va por `Abrir.ir`: con la app cerrada, el aviso llega antes que
+            // `estado` (se asigna en `.onAppear`) y la ruta queda pendiente hasta entrar.
+            switch accion {
+            case UNNotificationDefaultActionIdentifier, "ver":
+                // El toque y «Abrir»: el destino del aviso (sin ruta, el aviso en el centro de avisos).
+                if let ruta { Abrir.ir(ruta) } else if let aviso { Abrir.ir(Ruta(.inicio, AAvisos(aviso: aviso))) }
+                return
+            case "cobrar":
+                // «Registrar cobro»: la hoja de cobro del contrato del aviso (`/contratos/<id>`).
+                Abrir.ir(Ruta(.inicio, ARegistrarCobro(contrato: (ruta?.destino as? AFichaContrato)?.id)))
+                return
+            default:
+                break
+            }
             guard let estado = self.estado else { return }
             switch accion {
             case "responder":
@@ -81,15 +96,8 @@ final class Delegado: NSObject, UIApplicationDelegate, UNUserNotificationCenterD
                     estado.ir(ruta)
                 }
             default:
-                let aviso = info["avisoId"] as? String
-                if accion != UNNotificationDefaultActionIdentifier, let aviso {
-                    // Otra acción del aviso (las que pide la API): el aviso con esa acción abierta.
-                    Avisos.abrir(estado, aviso: aviso, responder: accion)
-                } else if let ruta {
-                    estado.ir(ruta)
-                } else if let aviso {
-                    Avisos.abrir(estado, aviso: aviso, responder: nil)
-                }
+                // Otra acción del aviso (las que pide la API): el aviso con esa acción abierta.
+                if let aviso { Avisos.abrir(estado, aviso: aviso, responder: accion) }
             }
         }
     }
