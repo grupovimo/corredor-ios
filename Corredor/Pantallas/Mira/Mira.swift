@@ -423,7 +423,7 @@ struct MiraRaiz: View {
                 }
                 .background(C.hundida, in: .rect(cornerRadius: 16, style: .continuous))
                 if !nolee {
-                    Label("MIRA lee con Google Gemini y puede equivocarse. Revisá los datos antes de captar.", systemImage: "info.circle")
+                    Label("MIRA lee con Claude, de Anthropic, y puede equivocarse. Revisá los datos antes de captar.", systemImage: "info.circle")
                         .estilo(.footnote).foregroundStyle(C.texto2)
                 }
                 Button { Task { await captar() } } label: {
