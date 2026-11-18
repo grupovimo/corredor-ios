@@ -437,9 +437,19 @@ enum Cons {
     /// Montos sin moneda, como en las tablas: «818.000».
     static func cifra(_ n: Double) -> String { Formato.numero(Int(n.rounded())) }
 
+    /// El día (yyyy-MM-dd) de un instante de la API en la hora de Argentina: `creadoEn` llega en UTC y sus
+    /// primeros 10 caracteres corren un día lo cargado a la noche. Una fecha sola queda igual.
+    static func diaLocal(_ f: String) -> String {
+        guard f.count > 10, let d = Fecha.iso(f) else { return String(f.prefix(10)) }
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = Formato.zona
+        let x = cal.dateComponents([.year, .month, .day], from: d)
+        return String(format: "%04d-%02d-%02d", x.year ?? 0, x.month ?? 0, x.day ?? 0)
+    }
+
     /// Los días enteros desde una fecha ISO hasta hoy.
     static func diasDesde(_ f: String?) -> Int {
-        guard let f, let a = Fecha.dia(String(f.prefix(10))), let b = Fecha.dia(hoy) else { return 0 }
+        guard let f, let a = Fecha.dia(diaLocal(f)), let b = Fecha.dia(hoy) else { return 0 }
         return max(0, Calendar.current.dateComponents([.day], from: a, to: b).day ?? 0)
     }
 

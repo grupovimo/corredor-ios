@@ -31,6 +31,13 @@ final class CorredorTests: XCTestCase {
         XCTAssertFalse(s.pagaAfuera)
     }
 
+    func testDiaDeConsorciosEnHoraArgentina() {
+        // Cargado el 17 a las 22:30 en Buenos Aires: en UTC ya es el 18.
+        XCTAssertEqual(Cons.diaLocal("2026-11-18T01:30:00.123456789Z"), "2026-11-17")
+        XCTAssertEqual(Cons.diaLocal("2026-11-17T22:30:00-03:00"), "2026-11-17")
+        XCTAssertEqual(Cons.diaLocal("2026-11-18"), "2026-11-18")
+    }
+
     func testClaveDeOchoCaracteres() {
         XCTAssertTrue(ClerkMail.requisitos("casa1234").largo)
         XCTAssertFalse(ClerkMail.requisitos("casa123").largo)

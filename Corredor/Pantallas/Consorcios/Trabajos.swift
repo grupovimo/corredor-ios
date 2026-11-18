@@ -142,7 +142,7 @@ struct FichaTrabajoConsorcio: View {
         proveedor(t0, c, estadoT)
         if let d = t0.descripcion?.nonEmpty {
             VStack(alignment: .leading, spacing: 6) {
-                Text([t0.unidad.map { "Reclamó \($0)" } ?? "Lo cargó la administración", t0.creadoEn.map { Cons.diaBarraMes(String($0.prefix(10))) } ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
+                Text([t0.unidad.map { "Reclamó \($0)" } ?? "Lo cargó la administración", t0.creadoEn.map { Cons.diaBarraMes(Cons.diaLocal($0)) } ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
                     .estilo(.footnote).foregroundStyle(C.texto2)
                 Text(d).estilo(.body16).foregroundStyle(C.texto)
             }
