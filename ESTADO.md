@@ -31,6 +31,13 @@ la misma API (`api/`). Después se clona a Android idéntica (`grupovimo/corredo
     arma con la IA de MIRA (tope 40 por día) o por reglas (`api/internal/dominio/inventario/armar.go`).
 - Endpoints: todo lo que usa la web lo usa la app, salvo lo propio de plataforma (abajo).
 
+## Asistente (18/11)
+- Pantalla Asistente (`Pantallas/Inicio/Asistente.swift`, destino `AAsistente`, link `/asistente?q=`): la de `/asistente`
+  del panel con `GET/POST /v1/asistente` y `POST /v1/asistente/confirmar`. Se llega desde Buscar: sin nada escrito
+  («Preguntarle al asistente»), al final de las acciones con 3 letras o más, y desde «No encontramos…».
+- La charla vive en la pantalla (los últimos 8 turnos van a la API); las propuestas se confirman o se descartan con
+  «Deshacer»; el aviso «sin IA» o de tope sale de la API.
+
 ## Distinto a propósito
 - Suscripción con Apple (`/v1/suscripcion/apple`), no Mercado Pago. Push por APNs, no web push.
 - Lo que en la web es de escritorio tiene su equivalente táctil: atajos de teclado → menú «⋯» o botón; arrastrar
