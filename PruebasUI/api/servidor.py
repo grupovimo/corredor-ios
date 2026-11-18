@@ -78,6 +78,24 @@ def entidad_para(ruta):
     return cuerpo
 
 
+# El asistente (POST /v1/asistente) no se graba: contesta la IA. Respuestas fijas con los ids grabados.
+IDS = GRABADO.get("ids", {})
+ASISTENTE = json.dumps({
+    "ia": True, "aviso": "",
+    "sugerencias": ["¿Qué contratos ajustan este mes?", "¿Quiénes deben el alquiler?", "¿Qué tengo hoy?",
+                    "Contratos por vencer", "Armame un mensaje para los que deben", "¿Quién busca un 3 ambientes en Palermo?"],
+}, ensure_ascii=False)
+MENSAJE = "¡Hola! Te recuerdo que quedó pendiente el alquiler de este mes. Cualquier cosa, avisame."
+ASISTENTE_RESPUESTA = json.dumps({
+    "texto": "Hay un alquiler que se debe. Te dejo el mensaje para que lo confirmes.", "origen": "ia",
+    "resultados": [{"tipo": "contrato", "id": IDS.get("contrato", "k1"), "titulo": "El contrato que se debe",
+                    "subtitulo": "Registrar el cobro", "ruta": f"/cobranzas?registrar=1&contrato={IDS.get('contrato', 'k1')}"}],
+    "propuestas": [{"herramienta": "mensajes_crear_borrador", "titulo": "Armar un mensaje (borrador)", "para": "el inquilino",
+                    "texto": MENSAJE, "args": {"contacto_id": IDS.get("contacto", "c1"), "canal": "whatsapp", "texto": MENSAJE}}],
+}, ensure_ascii=False)
+ASISTENTE_CONFIRMAR = json.dumps({"resumen": "Armó el borrador de un mensaje · espera revisión", "datos": {"id": "borrador-1"}})
+
+
 class Manejador(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
@@ -99,6 +117,8 @@ class Manejador(BaseHTTPRequestHandler):
             return self.enviar(200, FOTO, "image/png")
         if u.path == "/v1/eventos":
             return self.vivo()
+        if u.path == "/v1/asistente":
+            return self.enviar(200, ASISTENTE)
         if "/contenido" in u.path or u.path.startswith("/v1/archivos/"):
             return self.enviar(200, FOTO, "image/png")
         cuerpo = buscar(u.path, u.query)
@@ -114,6 +134,10 @@ class Manejador(BaseHTTPRequestHandler):
             self.rfile.read(largo)
         if self.command == "DELETE":
             return self.enviar(204)
+        if u.path == "/v1/asistente":
+            return self.enviar(200, ASISTENTE_RESPUESTA)
+        if u.path == "/v1/asistente/confirmar":
+            return self.enviar(201, ASISTENTE_CONFIRMAR)
         if u.path == "/v1/archivos" or u.path.endswith("/archivo"):
             return self.enviar(201, json.dumps({"id": "archivo-1", "url": f"{BASE}/archivos/archivo-1.png", "tipo": "image/png"}))
         if u.path.startswith("/v1/auth/") or u.path.startswith("/v1/push"):

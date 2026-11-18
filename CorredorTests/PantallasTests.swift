@@ -2,14 +2,14 @@ import SwiftUI
 import XCTest
 @testable import Corredor
 
-/// Responde a la app con datos fijos, por ruta (lo que no está, 404).
+/// Responde a la app con datos fijos, por ruta (lo que no está, 404). «POST /v1/x» pisa a «/v1/x» para ese método.
 final class ApiFalsa: URLProtocol {
     nonisolated(unsafe) static var respuestas: [String: String] = [:]
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         let ruta = request.url?.path ?? ""
-        let cuerpo = ApiFalsa.respuestas[ruta]
+        let cuerpo = ApiFalsa.respuestas["\(request.httpMethod ?? "GET") \(ruta)"] ?? ApiFalsa.respuestas[ruta]
         let r = HTTPURLResponse(url: request.url!, statusCode: cuerpo == nil ? 404 : 200, httpVersion: nil,
                                 headerFields: ["content-type": "application/json"])!
         client?.urlProtocol(self, didReceive: r, cacheStoragePolicy: .notAllowed)
@@ -444,6 +444,18 @@ final class PantallasTests: XCTestCase {
             [{"id": "s1", "categoria": "Encargado permanente con vivienda", "basico": 950000.0, "vigenteDesde": "2026-10-01", "notas": null, "creadaEn": "2026-10-01T12:00:00Z"}]
             """,
             "/v1/consorcios/e1/reglamento": "{\"guardadoEn\": null, \"sinCambios\": true, \"cambios\": []}",
+            "/v1/asistente": """
+            {"ia": false, "aviso": "La IA viene con el plan Profesional. Sin ella contesto lo más común.", "sugerencias": ["¿Qué contratos ajustan este mes?",
+             "¿Quiénes deben el alquiler?", "¿Qué tengo hoy?", "Contratos por vencer", "Armame un mensaje para los que deben", "¿Quién busca un 3 ambientes en Palermo?"]}
+            """,
+            "POST /v1/asistente": """
+            {"texto": "Debe el alquiler Lucía Méndez (Gorriti 4820): ARS 520.000 de octubre. Te dejo el mensaje para que lo confirmes.", "origen": "ia",
+             "resultados": [{"tipo": "contrato", "id": "k1", "titulo": "Lucía Méndez · Gorriti 4820", "subtitulo": "Debe ARS 520.000 desde octubre",
+             "ruta": "/cobranzas?registrar=1&contrato=k1"}], "propuestas": [{"herramienta": "mensajes_crear_borrador", "titulo": "Armar un mensaje (borrador)",
+             "para": "Lucía Méndez", "texto": "¡Hola Lucía! Te recuerdo que quedó pendiente el alquiler de octubre de Gorriti 4820. Cualquier cosa, avisame.",
+             "args": {"contacto_id": "c1", "canal": "whatsapp", "texto": "¡Hola Lucía! Te recuerdo que quedó pendiente el alquiler de octubre de Gorriti 4820. Cualquier cosa, avisame."}}]}
+            """,
+            "POST /v1/asistente/confirmar": "{\"resumen\": \"Armó el borrador de un mensaje para Lucía Méndez · espera revisión\", \"datos\": {\"id\": \"b1\"}}",
         ]
     }
 
@@ -521,7 +533,7 @@ final class PantallasTests: XCTestCase {
             ("FichaOperacion", AFichaOperacion(id: "o1")), ("Cobranzas", ACobranzas()), ("Contratos", AContratos()),
             ("FichaContrato", AFichaContrato(id: "t1")), ("Recibo", ARecibo(contrato: "t1", cobro: "b1")), ("Rendicion", ARendicion(contrato: "t1", id: "r1")),
             ("Inventario", AInventario(id: "p1")), ("Firmas", AFirmas(id: "a1")), ("Avisos", AAvisos()), ("ConfigAvisos", AConfigAvisos()),
-            ("Perfil", APerfil()), ("Buscar", ABuscar(texto: "Mendoza")),
+            ("Perfil", APerfil()), ("Buscar", ABuscar(texto: "Mendoza")), ("Asistente", AAsistente()),
         ]
         // Los de la tanda 2 (propiedades, cobranzas, inventarios, consorcios y secciones con id).
         let nuevos: [(String, AnyHashable)] = [
@@ -586,6 +598,9 @@ final class PantallasTests: XCTestCase {
         montar(InicioRaiz(), rol: "agente")
     }
     func testBuscar() { montar(BuscarTodo(texto: "Mendoza")) }
+    func testBuscarVacio() { montar(BuscarTodo(texto: "")) }
+    func testAsistente() { montar(Asistente()) }
+    func testAsistentePreguntando() { montar(Asistente(pregunta: "¿Quiénes deben el alquiler?")) }
     func testAvisos() { montar(Avisos()) }
     func testConfigAvisos() { montar(ConfigAvisos()) }
     /// APerfil abre MiPerfil (el viejo `Perfil` ya no está).
