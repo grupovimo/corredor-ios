@@ -3,7 +3,8 @@ import SwiftUI
 /// 2C Buscar en todo (el ⌘K del panel, pantalla entera en el celular; lib/ui/shell/Buscador.svelte): los
 /// filtros por tipo, los resultados agrupados con lo escrito resaltado, las acciones que se pueden
 /// escribir («registrar cobro», «mira»), la acción rápida de cada resultado (mantener apretado o deslizar:
-/// mandar la ficha, escribirle, registrar el cobro), los recientes y las secciones de la app.
+/// mandar la ficha, escribirle, registrar el cobro), los recientes, las secciones de la app y el asistente
+/// (sin nada escrito, al final de las acciones o si no se encontró nada).
 struct BuscarTodo: View {
     @Environment(Estado.self) private var estado
     @Environment(\.dismiss) private var cerrar
@@ -71,6 +72,16 @@ struct BuscarTodo: View {
         return estado.escribe ? base : base.filter { ["inicio", "propiedades", "agenda"].contains($0.clave) }
     }
 
+    /// Lo escrito como pregunta para el asistente (va última, como en ⌘K): «¿qué contratos ajustan?» no se
+    /// encuentra buscando, se contesta. Desde tres letras.
+    private var preguntaAsistente: Accion? {
+        guard filtro.isEmpty, q.count >= 3 else { return nil }
+        return Accion(clave: "asistente", texto: "Preguntarle al asistente: «\(q.prefix(80))»", icono: "sparkles", palabras: "")
+    }
+
+    /// Las acciones del bloque «Acciones»: las escritas y, al final, preguntarle al asistente.
+    private var accionesConPregunta: [Accion] { accionesVisibles + (preguntaAsistente.map { [$0] } ?? []) }
+
     private var sinResultados: [String] {
         guard q.count >= 2, !buscando, !fallo else { return [] }
         return Self.filtros.filter { f in !f.0.isEmpty && f.0 != "accion" && !resultados.contains(where: { r in r.tipo == f.0 }) }.map { f in f.1 }
@@ -137,14 +148,17 @@ struct BuscarTodo: View {
                     .estilo(.footnote).foregroundStyle(C.errorTinta).padding(.horizontal, 4)
             }
             if q.isEmpty && filtro != "accion" && !recientes.isEmpty { bloqueRecientes }
+            if q.isEmpty && filtro.isEmpty { bloqueAsistente }
             if filtro.isEmpty { seccionesApp }
             ForEach(Self.grupos, id: \.0) { tipo, titulo, icono in
                 let items = resultados.filter { $0.tipo == tipo && (filtro.isEmpty || filtro == tipo) }
                 if !items.isEmpty { grupo(titulo, icono, items) }
             }
-            if !accionesVisibles.isEmpty { bloqueAcciones }
-            if buscable && !buscando && !fallo && resultados.isEmpty && accionesVisibles.isEmpty {
-                EstadoVacio(icono: "magnifyingglass", titulo: "No encontramos «\(q)»", texto: "Probá con la calle, el apellido o el número de la propiedad.")
+            let vacio = buscable && !buscando && !fallo && resultados.isEmpty && accionesVisibles.isEmpty
+            if !vacio && !accionesConPregunta.isEmpty { bloqueAcciones }
+            if vacio {
+                EstadoVacio(icono: "magnifyingglass", titulo: "No encontramos «\(q)»", texto: "Probá con la calle, el apellido o el número de la propiedad. O preguntáselo al asistente.",
+                            accion: ("Preguntarle al asistente", { estado.abrir(AAsistente(pregunta: q)) }))
                     .padding(.top, 30)
             } else if !sinResultados.isEmpty && !resultados.isEmpty && filtro.isEmpty {
                 Text("Sin resultados en \(sinResultados.joined(separator: ", "))").estilo(.footnote).foregroundStyle(C.texto3).padding(.horizontal, 4)
@@ -198,12 +212,33 @@ struct BuscarTodo: View {
         VStack(alignment: .leading, spacing: 6) {
             encabezado("Acciones")
             VStack(spacing: 0) {
-                ForEach(Array(accionesVisibles.enumerated()), id: \.element.id) { i, a in
+                ForEach(Array(accionesConPregunta.enumerated()), id: \.element.id) { i, a in
                     Button { hacer(a) } label: { filaSimple(a.icono, a.texto) }
                         .buttonStyle(Presionable())
                         .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                 }
             }
+            .tarjeta(16)
+        }
+    }
+
+    /// Sin nada escrito: el asistente, para preguntar en vez de buscar.
+    private var bloqueAsistente: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            encabezado("Asistente")
+            Button { estado.abrir(AAsistente()) } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles").font(.system(size: 19)).foregroundStyle(C.accion).frame(width: 24)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Preguntarle al asistente").estilo(.filaLista).foregroundStyle(C.texto)
+                        Text("«¿Qué contratos ajustan este mes?»").estilo(.footnote).foregroundStyle(C.texto2)
+                    }
+                    Spacer()
+                    Chevron()
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 56).contentShape(Rectangle())
+            }
+            .buttonStyle(Presionable())
             .tarjeta(16)
         }
     }
@@ -327,6 +362,7 @@ struct BuscarTodo: View {
             estado.pestana = .inicio
         case "propiedades": estado.ir(Ruta(.propiedades))
         case "agenda": estado.abrir(AAgendaDia())
+        case "asistente": estado.abrir(AAsistente(pregunta: q))
         default: break
         }
     }
