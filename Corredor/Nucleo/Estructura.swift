@@ -54,6 +54,7 @@ enum Lugares {
         "agenda": ("calendar", AnyHashable(AAgendaDia())),
         "avisos": ("bell", AnyHashable(AAvisos())),
         "buscar": ("magnifyingglass", AnyHashable(ABuscar())),
+        "asistente": ("sparkles", AnyHashable(AAsistente())),
         "contactos": ("person.2", AnyHashable(AContactos())),
         "operaciones": ("rectangle.split.3x1", AnyHashable(AOperaciones())),
         "reservas": ("hand.raised", AnyHashable(ASeccion(clave: "reservas"))),

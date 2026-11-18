@@ -50,6 +50,8 @@ struct AConfigAvisos: Hashable {}
 struct APerfil: Hashable {}
 /// 2C Búsqueda global.
 struct ABuscar: Hashable { var texto = "" }
+/// El asistente (`/asistente?q=`): con `pregunta`, arranca preguntando eso.
+struct AAsistente: Hashable { var pregunta = "" }
 /// Lo que el handoff no dibuja y el panel sí tiene (configuración, equipo, consorcios, Mi web,
 /// informe, emprendimientos, temporada…): una sección por `clave`, con un `id` opcional.
 struct ASeccion: Hashable { var clave: String; var id: String? = nil }
@@ -115,7 +117,8 @@ struct Ruta: Equatable {
                 self.init(.mensajes, id.map { AnyHashable(APreguntaML(id: $0)) })
             }
         // `/agenda/<id>` o `/agenda?cita=<id>` (los avisos): esa cita; si no, el día.
-        case "agenda": self.init(.inicio, (id ?? param("cita")).map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia()))
+        // `/agenda?dia=AAAA-MM-DD` (lo que contesta el asistente): ese día.
+        case "agenda": self.init(.inicio, (id ?? param("cita")).map { AnyHashable(ACita(id: $0)) } ?? AnyHashable(AAgendaDia(dia: param("dia"))))
         case "mas": self.init(.mas)
         case "contacto", "contactos": self.init(.inicio, id.map { AnyHashable(AFichaContacto(id: $0)) } ?? AnyHashable(AContactos(agente: param("agente") == "libre" ? "libre" : nil)))
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
@@ -162,6 +165,7 @@ struct Ruta: Equatable {
             if id == "configurar" { self.init(.inicio, AConfigAvisos()) } else { self.init(.inicio, AAvisos(aviso: param("aviso"), responder: param("responder"))) }
         case "perfil": self.init(.inicio, APerfil())
         case "buscar": self.init(.inicio, ABuscar(texto: param("q") ?? ""))
+        case "asistente": self.init(.inicio, AAsistente(pregunta: param("q") ?? ""))
         case "reserva", "reservas": self.init(.mas, id.map { AnyHashable(AReserva(id: $0)) } ?? AnyHashable(ASeccion(clave: "reservas")))
         case "temporada":
             if id == "reservas", p.count > 2 { self.init(.mas, AReservaTemporada(id: p[2])) } else { self.init(.mas, ASeccion(clave: "temporada")) }

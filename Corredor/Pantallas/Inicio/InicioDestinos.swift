@@ -1,10 +1,11 @@
 import SwiftUI
 
 extension View {
-    /// Los destinos del Inicio: búsqueda, avisos, su configuración y el perfil.
+    /// Los destinos del Inicio: búsqueda, asistente, avisos, su configuración y el perfil.
     func destinosInicio() -> some View {
         self
             .navigationDestination(for: ABuscar.self) { b in BuscarTodo(texto: b.texto) }
+            .navigationDestination(for: AAsistente.self) { a in Asistente(pregunta: a.pregunta) }
             .navigationDestination(for: AAvisos.self) { a in
                 // Un aviso puntual (`/avisos?aviso=<id>&responder=<acción>`): arriba y con su hoja.
                 let _ = a.aviso.map { Avisos.foco = ($0, a.responder) }
