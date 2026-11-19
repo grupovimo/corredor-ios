@@ -19,14 +19,17 @@ final class CorredorTests: XCTestCase {
         {"estado":"prueba","plan":null,"ciclo":"mes","medio":null,"pruebaHasta":"2026-11-19T12:00:00Z","pagadoHasta":null,
          "vigenteHasta":"2026-11-19T12:00:00Z","diasRestantes":5,"renueva":false,"proximoCobro":null,"importe":null,"moneda":null,
          "esperando":null,"soloLectura":false,"enPrueba":true,"funciones":["ia"],"agentes":{"usados":2,"cupo":null},
-         "planes":[{"id":"inicial","nombre":"Inicial","resumen":"x","agentes":1,"precioMes":29900,"precioAnio":299000,"funciones":[],
-           "incluye":["1 persona"],"destacado":false,"appleMes":"ar.com.corredor.app.inicial.mes","appleAnio":"ar.com.corredor.app.inicial.anio"}],
+         "planes":[{"id":"agente","nombre":"Agente","resumen":"x","agentes":1,"precioMes":24900,"precioAnio":249000,"funciones":[],
+           "incluye":["1 persona"],"destacado":false,"appleMes":"ar.com.corredor.app.agente.mes","appleAnio":"ar.com.corredor.app.agente.anio"}],
          "mercadoPago":false,"cobros":[],"graciaDias":3}
         """
         let s = try Api.decodificador.decode(Suscripcion.self, from: Data(json.utf8))
         XCTAssertEqual(s.nombreEstado, "Prueba gratis · 5 días")
         XCTAssertTrue(s.pideAtencion)
-        XCTAssertEqual(s.planes.first?.producto("anio"), "ar.com.corredor.app.inicial.anio")
+        XCTAssertEqual(s.planes.first?.producto("anio"), "ar.com.corredor.app.agente.anio")
+        // Una API de antes de los topes no los manda: no rompe.
+        XCTAssertNil(s.topes)
+        XCTAssertEqual(s.deMas(s.planes[0]).personas, 1)
         XCTAssertFalse(s.conMercadoPago)
         XCTAssertFalse(s.pagaAfuera)
     }

@@ -671,12 +671,17 @@ final class PantallasTests: XCTestCase {
     private func suscripcion(medio: String?, renueva: Bool = true) throws -> Suscripcion {
         let m = medio.map { "\"\($0)\"" } ?? "null"
         let json = """
-        {"estado":"activa","plan":"profesional","ciclo":"mes","medio":\(m),"pruebaHasta":"2026-10-19T12:00:00Z",
+        {"estado":"activa","plan":"inmobiliaria","ciclo":"mes","medio":\(m),"pruebaHasta":"2026-10-19T12:00:00Z",
          "pagadoHasta":"2026-12-12T12:00:00Z","vigenteHasta":"2026-12-12T12:00:00Z","diasRestantes":30,"renueva":\(renueva),
-         "proximoCobro":"2026-12-12T12:00:00Z","importe":69900,"moneda":"ARS","esperando":null,"soloLectura":false,"enPrueba":false,
-         "agentes":{"usados":2,"cupo":5},"planes":[{"id":"profesional","nombre":"Profesional","resumen":"Para equipos","agentes":5,
-         "precioMes":69900,"precioAnio":699000,"incluye":["Hasta 5 personas"],"destacado":true,"appleMes":"ar.com.corredor.app.profesional.mes",
-         "appleAnio":"ar.com.corredor.app.profesional.anio"}],"mercadoPago":false,"cobros":[]}
+         "proximoCobro":"2026-12-12T12:00:00Z","importe":59900,"moneda":"ARS","esperando":null,"soloLectura":false,"enPrueba":false,
+         "agentes":{"usados":2,"cupo":4},"planVigente":"inmobiliaria","personasExtra":0,
+         "topes":{"propiedades":{"usados":142,"tope":150},"contratos":{"usados":38,"tope":100},"mira":{"usados":61,"tope":null}},
+         "planes":[{"id":"agente","nombre":"Agente","resumen":"Para el corredor que trabaja solo.","agentes":1,"personaExtraMes":0,
+         "propiedades":30,"contratos":15,"mira":100,"precioMes":24900,"precioAnio":249000,"incluye":["1 persona que carga","Hasta 30 propiedades activas"],
+         "destacado":false,"appleMes":"ar.com.corredor.app.agente.mes","appleAnio":"ar.com.corredor.app.agente.anio"},
+         {"id":"inmobiliaria","nombre":"Inmobiliaria","resumen":"Para la inmobiliaria con alquileres.","agentes":4,"personaExtraMes":0,
+         "propiedades":150,"contratos":100,"mira":0,"precioMes":59900,"precioAnio":599000,"incluye":["Hasta 4 personas que cargan"],"destacado":true,
+         "appleMes":"ar.com.corredor.app.inmobiliaria.mes","appleAnio":"ar.com.corredor.app.inmobiliaria.anio"}],"mercadoPago":false,"cobros":[]}
         """
         return try Api.decodificador.decode(Suscripcion.self, from: Data(json.utf8))
     }

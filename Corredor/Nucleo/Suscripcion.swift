@@ -1,8 +1,9 @@
 import Foundation
 import StoreKit
 
-/// La suscripción de la inmobiliaria (GET /v1/suscripcion): tres planes, mensual o anual, 14 días
-/// gratis y sólo lectura al vencer. En el iPhone se paga con el App Store (StoreKit 2); en la web, con
+/// La suscripción de la inmobiliaria (GET /v1/suscripcion): tres planes (Agente, Inmobiliaria y Equipo),
+/// mensual o anual (diez meses), 14 días gratis con el plan Inmobiliaria y sólo lectura al vencer. Los
+/// topes (personas, propiedades activas, contratos, MIRA) los aplica la API: acá se muestran. En el iPhone se paga con el App Store (StoreKit 2); en la web, con
 /// Mercado Pago. La API une las dos.
 struct Suscripcion: Decodable, Equatable {
     struct Plan: Decodable, Equatable, Identifiable {
@@ -10,6 +11,12 @@ struct Suscripcion: Decodable, Equatable {
         var nombre: String
         var resumen: String
         var agentes: Int
+        /// Lo que cuesta cada persona más (nil o 0: el plan no suma personas). No se compra en la tienda.
+        var personaExtraMes: Double?
+        /// Topes del plan (0: sin tope). Opcionales: una API vieja no los manda.
+        var propiedades: Int?
+        var contratos: Int?
+        var mira: Int?
         var precioMes: Double
         var precioAnio: Double
         var incluye: [String]
@@ -24,6 +31,18 @@ struct Suscripcion: Decodable, Equatable {
     struct Agentes: Decodable, Equatable {
         var usados: Int
         var cupo: Int?
+    }
+
+    /// Lo usado de un recurso con tope (tope nil: sin tope).
+    struct Uso: Decodable, Equatable {
+        var usados: Int
+        var tope: Int?
+    }
+
+    struct Topes: Decodable, Equatable {
+        var propiedades: Uso
+        var contratos: Uso
+        var mira: Uso
     }
 
     struct Cobro: Decodable, Equatable, Identifiable {
@@ -54,13 +73,26 @@ struct Suscripcion: Decodable, Equatable {
     /// Cuándo se borran los datos si no elige un plan (sólo vencida y con la purga prendida; si no, nil).
     var borraEn: Date?
     var agentes: Agentes
+    /// El plan que rige hoy (en la prueba, Inmobiliaria) y lo usado de cada tope.
+    var planVigente: String?
+    var personasExtra: Int?
+    var topes: Topes?
     var planes: [Plan]
     var mercadoPago: Bool
     var cobros: [Cobro]
 
     var planActual: Plan? { planes.first { $0.id == plan } }
+    var planQueRige: Plan? { planes.first { $0.id == (planVigente ?? plan) } }
 
-    /// «Prueba gratis · 9 días», «Plan Profesional · anual», «Sólo lectura».
+    /// Lo que pasa el tope si se elige `p`: personas, propiedades activas y contratos que quedan en sólo
+    /// lectura (nada se borra).
+    func deMas(_ p: Plan) -> (personas: Int, propiedades: Int, contratos: Int) {
+        func de(_ u: Uso?, _ t: Int?) -> Int { guard let u, let t, t > 0 else { return 0 }; return max(0, u.usados - t) }
+        let extras = (p.personaExtraMes ?? 0) > 0 ? (personasExtra ?? 0) : 0
+        return (max(0, agentes.usados - p.agentes - extras), de(topes?.propiedades, p.propiedades), de(topes?.contratos, p.contratos))
+    }
+
+    /// «Prueba gratis · 9 días», «Plan Inmobiliaria · anual», «Sólo lectura».
     var nombreEstado: String {
         switch estado {
         case "prueba": return diasRestantes == 1 ? "Prueba gratis · último día" : "Prueba gratis · \(diasRestantes) días"

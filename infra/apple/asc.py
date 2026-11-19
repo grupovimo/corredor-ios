@@ -100,14 +100,16 @@ def builds(app_id):
 
 # Suscripciones de Corredor (planes por inmobiliaria). Sólo en la Argentina (la tienda cobra en USD),
 # con 14 días gratis la primera vez. Idempotente: lo que ya existe se deja.
-PLANES = [  # producto, nombre, período, nivel (1 = el más alto), USD, descripción
-    ('ar.com.corredor.app.equipo.anio', 'Equipo anual', 'ONE_YEAR', 1, '949.99', 'Personas sin tope, consorcios, temporada e informes.'),
-    ('ar.com.corredor.app.equipo.mes', 'Equipo mensual', 'ONE_MONTH', 1, '94.99', 'Personas sin tope, consorcios, temporada e informes.'),
-    ('ar.com.corredor.app.profesional.anio', 'Profesional anual', 'ONE_YEAR', 2, '449.99', 'Hasta 5 personas, alquileres, portales e IA.'),
-    ('ar.com.corredor.app.profesional.mes', 'Profesional mensual', 'ONE_MONTH', 2, '44.99', 'Hasta 5 personas, alquileres, portales e IA.'),
-    ('ar.com.corredor.app.inicial.anio', 'Inicial anual', 'ONE_YEAR', 3, '189.99', 'Para 1 persona: cartera, agenda, web y WhatsApp.'),
-    ('ar.com.corredor.app.inicial.mes', 'Inicial mensual', 'ONE_MONTH', 3, '18.99', 'Para 1 persona: cartera, agenda, web y WhatsApp.'),
+PLANES = [  # producto, nombre, período, nivel (1 = el más alto), USD, descripción. Precios del 19/11/2026 (pesos ÷ ~1.575).
+    ('ar.com.corredor.app.equipo.anio', 'Equipo anual', 'ONE_YEAR', 1, '759.99', '12 personas, sin tope de propiedades, consorcios.'),
+    ('ar.com.corredor.app.equipo.mes', 'Equipo mensual', 'ONE_MONTH', 1, '75.99', '12 personas, sin tope de propiedades, consorcios.'),
+    ('ar.com.corredor.app.inmobiliaria.anio', 'Inmobiliaria anual', 'ONE_YEAR', 2, '379.99', '4 personas, 150 propiedades, 100 contratos e IA.'),
+    ('ar.com.corredor.app.inmobiliaria.mes', 'Inmobiliaria mensual', 'ONE_MONTH', 2, '37.99', '4 personas, 150 propiedades, 100 contratos e IA.'),
+    ('ar.com.corredor.app.agente.anio', 'Agente anual', 'ONE_YEAR', 3, '159.99', '1 persona, 30 propiedades, web y 15 contratos.'),
+    ('ar.com.corredor.app.agente.mes', 'Agente mensual', 'ONE_MONTH', 3, '15.99', '1 persona, 30 propiedades, web y 15 contratos.'),
 ]
+# Los de antes del 19/11 (inicial, profesional): la API todavía los entiende (agente, inmobiliaria), pero
+# se sacan de la venta en App Store Connect. Los precios de Equipo, ya creados, se cambian a mano.
 
 def rel(tipo, id):
     return {'data': {'type': tipo, 'id': id}}

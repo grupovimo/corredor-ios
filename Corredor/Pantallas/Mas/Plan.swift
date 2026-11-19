@@ -1,14 +1,15 @@
 import StoreKit
 import SwiftUI
 
-/// «Tu plan», como un carrito: cómo estás hoy, mensual o anual, los tres planes como tarjetas para
-/// elegir y el ticket con lo que pagás hoy, cuándo es el primer cobro y cuánto después. Se paga con el
+/// «Tu plan», como un carrito: cómo estás hoy (y cuánto usás de cada tope), mensual o anual, los tres
+/// planes como tarjetas para elegir y el ticket con lo que pagás hoy, cuándo es el primer cobro y cuánto
+/// después. Bajar de plan no borra nada: el ticket dice qué queda en sólo lectura. Se paga con el
 /// App Store (los precios son los de la tienda de la cuenta de Apple); la letra chica, la que pide Apple.
 struct PantallaPlan: View {
     @Environment(Estado.self) private var estado
     @State private var tienda = Tienda.compartida
     @State private var ciclo = "anio"
-    @State private var elegido = "profesional"
+    @State private var elegido = "inmobiliaria"
     @State private var comprando = false
     @State private var restaurando = false
     @State private var gestionar = false
@@ -73,11 +74,7 @@ struct PantallaPlan: View {
                 .padding(.horizontal, 10).padding(.vertical, 4).background(tono.fondo, in: .capsule)
             Text(titulo(s)).font(Estilo.titulo3.font).foregroundStyle(C.texto).fixedSize(horizontal: false, vertical: true)
             Text(Formato.sinViudas(detalle(s))).estilo(.footnote).foregroundStyle(C.texto2).fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 6) {
-                Image(systemName: "person.2").foregroundStyle(C.texto3)
-                Text(personas(s)).estilo(.footnote).foregroundStyle(C.texto2)
-            }
-            .padding(.top, 2)
+            uso(s).padding(.top, 6)
             if s.medio == "apple", s.renueva, estado.esDuenio {
                 Button("Administrar la suscripción") { gestionar = true }.buttonStyle(BotonTonal()).padding(.top, 4)
             }
@@ -91,7 +88,7 @@ struct PantallaPlan: View {
 
     private func titulo(_ s: Suscripcion) -> String {
         switch s.estado {
-        case "prueba": return "Tenés todo Corredor gratis hasta el \(Formato.fechaLarga(s.pruebaHasta))."
+        case "prueba": return "Tenés el plan \(s.planQueRige?.nombre ?? "Inmobiliaria") gratis hasta el \(Formato.fechaLarga(s.pruebaHasta))."
         case "activa": return "Próximo cobro: \(Formato.fechaLarga(s.proximoCobro ?? s.vigenteHasta))\(s.importe.map { " · \(Formato.plata($0, s.moneda ?? "ARS"))" } ?? "")."
         case "baja": return "Tu plan no se renueva: vale hasta el \(Formato.fechaLarga(s.vigenteHasta))."
         default: return "Tu inmobiliaria está en sólo lectura."
@@ -109,9 +106,34 @@ struct PantallaPlan: View {
         }
     }
 
-    private func personas(_ s: Suscripcion) -> String {
-        if let c = s.agentes.cupo { return "\(s.agentes.usados) de \(c) \(c == 1 ? "persona" : "personas") que cargan" }
-        return Formato.cantidad(s.agentes.usados, "persona carga", "personas cargan")
+    /// Lo que usás del plan que rige: personas, propiedades activas, contratos y MIRA, con su barra (casi o
+    /// en el tope: oro; pasado, después de bajar de plan: rojo).
+    private func uso(_ s: Suscripcion) -> some View {
+        var filas: [(String, Suscripcion.Uso)] = [("Personas que cargan", .init(usados: s.agentes.usados, tope: s.agentes.cupo))]
+        if let t = s.topes {
+            filas += [("Propiedades activas", t.propiedades), ("Contratos de alquiler", t.contratos), ("Carteles con MIRA este mes", t.mira)]
+        }
+        return VStack(alignment: .leading, spacing: 10) {
+            ForEach(filas, id: \.0) { fila in
+                let (nombre, u) = fila
+                let lleno = u.tope.map { u.usados > $0 } ?? false
+                let casi = u.tope.map { $0 > 0 && Double(u.usados) / Double($0) >= 0.85 } ?? false
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(nombre).estilo(.footnote).foregroundStyle(C.texto2)
+                        Spacer(minLength: 8)
+                        Text(u.tope.map { "\(u.usados) de \($0)" } ?? "\(u.usados) · sin tope")
+                            .estilo(.footnote).monospacedDigit().foregroundStyle(lleno ? C.errorTinta : C.texto)
+                    }
+                    if let t = u.tope, t > 0 {
+                        ProgressView(value: Double(min(u.usados, t)), total: Double(t))
+                            .tint(lleno ? C.errorTinta : casi ? C.oroTinta : C.accion)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityElement(children: .combine)
+            }
+        }
     }
 
     private func nota(_ icono: String, _ texto: String) -> some View {
@@ -203,12 +225,12 @@ struct PantallaPlan: View {
         let primerCobro = gratis.map { o in Calendar.current.date(byAdding: o.period.unit.componente, value: o.period.value, to: .now) ?? .now } ?? .now
         let cada = ciclo == "anio" ? "año" : "mes"
         let mismo = s.plan == plan.id && s.ciclo == ciclo && s.renueva && !s.soloLectura
-        let sobran = plan.agentes > 0 ? max(0, s.agentes.usados - plan.agentes) : 0
+        let mas = s.deMas(plan)
         let precioTxt = precio(plan, ciclo)
         return VStack(alignment: .leading, spacing: 10) {
             Text("Resumen").font(Estilo.total.font).foregroundStyle(C.texto)
             linea("Corredor \(plan.nombre)", ciclo == "anio" ? "anual" : "mensual", fuerte: true)
-            linea("Personas que cargan", plan.agentes == 0 ? "sin tope" : plan.agentes == 1 ? "1" : "hasta \(plan.agentes)")
+            linea("Personas que cargan", plan.agentes == 1 ? "1" : "hasta \(plan.agentes)")
             if ciclo == "anio", let doce = doceMeses(plan) { linea("12 meses × \(precio(plan, "mes"))", doce) }
             if ciclo == "anio", let a = ahorro(plan) { linea("2 meses de regalo", "−\(a)", tono: C.okTinta) }
             linea("Total por \(cada)", precioTxt, fuerte: true)
@@ -229,9 +251,10 @@ struct PantallaPlan: View {
                 dato("Después", "\(precioTxt) cada \(cada)")
                 dato("Medio de pago", "Tu cuenta de Apple (App Store)")
             }
-            if sobran > 0 {
-                Label { Text(Formato.sinViudas("Hoy cargan \(s.agentes.usados) personas y este plan es para \(Formato.cantidad(plan.agentes, "persona", "personas")). Pasá \(Formato.cantidad(sobran, "persona", "personas")) a lector en Equipo o elegí un plan más grande.")).estilo(.footnote) } icon: { Image(systemName: "person.2") }
-                    .foregroundStyle(C.oroTinta).padding(10).background(C.avisoFondo, in: .rect(cornerRadius: 10))
+            if mas.personas + mas.propiedades + mas.contratos > 0 {
+                Label { Text(Formato.sinViudas(textoDeMas(mas))).estilo(.footnote) } icon: { Image(systemName: "info.circle") }
+                    .foregroundStyle(C.oroTinta).padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                    .background(C.avisoFondo, in: .rect(cornerRadius: 10))
             }
             if !s.pagaAfuera {
             Button {
@@ -242,7 +265,7 @@ struct PantallaPlan: View {
                 }
             }
             .buttonStyle(BotonPrincipal())
-            .disabled(prod == nil || mismo || sobran > 0 || comprando)
+            .disabled(prod == nil || mismo || comprando)
             .padding(.top, 4)
             if prod == nil, !tienda.cargando {
                 Text(Formato.sinViudas("Pronto vas a poder elegir tu plan desde el iPhone. Mientras, seguís usando Corredor como hasta ahora."))
@@ -266,6 +289,15 @@ struct PantallaPlan: View {
         }
         .padding(18)
         .tarjeta()
+    }
+
+    /// Bajar de plan no borra nada: lo que pasa el tope queda en sólo lectura hasta liberar lugar.
+    private func textoDeMas(_ m: (personas: Int, propiedades: Int, contratos: Int)) -> String {
+        var partes: [String] = []
+        if m.personas > 0 { partes.append("\(Formato.cantidad(m.personas, "persona queda", "personas quedan")) sin cargar (pasalas a lector en Equipo)") }
+        if m.propiedades > 0 { partes.append("\(Formato.cantidad(m.propiedades, "propiedad activa queda", "propiedades activas quedan")) fuera de tu web") }
+        if m.contratos > 0 { partes.append("\(Formato.cantidad(m.contratos, "contrato no se cobra", "contratos no se cobran")) desde Corredor") }
+        return "Con este plan no se borra nada, pero lo que pasa el tope queda en sólo lectura hasta que liberes lugar: " + partes.joined(separator: "; ") + "."
     }
 
     private func linea(_ a: String, _ b: String, fuerte: Bool = false, tono: Color? = nil) -> some View {
