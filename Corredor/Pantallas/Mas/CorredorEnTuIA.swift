@@ -16,7 +16,7 @@ struct CorredorEnTuIA: View {
     @State private var sacando: Set<String> = []
 
     /// `GET /v1/ia/ajustes`: lo que eligió la dueña, el link para pegar y el aviso de la Ley 25.326 (texto).
-    struct Ajustes: Codable { var habilitado: Bool?; var agendar: Bool?; var mover: Bool?; var url: String?; var aviso: String? }
+    struct Ajustes: Codable { var habilitado: Bool?; var agendar: Bool?; var mover: Bool?; var iaPanel: Bool?; var url: String?; var aviso: String? }
     /// `GET /v1/ia/conexiones`: de quién es, con qué asistente y qué permisos le dio.
     struct Conexion: Codable, Identifiable {
         var id: String
@@ -48,6 +48,8 @@ struct CorredorEnTuIA: View {
 
     private var duenio: Bool { estado.esDuenio }
     private var habilitado: Bool { ajustes?.habilitado ?? false }
+    /// La IA del panel (asistente, MIRA, «Reescribir»): prendida si la API no dice nada.
+    private var iaPanel: Bool { ajustes?.iaPanel ?? true }
 
     var body: some View {
         Group {
@@ -72,6 +74,7 @@ struct CorredorEnTuIA: View {
                 .listRowBackground(Color.clear)
             }
             Section { habilitar }
+            Section { iaDelPanel }
             pasos(a)
             if let aviso = a.aviso?.nonEmpty {
                 Section {
@@ -103,6 +106,29 @@ struct CorredorEnTuIA: View {
             }
             Spacer(minLength: 0)
             Toggle("Habilitar Corredor en tu IA", isOn: bind(\.habilitado) { $0 ? "Corredor en tu IA, habilitada" : "Corredor en tu IA, apagada" })
+                .labelsHidden().tint(C.ok).disabled(!duenio)
+        }
+    }
+
+    /// La IA del panel es otro interruptor: no abre conexiones externas.
+    private var iaDelPanel: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: iaPanel ? "sparkles" : "power").font(.system(size: 20))
+                .foregroundStyle(iaPanel ? C.okTinta : C.texto2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(iaPanel ? "IA del panel, prendida" : "IA del panel, apagada").estilo(.filaLista).foregroundStyle(C.texto)
+                Text(Formato.sinViudas(iaPanel ? "El asistente, MIRA y «Reescribir» usan Claude, de Anthropic."
+                                       : "El asistente contesta con los datos de Corredor, sin IA."))
+                    .estilo(.footnote).foregroundStyle(C.texto2)
+            }
+            Spacer(minLength: 0)
+            Toggle("IA del panel", isOn: Binding(get: { iaPanel }, set: { v in
+                guard let antes = ajustes else { return }
+                var despues = antes
+                despues.iaPanel = v
+                ajustes = despues
+                Task { await guardar(despues, antes: antes, texto: v ? "IA del panel, prendida" : "IA del panel, apagada") }
+            }))
                 .labelsHidden().tint(C.ok).disabled(!duenio)
         }
     }
@@ -241,8 +267,8 @@ struct CorredorEnTuIA: View {
     }
 
     private struct Cuerpo: Encodable {
-        var habilitado: Bool; var agendar: Bool; var mover: Bool
-        init(_ a: Ajustes) { habilitado = a.habilitado ?? false; agendar = a.agendar ?? false; mover = a.mover ?? false }
+        var habilitado: Bool; var agendar: Bool; var mover: Bool; var iaPanel: Bool
+        init(_ a: Ajustes) { habilitado = a.habilitado ?? false; agendar = a.agendar ?? false; mover = a.mover ?? false; iaPanel = a.iaPanel ?? true }
     }
 
     private func guardar(_ a: Ajustes, antes: Ajustes, texto: String) async {

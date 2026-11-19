@@ -26,6 +26,9 @@ jobs:
       - uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      # Un systemName que no existe no dibuja nada y no da error: se corta acá.
+      - name: SF Symbols
+        run: swift infra/simbolos/verificar.swift Corredor
       - run: brew install xcodegen
       - run: xcodegen generate
       - name: Compilar

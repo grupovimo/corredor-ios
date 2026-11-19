@@ -92,9 +92,19 @@ final class Api: @unchecked Sendable {
         return c
     }
 
+    /// Las rutas que llaman a la IA: el asistente puede dar varias vueltas con herramientas y el
+    /// servidor le da hasta 50 s; cortar a los 20 dejaba un «sin red» con lo gastado igual.
+    static let rutasLentas: Set<String> = ["/v1/asistente", "/v1/mira/extraer", "/v1/web/reescribir"]
+
+    /// Cuánto se espera cada pedido: 60 s los de la IA, 20 los demás.
+    static func espera(_ ruta: String) -> TimeInterval {
+        let sola = String(ruta.split(separator: "?", maxSplits: 1).first ?? Substring(ruta))
+        return rutasLentas.contains(sola) ? 60 : 20
+    }
+
     func pedir(_ metodo: String, _ ruta: String, query: [URLQueryItem] = [], cuerpo: Data? = nil, envio: String? = nil) async throws -> Data {
         let c = componentes(ruta, query)
-        var r = URLRequest(url: c.url!, timeoutInterval: 20)
+        var r = URLRequest(url: c.url!, timeoutInterval: Api.espera(ruta))
         r.httpMethod = metodo
         r.setValue("application/json", forHTTPHeaderField: "Accept")
         if let token { r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
@@ -222,7 +232,7 @@ extension Api {
     /// Sube un archivo (multipart, campo `archivo`).
     func subir(_ datos: Data, nombre: String, tipo: String, uso: String) async throws -> Archivo {
         // Los topes de la API por uso (dominio/archivos): se cortan acá antes de subir de balde.
-        let tope = (["foto": 15, "marca": 5] as [String: Int])[uso] ?? 25
+        let tope = (["foto": 15, "cartel": 15, "marca": 5] as [String: Int])[uso] ?? 25
         if datos.count > tope << 20 {
             throw ErrorApi(estado: 422, codigo: "muy_grande", titulo: "Archivo muy grande", detalle: "El archivo pasa de \(tope) MB.")
         }

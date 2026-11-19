@@ -70,8 +70,10 @@ struct TurnoAsistente: Identifiable {
 /// servidor no la guarda; cada pregunta lleva los últimos turnos.
 struct Asistente: View {
     @Environment(Estado.self) private var estado
-    /// Con algo escrito (desde la búsqueda o un link `/asistente?q=`), arranca preguntando eso.
+    /// Con algo escrito: desde la búsqueda arranca preguntando eso; desde un link de afuera
+    /// (`/asistente?q=`) sólo lo deja escrito, para que nadie gaste la IA con un link.
     var pregunta = ""
+    var enviar = true
     @State private var info: EstadoAsistente?
     @State private var turnos: [TurnoAsistente] = []
     @State private var texto = ""
@@ -84,10 +86,11 @@ struct Asistente: View {
     static let maxTurnos = 8
     static let maxLargo = 600
 
-    /// Las de la API mientras no llegan (dominio/asistente · Sugerencias).
+    /// Mientras no llega la API, las que contesta el motor sin IA (dominio/asistente · SugerenciasMotor):
+    /// nunca se ofrece algo que termine en «no lo puedo contestar».
     static let sugerenciasBase = [
         "¿Qué contratos ajustan este mes?", "¿Quiénes deben el alquiler?", "¿Qué tengo hoy?", "Contratos por vencer",
-        "Armame un mensaje para los que deben", "¿Quién busca un 3 ambientes en Palermo?",
+        "Borradores para revisar",
     ]
 
     var body: some View {
@@ -110,17 +113,27 @@ struct Asistente: View {
                     .padding(16)
                 }
                 .scrollDismissesKeyboard(.interactively)
-                .onChange(of: turnos.count) { _, _ in withAnimation { lector.scrollTo("fin", anchor: .bottom) } }
-                .onChange(of: pensando) { _, _ in withAnimation { lector.scrollTo("fin", anchor: .bottom) } }
+                // La respuesta se lee desde arriba: con un turno del asistente se va a su comienzo; con la
+                // pregunta o «Buscando…», al final.
+                .onChange(of: turnos.count) { _, _ in
+                    withAnimation {
+                        if let t = turnos.last, t.rol != .persona { lector.scrollTo(t.id, anchor: .top) } else { lector.scrollTo("fin", anchor: .bottom) }
+                    }
+                }
+                .onChange(of: pensando) { _, p in if p { withAnimation { lector.scrollTo("fin", anchor: .bottom) } } }
             }
             entrada
         }
         .pantallaApilada("Asistente")
         .task {
-            if info == nil { info = try? await estado.api.get("/v1/asistente") }
             guard !arranco else { return }
             arranco = true
-            if let q = pregunta.nonEmpty { await preguntar(q) }
+            // En paralelo y sin atar a la vista: si se cambia de pestaña mientras contesta, la respuesta
+            // igual llega (una Task estructurada se cancelaba y dejaba la pregunta sin respuesta).
+            Task { if info == nil { info = try? await estado.api.get("/v1/asistente") } }
+            if let q = pregunta.nonEmpty {
+                if enviar { Task { await preguntar(q) } } else { texto = q }
+            }
         }
     }
 
@@ -128,7 +141,7 @@ struct Asistente: View {
 
     private var cabeza: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(Formato.sinViudas("Preguntá como lo dirías. Lo que propone escribir lo confirmás vos."))
+            Text(Formato.sinViudas("Preguntá como lo dirías. Lo que propongo escribir lo confirmás vos."))
                 .estilo(.subhead).foregroundStyle(C.texto2)
             if let i = info, !i.ia, let a = i.aviso?.nonEmpty {
                 Label { Text(Formato.sinViudas(a)) } icon: { Image(systemName: "info.circle") }
@@ -140,10 +153,13 @@ struct Asistente: View {
         }
     }
 
-    /// Para empezar: las sugerencias de la API, de a una por fila.
-    private var arranque: some View {
+    /// Para empezar: las sugerencias de la API, de a una por fila. Debajo de una respuesta sin IA
+    /// vuelven como «Probá con» (tocables, en vez de una lista escrita).
+    private var arranque: some View { sugerencias("PARA EMPEZAR") }
+
+    private func sugerencias(_ titulo: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("PARA EMPEZAR").font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.5).foregroundStyle(C.texto2)
+            Text(titulo).font(Estilo(tamano: 13, peso: .bold, relativo: .footnote).font).tracking(0.5).foregroundStyle(C.texto2)
                 .padding(.horizontal, 4)
             VStack(spacing: 0) {
                 let ss = info?.sugerencias?.nonEmptyLista ?? Self.sugerenciasBase
@@ -151,7 +167,7 @@ struct Asistente: View {
                     Button { Task { await preguntar(s) } } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "sparkles").font(.system(size: 17)).foregroundStyle(C.accion).frame(width: 24)
-                            Text(s).estilo(.filaLista).foregroundStyle(C.texto).multilineTextAlignment(.leading)
+                            Text(Formato.sinViudas(s)).estilo(.filaLista).foregroundStyle(C.texto).multilineTextAlignment(.leading)
                             Spacer(minLength: 0)
                             Chevron()
                         }
@@ -179,7 +195,8 @@ struct Asistente: View {
             }
         case .error:
             VStack(alignment: .leading, spacing: 8) {
-                Label(t.texto, systemImage: "exclamationmark.icloud").estilo(.footnote).foregroundStyle(C.errorTinta)
+                Label { Text(Formato.sinViudas(t.texto)) } icon: { Image(systemName: "exclamationmark.icloud") }
+                    .estilo(.footnote).foregroundStyle(C.errorTinta)
                 Button("Probar de nuevo") { Task { await preguntar(t.pregunta) } }
                     .font(Estilo.subheadFuerte.font).foregroundStyle(C.accion).frame(minHeight: 44)
                     .disabled(pensando)
@@ -191,11 +208,11 @@ struct Asistente: View {
     }
 
     private func respuesta(_ t: TurnoAsistente, _ r: RespuestaAsistente) -> some View {
-        let o = Self.origen(r)
+        let o = Self.origen(r, hayIA: info?.ia ?? true)
         let pendientes = t.propuestas.filter { $0.estado == .pendiente }.count
         return VStack(alignment: .leading, spacing: 10) {
             if r.texto.nonEmpty != nil {
-                Text(r.texto).estilo(.body16).foregroundStyle(C.texto).textSelection(.enabled)
+                Text(Self.sinViudasPorLinea(r.texto)).estilo(.body16).foregroundStyle(C.texto).textSelection(.enabled)
                     .padding(.horizontal, 4)
             }
             if let rs = r.resultados, !rs.isEmpty {
@@ -204,8 +221,8 @@ struct Asistente: View {
                         Button { abrir(it) } label: {
                             HStack(spacing: 12) {
                                 VStack(alignment: .leading, spacing: 1) {
-                                    Text(it.titulo).estilo(.filaLista).foregroundStyle(C.texto).lineLimit(2)
-                                    if let s = it.subtitulo?.nonEmpty { Text(s).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(2) }
+                                    Text(Formato.sinViudas(it.titulo)).estilo(.filaLista).foregroundStyle(C.texto).lineLimit(2)
+                                    if let s = it.subtitulo?.nonEmpty { Text(Formato.sinViudas(s)).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(2) }
                                 }
                                 Spacer(minLength: 0)
                                 Chevron()
@@ -224,7 +241,12 @@ struct Asistente: View {
             if pendientes > 1 && estado.escribe {
                 Button("Confirmar las \(pendientes)") { Task { await confirmarTodas(t.id) } }.buttonStyle(BotonHundido())
             }
-            Label(o.1, systemImage: o.0).estilo(.footnote).foregroundStyle(C.texto3).padding(.horizontal, 4)
+            // texto2: el pie dice por qué no contestó la IA, es información (texto3 no llega a AA).
+            Label { Text(Formato.sinViudas(o.1)) } icon: { Image(systemName: o.0) }
+                .estilo(.footnote).foregroundStyle(C.texto2).padding(.horizontal, 4)
+            if r.origen == "sin_ia", r.resultados?.isEmpty ?? true, t.id == turnos.last?.id {
+                sugerencias("PROBÁ CON").padding(.top, 4)
+            }
         }
     }
 
@@ -236,13 +258,13 @@ struct Asistente: View {
             HStack(alignment: .top, spacing: 10) {
                 IconoTono(icono: a.icono, tono: a.tono, tam: 38)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(a.titulo).estilo(.filaLista).foregroundStyle(C.texto)
-                    Text(p.estado == .hecha ? "Quedó para revisar: todavía no se mandó nada" : "Propuesta: no se crea hasta que la confirmes")
+                    Text(Formato.sinViudas(a.titulo)).estilo(.filaLista).foregroundStyle(C.texto)
+                    Text(Formato.sinViudas(p.estado == .hecha ? "Quedó para revisar: todavía no se mandó nada" : "Propuesta: no se crea hasta que la confirmes"))
                         .estilo(.footnote).foregroundStyle(C.texto2)
                 }
             }
             if let x = p.p.texto?.nonEmpty {
-                Text(x).estilo(.texto14).foregroundStyle(C.texto)
+                Text(Self.sinViudasPorLinea(x)).estilo(.texto14).foregroundStyle(C.texto)
                     .padding(burbuja ? 12 : 0)
                     .background(burbuja ? C.okFondo : .clear, in: .rect(cornerRadius: 14, style: .continuous))
             }
@@ -306,6 +328,9 @@ struct Asistente: View {
                                          propuestas: (r.propuestas ?? []).map { TurnoAsistente.Propuesta(p: $0) }))
         } catch is CancellationError {
             return
+        } catch let e as ErrorApi where e.estado == 402 {
+            // Sin plan: lleva a «Ver planes», no a un «Probar de nuevo» que va a fallar siempre.
+            estado.avisar(e)
         } catch {
             let e = error as? ErrorApi
             let m = e == nil || e?.sinConexion == true ? "No pude contestar. Revisá la señal y probá de nuevo." : (e?.detalle.nonEmpty ?? e?.titulo ?? "")
@@ -409,13 +434,19 @@ struct Asistente: View {
         return AnyHashable(ASeccion(clave: "revision"))
     }
 
-    /// De dónde salió la respuesta: el ícono y el texto de abajo.
-    static func origen(_ r: RespuestaAsistente) -> (String, String) {
+    /// De dónde salió la respuesta: el ícono y el texto de abajo. Si el plan no trae IA, la cabeza ya lo
+    /// dice: el pie queda en «Sin IA». Con IA en el plan (un tope, un corte), el pie dice el motivo.
+    static func origen(_ r: RespuestaAsistente, hayIA: Bool = true) -> (String, String) {
         switch r.origen {
         case "motor": return ("bolt", "Con los datos de Corredor")
-        case "sin_ia": return ("info.circle", r.aviso?.nonEmpty ?? "Sin IA")
+        case "sin_ia": return ("info.circle", hayIA ? (r.aviso?.nonEmpty ?? "Sin IA") : "Sin IA")
         default: return ("sparkles", "Con IA · puede equivocarse")
         }
+    }
+
+    /// Sin palabras solas en el último renglón de cada párrafo (sinViudas sólo mira el final).
+    static func sinViudasPorLinea(_ t: String) -> String {
+        t.components(separatedBy: "\n").map { Formato.sinViudas($0) }.joined(separator: "\n")
     }
 }
 

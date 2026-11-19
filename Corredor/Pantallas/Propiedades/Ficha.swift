@@ -146,7 +146,7 @@ struct FichaPropiedad: View {
         if fotos.isEmpty {
             Button { if estado.escribe { estado.abrir(AEditarEnPaso(id: p.id, paso: "fotos")) } } label: {
                 VStack(spacing: 8) {
-                    Image(systemName: "camera.badge.plus").font(.system(size: 34))
+                    Image(systemName: "photo.badge.plus").font(.system(size: 34))
                     Text("Sumá fotos").estilo(.subheadFuerte)
                     Text("Sin fotos no sale en los portales").estilo(.footnote).foregroundStyle(C.texto2)
                 }

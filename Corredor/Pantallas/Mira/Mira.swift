@@ -93,6 +93,11 @@ final class ColaMira {
                 try await MiraLector.leer(&x, api: api)
             } catch let e as ErrorApi where e.sinConexion {
                 return
+            } catch let e as ErrorApi where e.codigo == "tope_ia" {
+                // El tope se renueva: la foto sigue en cola y no se prueba con las demás (no cuesta nada,
+                // la API corta antes de llamar a la IA).
+                actualizar(x)
+                return
             } catch let e as ErrorApi {
                 x.estado = "error"
                 x.error = e.detalle
@@ -119,7 +124,8 @@ enum MiraLector {
     static func leer(_ f: inout FotoMira, api: Api) async throws {
         guard let datos = try? Data(contentsOf: ColaMira.carpeta.appendingPathComponent(f.archivo)) else { return }
         if f.archivoId == nil {
-            f.archivoId = try await api.subir(datos, nombre: f.archivo, tipo: "image/jpeg", uso: "foto").id
+            // «cartel»: privada, nunca una foto de la propiedad (la API la deja como documento de la ficha).
+            f.archivoId = try await api.subir(datos, nombre: f.archivo, tipo: "image/jpeg", uso: "cartel").id
         }
         struct Cuerpo: Encodable { var archivoId: String }
         do {
@@ -428,7 +434,7 @@ struct MiraRaiz: View {
                 }
                 Button { Task { await captar() } } label: {
                     HStack(spacing: 8) {
-                        if captando { ProgressView().tint(C.sobreAccion) } else { Image(systemName: "house.badge.plus") }
+                        if captando { ProgressView().tint(C.sobreAccion) } else { Image(systemName: "plus.viewfinder") }
                         Text(nolee ? "Captar con lo que hay" : (dudaPrecio ? "Elegí el precio para captar" : "Captar"))
                     }
                     .font(Estilo(tamano: 17, peso: .bold, relativo: .headline).font)
@@ -474,7 +480,7 @@ struct MiraRaiz: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 VStack(spacing: 12) {
-                    Image(systemName: "house.badge.plus").font(.system(size: 38, weight: .semibold)).foregroundStyle(Color(hex: 0x1A1405))
+                    Image(systemName: "plus.viewfinder").font(.system(size: 38, weight: .semibold)).foregroundStyle(Color(hex: 0x1A1405))
                         .frame(width: 96, height: 96).background(C.oro, in: Circle())
                     Text("\(p.direccion ?? "La propiedad") quedó captada").estilo(.titulo3).multilineTextAlignment(.center)
                     Text(Formato.sinViudas("Está como borrador en tu cartera, no se publica hasta que la completes.\(contacto != nil ? " El dueño directo quedó cargado como contacto." : "")"))
@@ -666,7 +672,8 @@ struct MiraRaiz: View {
         }
         f = FormMira()
         alternativas = []
-        Task { await completar(x) }
+        // Una que falló (la IA no respondió) se vuelve a leer al abrirla: lo inicia la persona, no un bucle.
+        if x.estado == "error" { Task { await leer(x, recortada: false) } } else { Task { await completar(x) } }
     }
 
     private func captar() async {

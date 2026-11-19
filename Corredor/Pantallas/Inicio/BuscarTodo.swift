@@ -39,6 +39,8 @@ struct BuscarTodo: View {
         var texto: String
         var icono: String
         var palabras: String
+        /// Un segundo renglón (lo escrito, en «Preguntarle al asistente»).
+        var detalle: String? = nil
         var id: String { clave }
     }
     static let acciones: [Accion] = [
@@ -76,7 +78,8 @@ struct BuscarTodo: View {
     /// encuentra buscando, se contesta. Desde tres letras.
     private var preguntaAsistente: Accion? {
         guard filtro.isEmpty, q.count >= 3 else { return nil }
-        return Accion(clave: "asistente", texto: "Preguntarle al asistente: «\(q.prefix(80))»", icono: "sparkles", palabras: "")
+        // Lo escrito va abajo, en dos renglones: en una fila sola, a 375 casi no entraba.
+        return Accion(clave: "asistente", texto: "Preguntarle al asistente", icono: "sparkles", palabras: "", detalle: "«\(q.prefix(120))»")
     }
 
     /// Las acciones del bloque «Acciones»: las escritas y, al final, preguntarle al asistente.
@@ -213,7 +216,7 @@ struct BuscarTodo: View {
             encabezado("Acciones")
             VStack(spacing: 0) {
                 ForEach(Array(accionesConPregunta.enumerated()), id: \.element.id) { i, a in
-                    Button { hacer(a) } label: { filaSimple(a.icono, a.texto) }
+                    Button { hacer(a) } label: { filaSimple(a.icono, a.texto, detalle: a.detalle) }
                         .buttonStyle(Presionable())
                         .overlay(alignment: .top) { if i > 0 { Rectangle().fill(C.linea).frame(height: 0.5) } }
                 }
@@ -243,14 +246,17 @@ struct BuscarTodo: View {
         }
     }
 
-    private func filaSimple(_ icono: String, _ t: String) -> some View {
+    private func filaSimple(_ icono: String, _ t: String, detalle: String? = nil) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icono).font(.system(size: 19)).foregroundStyle(C.accion).frame(width: 24)
-            Text(t).estilo(.filaLista).foregroundStyle(C.texto).lineLimit(1)
+            VStack(alignment: .leading, spacing: 0) {
+                Text(t).estilo(.filaLista).foregroundStyle(C.texto).lineLimit(1)
+                if let d = detalle { Text(d).estilo(.footnote).foregroundStyle(C.texto2).lineLimit(2).multilineTextAlignment(.leading) }
+            }
             Spacer()
             Chevron()
         }
-        .padding(.horizontal, 14).frame(minHeight: 50).contentShape(Rectangle())
+        .padding(.horizontal, 14).padding(.vertical, detalle == nil ? 0 : 8).frame(minHeight: detalle == nil ? 50 : 56).contentShape(Rectangle())
     }
 
     private func grupo(_ titulo: String, _ icono: String, _ items: [Resultado]) -> some View {
