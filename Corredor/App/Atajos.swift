@@ -200,11 +200,26 @@ enum Spotlight {
 enum ActividadVisita {
     /// La API manda las actualizaciones (cambio de hora, hecha, cancelada) a este token.
     @MainActor static weak var api: Api?
+    /// Lo último que se aplicó: el Inicio recarga seguido y no hace falta volver a preguntarle al sistema.
+    @MainActor private static var ultima: String?
+    /// ActivityKit se consulta fuera del hilo principal: `ActivityAuthorizationInfo()` espera al sistema
+    /// (XPC) y, llamado desde la carga del Inicio, cerraba la app al abrirla (TestFlight, 19/11).
+    private static let cola = DispatchQueue(label: "ar.com.corredor.actividad-visita", qos: .utility)
 
-    static func actualizar(_ cita: Cita?) {
+    @MainActor static func actualizar(_ cita: Cita?) {
+        let ahora = Date()
+        let vigente = cita.map { $0.empiezaEn.timeIntervalSince(ahora) < 3600 && $0.terminaEn > ahora && $0.estado != "cancelada" } ?? false
+        let clave = cita.map { "\($0.id)|\($0.empiezaEn.timeIntervalSince1970)|\($0.estado ?? "")|\(vigente)" } ?? "-"
+        guard clave != ultima else { return }
+        ultima = clave
+        let api = self.api
+        cola.async { aplicar(vigente ? cita : nil, api: api) }
+    }
+
+    private static func aplicar(_ cita: Cita?, api: Api?) {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         let actuales = Activity<VisitaActividad>.activities
-        guard let c = cita, c.empiezaEn.timeIntervalSinceNow < 3600, c.terminaEn > Date(), c.estado != "cancelada" else {
+        guard let c = cita else {
             for a in actuales { Task { await a.end(nil, dismissalPolicy: .immediate) } }
             return
         }
