@@ -119,7 +119,7 @@ struct PestanaExpensasConsorcio: View {
             estado.avisar("\(Cons.plural(r.encolados, "recibo sale", "recibos salen")) por mail\(sin.isEmpty ? "" : " · \(sin.count) sin mail (\(sin.joined(separator: ", ")))")")
         } catch {
             let t = (error as? ErrorApi)?.detalle ?? "Probá de nuevo."
-            estado.sugerir("No se mandaron · \(t)", "Reintentar") { Task { await enviar(f) } }
+            estado.avisarConReintento(error, "No se mandaron · \(t)") { Task { await enviar(f) } }
         }
     }
 

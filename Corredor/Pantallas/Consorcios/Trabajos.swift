@@ -258,7 +258,7 @@ struct FichaTrabajoConsorcio: View {
         } catch {
             local = nil
             let d = (error as? ErrorApi)?.detalle ?? "Probá de nuevo."
-            estado.sugerir("No se guardó · \(d)", "Reintentar") { Task { await cambiar(nuevo) } }
+            estado.avisarConReintento(error, "No se guardó · \(d)") { Task { await cambiar(nuevo) } }
         }
     }
 

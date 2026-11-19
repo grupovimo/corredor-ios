@@ -56,6 +56,16 @@ struct PantallaPlan: View {
             if !inicializado {
                 inicializado = true
                 if let p = s.esperando ?? s.plan { elegido = p; ciclo = s.ciclo }
+                // Pasado de los topes (bajó de plan): el más chico en el que entra todo lo que se usa.
+                if s.textoFuera != nil, let p = s.planes.first(where: { p in
+                    let m = s.deMas(p)
+                    return m.personas + m.propiedades + m.contratos == 0
+                }) { elegido = p.id }
+            }
+            // Desde un aviso de tope («Ver planes»): el plan que lo habilita, elegido.
+            if let p = estado.planSugerido, s.planes.contains(where: { $0.id == p }) {
+                elegido = p
+                estado.planSugerido = nil
             }
             await tienda.cargar(s.planes.flatMap { [$0.appleMes, $0.appleAnio] })
             for p in tienda.productos.values {
@@ -68,12 +78,15 @@ struct PantallaPlan: View {
     // MARK: Cómo estás hoy
 
     private func cabecera(_ s: Suscripcion) -> some View {
-        let tono: Tono = s.estado == "vencida" ? .rojo : (s.estado == "prueba" && s.diasRestantes <= 3) ? .oro : .verde
+        let fuera = s.estado == "vencida" ? nil : s.textoFuera
+        let tono: Tono = s.estado == "vencida" ? .rojo : fuera != nil || (s.estado == "prueba" && s.diasRestantes <= 3) ? .oro : .verde
         return VStack(alignment: .leading, spacing: 8) {
             Text(s.nombreEstado).estilo(.caption).foregroundStyle(tono.tinta)
                 .padding(.horizontal, 10).padding(.vertical, 4).background(tono.fondo, in: .capsule)
-            Text(titulo(s)).font(Estilo.titulo3.font).foregroundStyle(C.texto).fixedSize(horizontal: false, vertical: true)
-            Text(Formato.sinViudas(detalle(s))).estilo(.footnote).foregroundStyle(C.texto2).fixedSize(horizontal: false, vertical: true)
+            Text(Formato.sinViudas(fuera.map { "\($0) quedaron fuera de tu plan." } ?? titulo(s))).font(Estilo.titulo3.font).foregroundStyle(C.texto).fixedSize(horizontal: false, vertical: true)
+            Text(Formato.sinViudas(fuera != nil
+                ? "No salen en tu web ni en los portales, y los contratos no se cobran desde Corredor. Nada se borró: pasá a un plan más grande o liberá lugar."
+                : detalle(s))).estilo(.footnote).foregroundStyle(C.texto2).fixedSize(horizontal: false, vertical: true)
             uso(s).padding(.top, 6)
             if s.medio == "apple", s.renueva, estado.esDuenio {
                 Button("Administrar la suscripción") { gestionar = true }.buttonStyle(BotonTonal()).padding(.top, 4)
@@ -98,7 +111,12 @@ struct PantallaPlan: View {
     private func detalle(_ s: Suscripcion) -> String {
         switch s.estado {
         case "prueba": return "Elegí tu plan cuando quieras. Si no elegís, queda en sólo lectura 90 días para que exportes tus datos, y después se borran."
-        case "activa": return s.comoSePaga
+        case "activa":
+            // Una baja ya autorizada: el plan actual sigue hasta que termina lo pagado.
+            if let p = s.proximo, let nuevo = s.planes.first(where: { $0.id == p.plan }) {
+                return "Seguís con el plan \(s.planActual?.nombre ?? "") hasta el \(Formato.fechaLarga(p.desde)); ese día pasás a \(nuevo.nombre) (\(p.ciclo == "anio" ? "anual" : "mensual")), con el primer cobro."
+            }
+            return s.comoSePaga
         case "baja": return "Elegí un plan para seguir sin cortes. Lo que ya pagaste no se pierde."
         default:
             let hasta = s.borraEn.map { "hasta el \(Formato.fechaLarga($0)), cuando se borra" } ?? "durante 90 días; después se borra"
@@ -111,24 +129,31 @@ struct PantallaPlan: View {
     private func uso(_ s: Suscripcion) -> some View {
         var filas: [(String, Suscripcion.Uso)] = [("Personas que cargan", .init(usados: s.agentes.usados, tope: s.agentes.cupo))]
         if let t = s.topes {
-            filas += [("Propiedades activas", t.propiedades), ("Contratos de alquiler", t.contratos), ("Carteles con MIRA este mes", t.mira)]
+            filas += [("Propiedades activas", t.propiedades), ("Contratos de alquiler", t.contratos), ("MIRA este mes", t.mira)]
         }
         return VStack(alignment: .leading, spacing: 10) {
             ForEach(filas, id: \.0) { fila in
                 let (nombre, u) = fila
                 let lleno = u.tope.map { u.usados > $0 } ?? false
+                let alTope = u.tope.map { u.usados >= $0 } ?? false
                 let casi = u.tope.map { $0 > 0 && Double(u.usados) / Double($0) >= 0.85 } ?? false
+                // MIRA sin tope del plan muestra sólo lo usado: la IA tiene su propio límite de uso razonable.
+                let sinTope = nombre.hasPrefix("MIRA") ? "\(u.usados)" : "\(u.usados) · sin tope"
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text(nombre).estilo(.footnote).foregroundStyle(C.texto2)
                         Spacer(minLength: 8)
-                        Text(u.tope.map { "\(u.usados) de \($0)" } ?? "\(u.usados) · sin tope")
+                        Text(u.tope.map { "\(u.usados) de \($0)" } ?? sinTope)
                             .estilo(.footnote).monospacedDigit().foregroundStyle(lleno ? C.errorTinta : C.texto)
                     }
                     if let t = u.tope, t > 0 {
                         ProgressView(value: Double(min(u.usados, t)), total: Double(t))
                             .tint(lleno ? C.errorTinta : casi ? C.oroTinta : C.accion)
                             .accessibilityHidden(true)
+                    }
+                    if alTope {
+                        Text(lleno ? "Pasaste el tope" : "Llegaste al tope").estilo(.caption).fontWeight(.semibold)
+                            .foregroundStyle(lleno ? C.errorTinta : C.oroTinta)
                     }
                 }
                 .accessibilityElement(children: .combine)
@@ -178,7 +203,7 @@ struct PantallaPlan: View {
                         Circle().strokeBorder(on ? C.accion : C.linea2, lineWidth: on ? 6 : 2).frame(width: 20, height: 20)
                     }
                     Text(p.nombre).font(Estilo.total.font).foregroundStyle(C.texto)
-                    if actual { chip("Tu plan", .verde) } else if p.destacado { chip("El más elegido", .oro) }
+                    if actual { chip("Tu plan", .verde) } else if p.destacado { chip("Recomendado", .oro) }
                     Spacer(minLength: 0)
                 }
                 Text(p.resumen).estilo(.footnote).foregroundStyle(C.texto2)
@@ -198,6 +223,11 @@ struct PantallaPlan: View {
                         }
                     }
                     .padding(.top, 8)
+                // En el teléfono no se compran personas extra (Apple y Google no las venden): se dice.
+                if (p.personaExtraMes ?? 0) > 0 {
+                    Text(Formato.sinViudas("Las personas extra se suman pagando con Mercado Pago desde la web."))
+                        .estilo(.caption).foregroundStyle(C.texto3).fixedSize(horizontal: false, vertical: true)
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -225,7 +255,8 @@ struct PantallaPlan: View {
         let primerCobro = gratis.map { o in Calendar.current.date(byAdding: o.period.unit.componente, value: o.period.value, to: .now) ?? .now } ?? .now
         let cada = ciclo == "anio" ? "año" : "mes"
         let mismo = s.plan == plan.id && s.ciclo == ciclo && s.renueva && !s.soloLectura
-        let mas = s.deMas(plan)
+        // La compra en la tienda deja las personas extra en 0: el ticket cuenta sin ellas.
+        let mas = s.deMas(plan, conExtras: false)
         let precioTxt = precio(plan, ciclo)
         return VStack(alignment: .leading, spacing: 10) {
             Text("Resumen").font(Estilo.total.font).foregroundStyle(C.texto)
@@ -294,7 +325,7 @@ struct PantallaPlan: View {
     /// Bajar de plan no borra nada: lo que pasa el tope queda en sólo lectura hasta liberar lugar.
     private func textoDeMas(_ m: (personas: Int, propiedades: Int, contratos: Int)) -> String {
         var partes: [String] = []
-        if m.personas > 0 { partes.append("\(Formato.cantidad(m.personas, "persona queda", "personas quedan")) sin cargar (pasalas a lector en Equipo)") }
+        if m.personas > 0 { partes.append("\(Formato.cantidad(m.personas, "persona queda", "personas quedan")) sin cargar (pasalas a lector desde Más › Equipo)") }
         if m.propiedades > 0 { partes.append("\(Formato.cantidad(m.propiedades, "propiedad activa queda", "propiedades activas quedan")) fuera de tu web") }
         if m.contratos > 0 { partes.append("\(Formato.cantidad(m.contratos, "contrato no se cobra", "contratos no se cobran")) desde Corredor") }
         return "Con este plan no se borra nada, pero lo que pasa el tope queda en sólo lectura hasta que liberes lugar: " + partes.joined(separator: "; ") + "."
@@ -470,13 +501,13 @@ struct AvisoPlan: View {
     var body: some View {
         if let s = estado.suscripcion, s.pideAtencion {
             let vencida = s.estado == "vencida"
-            let tono: Tono = vencida ? .rojo : s.diasRestantes <= 3 || s.estado == "baja" ? .oro : .verde
+            let tono: Tono = vencida ? .rojo : s.diasRestantes <= 3 || s.estado == "baja" || s.textoFuera != nil ? .oro : .verde
             Button { estado.abrir(ASeccion(clave: "plan")) } label: {
                 HStack(spacing: 12) {
                     Image(systemName: vencida ? "lock" : "hourglass").font(.body.weight(.semibold))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(texto(s)).estilo(.subheadFuerte).fixedSize(horizontal: false, vertical: true)
-                        Text(estado.esDuenio ? (s.estado == "baja" ? "Renovar" : "Elegí tu plan") : "Ver los planes").estilo(.footnote).opacity(0.85)
+                        Text(estado.esDuenio ? (s.estado == "baja" && s.textoFuera == nil ? "Renovar" : s.textoFuera != nil && !vencida ? "Ver planes" : "Elegí tu plan") : "Ver los planes").estilo(.footnote).opacity(0.85)
                     }
                     Spacer(minLength: 0)
                     Image(systemName: "chevron.right").font(.footnote.weight(.semibold))
@@ -495,8 +526,46 @@ struct AvisoPlan: View {
             guard estado.esDuenio else { return "La inmobiliaria está en sólo lectura." }
             if let b = s.borraEn { return "Estás en sólo lectura. Si no elegís un plan, el \(Formato.fechaLarga(b)) se borran tus datos." }
             return "Tu prueba terminó: estás en sólo lectura. Tus datos quedan 90 días."
+        case _ where s.textoFuera != nil:
+            return "\(s.textoFuera ?? "") quedaron fuera de tu plan: se ven, pero no salen en tu web ni se cobran. Nada se borró."
         case "baja": return "Tu plan no se renueva: termina el \(Formato.dia(s.vigenteHasta))."
         default: return s.diasRestantes <= 1 ? "Hoy es el último día de tu prueba gratis." : "Te quedan \(s.diasRestantes) días de prueba gratis."
         }
+    }
+}
+
+/// La franja del plan dentro de una pantalla, en el momento justo: «Tenés 30 de 30 propiedades activas» al
+/// abrir un alta, «Quedó fuera de tu plan» en una ficha. Oro (no es un error: se arregla eligiendo un plan o
+/// liberando lugar), con el botón a Tu plan y el plan que lo habilita ya elegido. `ir`: lo que hace el botón
+/// (dentro de una hoja, cerrarla antes); por defecto, Tu plan.
+struct BandaPlan: View {
+    @Environment(Estado.self) private var estado
+    var titulo: String
+    var texto: String
+    var plan: String = ""
+    var accion: String = "Ver planes"
+    var icono: String = "crown"
+    var ir: (() -> Void)?
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icono).font(.body.weight(.semibold)).padding(.top, 1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(Formato.sinViudas(titulo)).estilo(.subheadFuerte).fixedSize(horizontal: false, vertical: true)
+                Text(Formato.sinViudas(texto)).estilo(.footnote).fixedSize(horizontal: false, vertical: true)
+                Button {
+                    if let ir { ir() } else { estado.irAPlan(plan) }
+                } label: {
+                    HStack(spacing: 4) { Text(accion); Image(systemName: "arrow.right") }
+                        .font(Estilo(tamano: 15, peso: .bold, relativo: .subheadline).font)
+                        .frame(minHeight: 44, alignment: .leading)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(C.oroTinta)
+        .padding(14)
+        .background(C.avisoFondo, in: .rect(cornerRadius: 14, style: .continuous))
+        .accessibilityElement(children: .combine)
     }
 }

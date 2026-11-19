@@ -55,6 +55,8 @@ struct Aviso: Identifiable, Equatable {
     var deshacer: (() -> Void)?
     /// La sugerencia del paso siguiente («Publicar», «Cargar contrato»): su texto y qué hace.
     var accion: (String, () -> Void)?
+    /// La acción lleva a otra pantalla («Ver planes»): dentro de una hoja, primero se cierra la hoja.
+    var navega = false
 
     static func == (a: Aviso, b: Aviso) -> Bool { a.id == b.id }
 }
@@ -77,6 +79,8 @@ final class Estado {
     let api: Api
     var sesion: Sesion?
     var aviso: Aviso?
+    /// El plan que sugirió un 402 (tope_plan, plan_insuficiente): Tu plan lo abre elegido.
+    var planSugerido: String?
     /// Pantalla bloqueada con Face ID (1D) hasta que la persona se identifique.
     var bloqueada = false
     /// La pestaña elegida y lo apilado en cada una.
@@ -453,8 +457,8 @@ final class Estado {
         sugerir(texto, boton) { [weak self] in self?.abrir(destino) }
     }
 
-    func sugerir(_ texto: String, _ boton: String, hacer: @escaping () -> Void) {
-        aviso = Aviso(texto: texto, ok: true, accion: (boton, hacer))
+    func sugerir(_ texto: String, _ boton: String, navega: Bool = false, hacer: @escaping () -> Void) {
+        aviso = Aviso(texto: texto, ok: true, accion: (boton, hacer), navega: navega)
         avisoTarea?.cancel()
         let id = aviso?.id
         avisoTarea = Task {
@@ -467,11 +471,29 @@ final class Estado {
     func avisar(_ e: Error) {
         // 402: la prueba terminó, el plan no trae eso o no hay lugar en el equipo: lleva a «Tu plan».
         if let e = e as? ErrorApi, e.estado == 402 {
-            sugerir(e.detalle.isEmpty ? e.titulo : e.detalle, "Ver planes", ASeccion(clave: "plan"))
+            let plan = e.plan
+            sugerir(e.detalle.isEmpty ? e.titulo : e.detalle, "Ver planes", navega: true) { [weak self] in self?.irAPlan(plan) }
             Task { await cargarSuscripcion() }
             return
         }
         if let e = e as? ErrorApi { avisar(e.detalle.isEmpty ? e.titulo : e.detalle, ok: false) } else { avisar("Algo salió mal. Probá de nuevo.", ok: false) }
+    }
+
+    /// El error de un pedido que se puede volver a intentar: «Reintentar»; pero si lo frena el plan (402),
+    /// reintentar choca con el mismo tope, así que va «Ver planes».
+    func avisarConReintento(_ e: Error, _ texto: String? = nil, reintentar: @escaping () -> Void) {
+        if let x = e as? ErrorApi, x.delPlan { avisar(e); return }
+        let t = texto ?? ((e as? ErrorApi).map { $0.detalle.isEmpty ? $0.titulo : $0.detalle } ?? "Algo salió mal.")
+        sugerir(t, "Reintentar", hacer: reintentar)
+    }
+
+    /// Tu plan, con el plan sugerido elegido. Cierra antes lo que esté presentado (la acción rápida, MIRA):
+    /// la pantalla se apila debajo.
+    func irAPlan(_ plan: String = "") {
+        planSugerido = plan.isEmpty ? nil : plan
+        hojaRapida = nil
+        miraAbierta = false
+        abrir(ASeccion(clave: "plan", id: plan.isEmpty ? nil : plan))
     }
 
     // MARK: Face ID (1D)

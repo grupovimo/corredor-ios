@@ -359,6 +359,15 @@ struct AltaPropiedad: View {
     @State private var envioAlta = UUID().uuidString
     @State private var web: String?
     @State private var ultimo: DatosAlta?
+    /// El servidor no la dejó publicar por el plan (402): queda el borrador, y se dice acá.
+    @State private var frenoPlan: ErrorApi?
+
+    /// Alta nueva con el tope de propiedades activas lleno: queda como borrador hasta que haya lugar.
+    private var sinLugar: (usados: Int, tope: Int, plan: String, siguiente: Suscripcion.Plan?)? {
+        editar == nil ? estado.suscripcion?.topeLleno("propiedades") : nil
+    }
+    /// Edición de una que quedó fuera del plan: no se edita (cada guardado chocaría con el 402).
+    private var fueraDelPlan: Bool { editar != nil && base?.fueraDelPlan == true }
 
     var body: some View {
         Group {
@@ -423,6 +432,7 @@ struct AltaPropiedad: View {
 
     private var etiquetaSeguir: String {
         if editar != nil { return "Listo" }
+        if sinLugar != nil || frenoPlan != nil { return "Guardar como borrador" }
         if publicando { return "Publicando…" }
         let n = lugares.count
         return n == 0 ? "Guardar sin publicar" : "Publicar en \(n) \(n == 1 ? "lugar" : "lugares")"
@@ -435,6 +445,25 @@ struct AltaPropiedad: View {
         return Formato.guardadoHace(g, ahora: ahora)
     }
 
+    // MARK: Plan
+
+    /// La franja del plan en el momento justo: al abrir el alta con el tope lleno, si el servidor la frenó
+    /// al publicar, o al editar una que quedó fuera del plan.
+    @ViewBuilder
+    private var bandaPlan: some View {
+        if fueraDelPlan {
+            BandaPlan(titulo: "Quedó fuera de tu plan",
+                      texto: "Se ve, pero no se edita ni sale en tu web ni en los portales. Para editarla, pasá a un plan más grande o marcá otra como vendida, alquilada o suspendida.",
+                      icono: "lock")
+        } else if let f = frenoPlan {
+            BandaPlan(titulo: "Quedó guardada como borrador", texto: f.detalle.isEmpty ? f.titulo : f.detalle, plan: f.plan)
+        } else if let l = sinLugar {
+            BandaPlan(titulo: "Tenés \(l.usados) de \(l.tope) propiedades activas, el tope de tu plan \(l.plan)",
+                      texto: "Esta queda como borrador hasta que pases a \(l.siguiente?.nombre ?? "un plan más grande") o marques otra como vendida, alquilada o suspendida.",
+                      plan: l.siguiente?.id ?? "")
+        }
+    }
+
     // MARK: Formulario
 
     private var formulario: some View {
@@ -442,6 +471,7 @@ struct AltaPropiedad: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     estadoGuardado
+                    bandaPlan
                     if editar == nil, borradorId == nil, !paraSeguir.isEmpty, d == DatosAlta() { aMedioCargar }
                     fotos.id("fotos")
                     lominimo
@@ -1026,7 +1056,7 @@ struct AltaPropiedad: View {
     @State private var enFila: Task<Void, Never>?
 
     private func programarGuardado() {
-        guard !publicando, salidas == nil, d != ultimo else { return }
+        guard !publicando, salidas == nil, d != ultimo, !fueraDelPlan else { return }
         espera?.cancel()
         espera = Task {
             try? await Task.sleep(for: .milliseconds(editar == nil ? 800 : 700))
@@ -1091,8 +1121,17 @@ struct AltaPropiedad: View {
         }
         if editar != nil {
             espera?.cancel()
+            if fueraDelPlan { cerrar(); return }
             await guardarYa()
             if guardado != "error" { estado.version += 1; cerrar() }
+            return
+        }
+        if sinLugar != nil || frenoPlan != nil {
+            // Sin lugar en el plan: queda el borrador (se retoma desde «Nueva» cuando haya lugar).
+            espera?.cancel()
+            await guardarYa()
+            estado.avisar("Quedó guardada como borrador. La publicás cuando tengas lugar en tu plan.")
+            cerrar()
             return
         }
         await publicar()
@@ -1149,6 +1188,8 @@ struct AltaPropiedad: View {
             } catch { estado.avisar(error) }
             return
         } catch {
+            // El tope del plan: reintentar no sirve; la franja dice que quedó como borrador.
+            if let e = error as? ErrorApi, e.delPlan { frenoPlan = e }
             estado.avisar(error)
             return
         }

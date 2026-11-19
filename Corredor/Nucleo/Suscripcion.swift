@@ -45,6 +45,13 @@ struct Suscripcion: Decodable, Equatable {
         var mira: Uso
     }
 
+    /// Una baja de plan ya autorizada (Mercado Pago): el actual sigue hasta `desde` y ahí entra éste.
+    struct Proximo: Decodable, Equatable {
+        var plan: String
+        var ciclo: String
+        var desde: Date
+    }
+
     struct Cobro: Decodable, Equatable, Identifiable {
         var id: String
         var medio: String
@@ -68,6 +75,7 @@ struct Suscripcion: Decodable, Equatable {
     var importe: Double?
     var moneda: String?
     var esperando: String?
+    var proximo: Proximo?
     var soloLectura: Bool
     var enPrueba: Bool
     /// Cuándo se borran los datos si no elige un plan (sólo vencida y con la purga prendida; si no, nil).
@@ -85,11 +93,45 @@ struct Suscripcion: Decodable, Equatable {
     var planQueRige: Plan? { planes.first { $0.id == (planVigente ?? plan) } }
 
     /// Lo que pasa el tope si se elige `p`: personas, propiedades activas y contratos que quedan en sólo
-    /// lectura (nada se borra).
-    func deMas(_ p: Plan) -> (personas: Int, propiedades: Int, contratos: Int) {
+    /// lectura (nada se borra). `conExtras`: cuenta las personas pagas aparte; una compra en la tienda las
+    /// pone en 0 (Apple y Google no venden personas extra), así que el ticket de la app las deja afuera.
+    func deMas(_ p: Plan, conExtras: Bool = true) -> (personas: Int, propiedades: Int, contratos: Int) {
         func de(_ u: Uso?, _ t: Int?) -> Int { guard let u, let t, t > 0 else { return 0 }; return max(0, u.usados - t) }
-        let extras = (p.personaExtraMes ?? 0) > 0 ? (personasExtra ?? 0) : 0
+        let extras = conExtras && (p.personaExtraMes ?? 0) > 0 ? (personasExtra ?? 0) : 0
         return (max(0, agentes.usados - p.agentes - extras), de(topes?.propiedades, p.propiedades), de(topes?.contratos, p.contratos))
+    }
+
+    /// Lo que pasa el tope del plan que rige (después de bajar de plan): se ve, no se borra.
+    var fueraDelPlan: (personas: Int, propiedades: Int, contratos: Int) {
+        func de(_ u: Uso?) -> Int { guard let u, let t = u.tope else { return 0 }; return max(0, u.usados - t) }
+        return (agentes.cupo.map { max(0, agentes.usados - $0) } ?? 0, de(topes?.propiedades), de(topes?.contratos))
+    }
+
+    /// «6 propiedades y 2 contratos» (lo que quedó fuera del plan), o nil si nada.
+    var textoFuera: String? {
+        let f = fueraDelPlan
+        var partes: [String] = []
+        if f.propiedades > 0 { partes.append(f.propiedades == 1 ? "1 propiedad" : "\(f.propiedades) propiedades") }
+        if f.contratos > 0 { partes.append(f.contratos == 1 ? "1 contrato" : "\(f.contratos) contratos") }
+        if f.personas > 0 { partes.append(f.personas == 1 ? "1 persona" : "\(f.personas) personas") }
+        guard let ultimo = partes.popLast() else { return nil }
+        return partes.isEmpty ? ultimo : partes.joined(separator: ", ") + " y " + ultimo
+    }
+
+    /// El tope del recurso (personas, propiedades, contratos) ya está lleno: lo que se cargue de más no entra.
+    /// Con el plan que da más lugar (como la API: el más chico más grande que el que rige).
+    func topeLleno(_ recurso: String) -> (usados: Int, tope: Int, plan: String, siguiente: Plan?)? {
+        let u: Uso? = recurso == "personas" ? Uso(usados: agentes.usados, tope: agentes.cupo)
+            : recurso == "propiedades" ? topes?.propiedades : topes?.contratos
+        guard let u, let t = u.tope, u.usados >= t else { return nil }
+        func tope(_ p: Plan) -> Int { recurso == "personas" ? p.agentes : recurso == "propiedades" ? (p.propiedades ?? 0) : (p.contratos ?? 0) }
+        let i = planes.firstIndex { $0.id == (planVigente ?? plan) } ?? 0
+        let actual = planes.indices.contains(i) ? planes[i] : nil
+        let sig = planes.dropFirst(i + 1).first { p in
+            guard let actual else { return true }
+            return tope(p) == 0 || tope(p) > tope(actual)
+        } ?? planes.last
+        return (u.usados, t, planQueRige?.nombre ?? "", sig)
     }
 
     /// «Prueba gratis · 9 días», «Plan Inmobiliaria · anual», «Sólo lectura».
@@ -102,9 +144,10 @@ struct Suscripcion: Decodable, Equatable {
         }
     }
 
-    /// Hay que avisarle arriba (Inicio, Más): la última semana de prueba, sin renovar o vencida.
+    /// Hay que avisarle arriba (Inicio, Más): la última semana de prueba, sin renovar, vencida o con algo
+    /// fuera del plan (bajó de plan con más de lo que entra).
     var pideAtencion: Bool {
-        estado == "vencida" || (estado == "prueba" && diasRestantes <= 7) || (estado == "baja" && diasRestantes <= 7)
+        estado == "vencida" || (estado == "prueba" && diasRestantes <= 7) || (estado == "baja" && diasRestantes <= 7) || textoFuera != nil
     }
 
     /// Se paga con Mercado Pago desde la web (no se puede cambiar desde el iPhone).

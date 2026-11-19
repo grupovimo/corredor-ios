@@ -508,7 +508,7 @@ struct RendicionVista: View {
             emitiendo = false
             confirmar = false
             let detalle = (error as? ErrorApi)?.detalle ?? ""
-            estado.sugerir("No se emitió · \(detalle)", "Reintentar") { confirmar = true }
+            estado.avisarConReintento(error, "No se emitió · \(detalle)") { confirmar = true }
         }
     }
 

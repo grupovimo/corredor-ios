@@ -93,9 +93,10 @@ final class ColaMira {
                 try await MiraLector.leer(&x, api: api)
             } catch let e as ErrorApi where e.sinConexion {
                 return
-            } catch let e as ErrorApi where e.codigo == "tope_ia" {
-                // El tope se renueva: la foto sigue en cola y no se prueba con las demás (no cuesta nada,
-                // la API corta antes de llamar a la IA).
+            } catch let e as ErrorApi where e.codigo == "tope_ia" || e.codigo == "tope_plan" {
+                // El tope se renueva (el de la IA, o el de MIRA del plan al mes siguiente): la foto sigue en
+                // cola, con su archivo ya subido, y no se prueba con las demás (la API corta antes de llamar a
+                // la IA).
                 actualizar(x)
                 return
             } catch let e as ErrorApi {
@@ -612,8 +613,9 @@ struct MiraRaiz: View {
         } catch {
             estado.avisar(error)
             // Una de la cola que vuelve a fallar (la IA apagada, un tope, sin respuesta) se carga a mano:
-            // la foto ya está y volver a la cámara la dejaba sin salida.
-            if x0.estado == "error" {
+            // la foto ya está y volver a la cámara la dejaba sin salida. Con el tope de MIRA del plan (402),
+            // igual: la foto se guarda con su archivo y se carga a mano, con el aviso y «Ver planes» acá.
+            if x0.estado == "error" || (error as? ErrorApi)?.delPlan == true {
                 cola.actualizar(x)
                 foto = x
                 await completar(x)

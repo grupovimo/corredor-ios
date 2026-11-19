@@ -143,10 +143,9 @@ enum Inv {
         Acta.Item(ambiente: i.ambiente, descripcion: i.descripcion, cantidad: i.cantidad ?? 1, estado: i.estado, notas: i.notas, fotos: i.fotos, fotosUrl: i.fotosUrl)
     }
 
-    /// Un error en el aviso de abajo, con «Reintentar».
+    /// Un error en el aviso de abajo, con «Reintentar» (o «Ver planes» si lo frena el plan).
     @MainActor static func errorConReintento(_ estado: Estado, _ e: Error, _ reintentar: @escaping () -> Void) {
-        estado.avisar(e)
-        if estado.aviso?.ok == false { estado.aviso?.accion = ("Reintentar", reintentar) }
+        estado.avisarConReintento(e, reintentar: reintentar)
     }
 }
 

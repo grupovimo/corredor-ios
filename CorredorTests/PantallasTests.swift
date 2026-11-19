@@ -445,7 +445,7 @@ final class PantallasTests: XCTestCase {
             """,
             "/v1/consorcios/e1/reglamento": "{\"guardadoEn\": null, \"sinCambios\": true, \"cambios\": []}",
             "/v1/asistente": """
-            {"ia": false, "aviso": "La IA viene con el plan Profesional. Sin ella contesto lo más común.", "sugerencias": ["¿Qué contratos ajustan este mes?",
+            {"ia": false, "aviso": "La IA viene con el plan Inmobiliaria. Sin ella contesto lo más común.", "sugerencias": ["¿Qué contratos ajustan este mes?",
              "¿Quiénes deben el alquiler?", "¿Qué tengo hoy?", "Contratos por vencer", "Armame un mensaje para los que deben", "¿Quién busca un 3 ambientes en Palermo?"]}
             """,
             "POST /v1/asistente": """

@@ -120,7 +120,7 @@ struct Papelera: View {
             if let d = destino(b) { estado.sugerir("Recuperaste \(b.titulo)", "Ver", d) } else { estado.avisar("Recuperaste \(b.titulo)") }
         } catch {
             ocultos.remove(b.clave)
-            estado.sugerir("No se recuperó · \((error as? ErrorApi)?.detalle ?? "probá de nuevo")", "Reintentar") { Task { await recuperar(b) } }
+            estado.avisarConReintento(error, "No se recuperó · \((error as? ErrorApi)?.detalle ?? "probá de nuevo")") { Task { await recuperar(b) } }
         }
     }
 

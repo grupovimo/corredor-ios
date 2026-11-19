@@ -63,7 +63,19 @@ struct FichaPropiedad: View {
     @State private var fotoActual = 0
 
     private var lector: Bool { !estado.escribe }
+    /// Se puede editar y publicar: escribe y la propiedad entra en el plan (la que quedó fuera se ve, pero no
+    /// se edita; la API lo frena igual).
+    private var edita: Bool { estado.escribe && p?.fueraDelPlan != true }
     private var link: String { "\(web ?? "")/propiedades/\(p?.slug ?? id)" }
+
+    /// Compartir: fuera del plan, su link no la muestra (dice «Consultanos»), así que no se manda y se dice.
+    private func abrirCompartir() {
+        if p?.fueraDelPlan == true {
+            estado.sugerir("Quedó fuera de tu plan: su link no la muestra. Pasá a un plan más grande para compartirla.", "Ver planes", navega: true) { estado.irAPlan() }
+            return
+        }
+        compartir = true
+    }
 
     var body: some View {
         Group {
@@ -107,6 +119,11 @@ struct FichaPropiedad: View {
                 heroe(p)
                 VStack(alignment: .leading, spacing: 18) {
                     cabeza(p)
+                    if p.fueraDelPlan {
+                        BandaPlan(titulo: "Quedó fuera de tu plan",
+                                  texto: "No sale en tu web ni en los portales, y no se edita. Nada se borró: pasá a un plan más grande, o marcá otra como vendida, alquilada o suspendida.",
+                                  icono: "lock")
+                    }
                     if let v = proximaVisita { tarjetaVisita(v, p) }
                     if !datos(p).isEmpty { cuatroDatos(p) }
                     if !(p.comodidades ?? []).isEmpty { comodidades(p) }
@@ -144,7 +161,7 @@ struct FichaPropiedad: View {
     private func heroe(_ p: Propiedad) -> some View {
         let fotos = p.fotosUrl ?? []
         if fotos.isEmpty {
-            Button { if estado.escribe { estado.abrir(AEditarEnPaso(id: p.id, paso: "fotos")) } } label: {
+            Button { if edita { estado.abrir(AEditarEnPaso(id: p.id, paso: "fotos")) } } label: {
                 VStack(spacing: 8) {
                     Image(systemName: "photo.badge.plus").font(.system(size: 34))
                     Text("Sumá fotos").estilo(.subheadFuerte)
@@ -275,7 +292,7 @@ struct FichaPropiedad: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 TituloBloque(texto: "Comodidades")
-                if estado.escribe { Button("Editar") { estado.abrir(AEditarEnPaso(id: p.id, paso: "comodidades")) }.estilo(.subheadFuerte).foregroundStyle(C.accion) }
+                if edita { Button("Editar") { estado.abrir(AEditarEnPaso(id: p.id, paso: "comodidades")) }.estilo(.subheadFuerte).foregroundStyle(C.accion) }
             }
             ChipsComodidades(textos: p.comodidades ?? [])
         }
@@ -295,6 +312,9 @@ struct FichaPropiedad: View {
 
     private func portales(_ p: Propiedad) -> [FilaPortal] {
         PortalesCartera.todos.map { pt in
+            if pt.clave == "web" && p.fueraDelPlan {
+                return FilaPortal(clave: "web", nombre: pt.nombre, estado: "pausa", detalle: "No se muestra: quedó fuera de tu plan")
+            }
             if pt.clave == "web" {
                 return FilaPortal(clave: "web", nombre: pt.nombre, estado: p.publicada == true ? "ok" : "off",
                                   detalle: p.publicada == true ? link.replacingOccurrences(of: "https://", with: "").replacingOccurrences(of: "http://", with: "") : "No publicada")
@@ -345,7 +365,7 @@ struct FichaPropiedad: View {
                 Text(x.detalle).estilo(.footnote).foregroundStyle(x.estado == "err" ? C.errorTinta : C.texto2).lineLimit(2)
             }
             Spacer()
-            if portalEnUso == x.clave { ProgressView() } else if !lector {
+            if portalEnUso == x.clave { ProgressView() } else if edita {
                 switch x.estado {
                 case "ok" where x.clave == "web":
                     Button("Copiar link") { UIPasteboard.general.string = link; estado.avisar("Link copiado. Pegalo donde quieras mandarlo.") }.estilo(.footnoteFuerte).foregroundStyle(C.accion)
@@ -548,7 +568,7 @@ struct FichaPropiedad: View {
                         Text(resumenBusca(p)).estilo(.footnote).foregroundStyle(C.texto2)
                     }
                     Spacer()
-                    Button("Mandarles") { compartir = true }.buttonStyle(BotonTonal(alto: 30))
+                    Button("Mandarles") { abrirCompartir() }.buttonStyle(BotonTonal(alto: 30))
                 }
                 .padding(.horizontal, 14).padding(.vertical, 10)
                 .overlay(alignment: .top) { Rectangle().fill(C.linea).frame(height: 0.5) }
@@ -629,7 +649,7 @@ struct FichaPropiedad: View {
                 } else {
                     HStack(spacing: 4) {
                         Text("Sin propietario cargado.").estilo(.footnote).foregroundStyle(C.texto2)
-                        if estado.escribe { Button("Sumalo desde la ficha") { estado.abrir(AAltaPropiedad(editar: p.id)) }.estilo(.footnoteFuerte).foregroundStyle(C.accion) }
+                        if edita { Button("Sumalo desde la ficha") { estado.abrir(AAltaPropiedad(editar: p.id)) }.estilo(.footnoteFuerte).foregroundStyle(C.accion) }
                         Spacer()
                     }
                     .padding(14)
@@ -645,13 +665,13 @@ struct FichaPropiedad: View {
         HStack(spacing: 8) {
             circulo("chevron.left", "Volver") { cerrar() }
             Spacer()
-            if estado.escribe {
+            if edita {
                 circulo("pencil", "Editar") { estado.abrir(AAltaPropiedad(editar: p.id)) }
                 circulo(p.destacada == true ? "pin.fill" : "pin", p.destacada == true ? "Desfijar" : "Fijar en el lateral") { fijar(p) }
             }
-            circulo("square.and.arrow.up", "Compartir") { compartir = true }
+            circulo("square.and.arrow.up", "Compartir") { abrirCompartir() }
             Menu {
-                if estado.escribe {
+                if edita {
                     Button { estado.abrir(AAltaPropiedad(editar: p.id)) } label: { Label("Editar", systemImage: "pencil") }
                     if p.operacion != "temporario" { Button { reservar = true } label: { Label("Reservar", systemImage: "bookmark") } }
                     Button { fijar(p) } label: { Label(p.destacada == true ? "Desfijar" : "Fijar en el lateral", systemImage: "pin") }
@@ -686,7 +706,7 @@ struct FichaPropiedad: View {
 
     private func barra(_ p: Propiedad) -> some View {
         HStack(spacing: 8) {
-            Button { compartir = true } label: {
+            Button { abrirCompartir() } label: {
                 HStack(spacing: 8) {
                     Image("LogoWhatsApp").renderingMode(.template).resizable().scaledToFit().frame(width: 20, height: 20)
                     Text("Mandar a un interesado").font(Estilo(tamano: 16, peso: .bold, relativo: .body).font).lineLimit(1).minimumScaleFactor(0.85)
@@ -696,7 +716,7 @@ struct FichaPropiedad: View {
             }
             if estado.escribe { cuadrado("calendar", "Agendar visita") { agendar = true } }
             if let t = propietario?.telefono { cuadrado("phone", "Llamar al propietario") { Afuera.llamar(t) } }
-            if estado.escribe { cuadrado("camera", "Sumar fotos") { estado.abrir(AEditarEnPaso(id: p.id, paso: "fotos")) } }
+            if edita { cuadrado("camera", "Sumar fotos") { estado.abrir(AEditarEnPaso(id: p.id, paso: "fotos")) } }
         }
         .padding(.horizontal, 16).padding(.top, 10)
         .background(.bar)

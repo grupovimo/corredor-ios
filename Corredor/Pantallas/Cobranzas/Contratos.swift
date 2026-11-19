@@ -28,6 +28,8 @@ struct ContratoAPI: Codable, Identifiable, Hashable {
     var propiedadTitulo: String?
     var contactoNombre: String?
     var propietarioNombre: String?
+    /// false: quedó fuera del plan al bajar (pasa el tope de contratos). Se ve; no se cobra ni se rinde.
+    var enPlan: Bool?
 
     var ajusteTexto: String {
         guard let i = ajusteIndice, let m = ajusteMeses else { return "Sin ajuste" }

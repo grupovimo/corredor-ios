@@ -12,8 +12,14 @@ struct ErrorApi: Error, Equatable {
     var reintentarEn: Int?
     /// Los errores por campo del problem+json (`issues: [{path, message}]`): «direccion» → «Poné la dirección.».
     var campos: [String: String] = [:]
+    /// En un 402 del plan (tope_plan, plan_insuficiente): el plan que lo habilita ("" si no hay uno) y el
+    /// recurso con tope. «Ver planes» abre Tu plan con ése elegido.
+    var plan = ""
+    var recurso = ""
 
     var sinConexion: Bool { codigo == "sin_conexion" }
+    /// Lo frena el plan (402): se arregla eligiendo un plan, no reintentando.
+    var delPlan: Bool { estado == 402 }
     var sinSesion: Bool { estado == 401 && codigo == "sin_sesion" }
 
     static let sinRed = ErrorApi(estado: 0, codigo: "sin_conexion", titulo: "Sin conexión",
@@ -80,6 +86,8 @@ final class Api: @unchecked Sendable {
         var detail: String?
         var restantes: Int?
         var issues: [ProblemaApi.Campo]?
+        var plan: String?
+        var recurso: String?
     }
 
     /// La URL de `ruta`. La ruta puede traer su propia query (`/v1/x?y=z`, como las acciones de los
@@ -131,7 +139,7 @@ final class Api: @unchecked Sendable {
                          campos: Dictionary((p.issues ?? []).compactMap { c -> (String, String)? in
                              guard let k = c.path else { return nil }
                              return (k, c.message ?? "Revisá este dato.")
-                         }, uniquingKeysWith: { a, _ in a }))
+                         }, uniquingKeysWith: { a, _ in a }), plan: p.plan ?? "", recurso: p.recurso ?? "")
         await reaccionar(estado: e.estado, codigo: e.codigo)
         throw e
     }

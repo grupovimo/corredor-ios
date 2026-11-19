@@ -406,7 +406,7 @@ struct PropiedadesRaiz: View {
     private func fila(_ p: Propiedad) -> some View {
         let s = senales[p.id]
         let mandar = AccionFila(texto: "Mandar", simbolo: "square.and.arrow.up", color: Color(hex: 0x25D366)) { compartir = p }
-        let derecha: [AccionFila] = estado.escribe && !seleccionando ? [
+        let derecha: [AccionFila] = estado.escribe && !seleccionando && !p.fueraDelPlan ? [
             AccionFila(texto: p.publicada == false ? "Publicar" : "Despublicar", simbolo: p.publicada == false ? "arrow.up.circle" : "eye.slash", color: Color(hex: 0x8E8E93)) { publicar(p) },
             mandar,
         ] : seleccionando ? [] : [mandar]
@@ -437,8 +437,10 @@ struct PropiedadesRaiz: View {
             Button { compartir = p } label: { Label("Mandar la ficha", systemImage: "square.and.arrow.up") }
             if estado.escribe {
                 Button { agendar = p } label: { Label("Agendar visita", systemImage: "calendar.badge.plus") }
-                Button { estado.abrir(AAltaPropiedad(editar: p.id)) } label: { Label("Editar", systemImage: "pencil") }
-                Button { publicar(p) } label: { Label(p.publicada == false ? "Publicar" : "Despublicar", systemImage: p.publicada == false ? "arrow.up.circle" : "eye.slash") }
+                if !p.fueraDelPlan {
+                    Button { estado.abrir(AAltaPropiedad(editar: p.id)) } label: { Label("Editar", systemImage: "pencil") }
+                    Button { publicar(p) } label: { Label(p.publicada == false ? "Publicar" : "Despublicar", systemImage: p.publicada == false ? "arrow.up.circle" : "eye.slash") }
+                }
                 Button { seleccionando = true; marcar(p.id) } label: { Label("Seleccionar", systemImage: "checkmark.circle") }
             }
         }
@@ -456,6 +458,8 @@ struct PropiedadesRaiz: View {
 
     /// El chip de estado de cada fila (3A): lo más importante que le pasa a la propiedad.
     static func chip(_ p: Propiedad, _ s: Senal?) -> (String, Tono) {
+        // Quedó fuera del plan al bajar: no sale en la web ni se edita (lo más importante que le pasa).
+        if p.fueraDelPlan { return ("Fuera de tu plan", .oro) }
         if let a = Cartera.atencion(p, s) { return (a.0, a.1 == .neutro ? .verde : a.1) }
         let (e, t) = Cartera.estado(p)
         return (e, t)

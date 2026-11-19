@@ -34,6 +34,31 @@ final class CorredorTests: XCTestCase {
         XCTAssertFalse(s.pagaAfuera)
     }
 
+    /// El ticket de la compra en la tienda: Apple y Google dejan las personas extra en 0, así que no se
+    /// cuentan (Equipo con 3 extras pagadas por Mercado Pago y 15 que cargan: 3 quedan sin cargar).
+    func testDeMasSinExtrasEnLaTienda() throws {
+        let json = """
+        {"estado":"baja","plan":"equipo","ciclo":"mes","medio":"mercadopago","pruebaHasta":"2026-10-01T12:00:00Z","pagadoHasta":"2026-12-01T12:00:00Z",
+         "vigenteHasta":"2026-12-01T12:00:00Z","diasRestantes":12,"renueva":false,"soloLectura":false,"enPrueba":false,"personasExtra":3,
+         "agentes":{"usados":15,"cupo":15},"planVigente":"equipo",
+         "topes":{"propiedades":{"usados":36,"tope":null},"contratos":{"usados":3,"tope":null},"mira":{"usados":0,"tope":null}},
+         "planes":[{"id":"agente","nombre":"Agente","resumen":"x","agentes":1,"propiedades":30,"contratos":15,"mira":100,"precioMes":24900,"precioAnio":249000,
+           "incluye":[],"destacado":false,"appleMes":"a.mes","appleAnio":"a.anio"},
+          {"id":"equipo","nombre":"Equipo","resumen":"x","agentes":12,"personaExtraMes":7900,"precioMes":119900,"precioAnio":1199000,
+           "incluye":[],"destacado":false,"appleMes":"e.mes","appleAnio":"e.anio"}],
+         "mercadoPago":true,"cobros":[]}
+        """
+        let s = try Api.decodificador.decode(Suscripcion.self, from: Data(json.utf8))
+        let equipo = s.planes[1]
+        XCTAssertEqual(s.deMas(equipo).personas, 0)
+        XCTAssertEqual(s.deMas(equipo, conExtras: false).personas, 3)
+        // Bajar a Agente: 6 propiedades de más; el carrito lo dice.
+        XCTAssertEqual(s.deMas(s.planes[0]).propiedades, 6)
+        XCTAssertNil(s.textoFuera)
+        XCTAssertNil(s.topeLleno("propiedades"))
+        XCTAssertEqual(s.topeLleno("personas")?.tope, 15)
+    }
+
     func testDiaDeConsorciosEnHoraArgentina() {
         // Cargado el 17 a las 22:30 en Buenos Aires: en UTC ya es el 18.
         XCTAssertEqual(Cons.diaLocal("2026-11-18T01:30:00.123456789Z"), "2026-11-17")

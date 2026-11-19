@@ -402,7 +402,7 @@ struct LiquidarConsorcio: View {
             try await estado.api.hacer("POST", "\(base)/liquidar")
         } catch {
             let t = (error as? ErrorApi)?.detalle ?? "Probá de nuevo."
-            estado.sugerir("No se emitió · \(t)", "Reintentar") { Task { _ = await emitir(f) } }
+            estado.avisarConReintento(error, "No se emitió · \(t)") { Task { _ = await emitir(f) } }
             return false
         }
         // Ya está liquidado: si el envío falla, se reintenta desde Expensas (no se vuelve a liquidar).

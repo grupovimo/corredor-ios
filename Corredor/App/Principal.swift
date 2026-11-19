@@ -31,19 +31,24 @@ struct Principal: View {
         // lo que se desplaza —en cualquier pestaña y en lo apilado— deja libre el alto de la barra al final.
         .contentMargins(.bottom, 96, for: .scrollContent)
         .ignoresSafeArea(.keyboard, edges: .bottom)
+        // Las hojas y pantallas completas que hacen pedidos llevan el aviso adentro (.conAviso()): el de la
+        // raíz queda debajo de ellas.
         .sheet(item: $estado.hojaRapida) { h in
-            switch h {
-            case .contacto: EditarContacto()
-            case .visita: NuevaCita(dia: Date()).presentationDetents([.large])
-            case .contrato: AltaContrato()
+            Group {
+                switch h {
+                case .contacto: EditarContacto()
+                case .visita: NuevaCita(dia: Date()).presentationDetents([.large])
+                case .contrato: AltaContrato()
+                }
             }
+            .conAviso()
         }
         .fullScreenCover(isPresented: $estado.miraAbierta) {
-            MiraRaiz().environment(estado).environment(estado.cola)
+            MiraRaiz().conAviso().environment(estado).environment(estado.cola)
         }
         // El alta de la inmobiliaria: la primera vez (sin logo ni WhatsApp no se entra) y desde «Completar».
         .fullScreenCover(item: $estado.altaAbierta) { p in
-            AltaInmobiliaria(inicial: p.clave).environment(estado).environment(estado.cola)
+            AltaInmobiliaria(inicial: p.clave).conAviso().environment(estado).environment(estado.cola)
         }
         .fullScreenCover(isPresented: $estado.bienvenidaAbierta, onDismiss: { estado.mostrarRecorrido = true }) {
             Bienvenida().environment(estado).environment(estado.cola)

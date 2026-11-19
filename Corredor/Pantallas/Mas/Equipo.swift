@@ -64,7 +64,7 @@ struct Equipo: View {
             }
         }
         .task(id: estado.version) { await cargar() }
-        .sheet(isPresented: $invitando) { InvitarAlEquipo { await cargar() } }
+        .sheet(isPresented: $invitando) { InvitarAlEquipo { await cargar() }.conAviso() }
         .sheet(isPresented: $verLicencias) {
             LicenciasAgenda().hojaTLW([.large])
         }
@@ -229,6 +229,20 @@ struct InvitarAlEquipo: View {
     @State private var enviando = false
     @State private var campos: [String: String] = [:]
     @State private var link: String?
+    /// El 402 de la API (el cupo se llenó entre que se abrió y se mandó), dicho debajo del mail como la web.
+    @State private var frenoPlan: ErrorApi?
+
+    /// El cupo de personas que cargan ya está lleno: se invita como lector (sin cargo), y se dice antes.
+    private var lleno: (usados: Int, tope: Int, plan: String, siguiente: Suscripcion.Plan?)? { estado.suscripcion?.topeLleno("personas") }
+
+    /// «Ver planes» desde la hoja: primero se cierra, después Tu plan.
+    private func irAPlan(_ plan: String) {
+        cerrar()
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(350))
+            estado.irAPlan(plan)
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -237,6 +251,11 @@ struct InvitarAlEquipo: View {
                     Text(Formato.sinViudas("Le llega un mail con el link. También podés copiarlo y mandarlo por WhatsApp.")).estilo(.footnote).foregroundStyle(C.texto2)
                 }
                 .listRowBackground(Color.clear)
+                if link == nil, let l = lleno, let s = estado.suscripcion {
+                    Section { bandaCupo(l, s) }
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                }
                 if let link { listo(link) } else { formulario }
             }
             .scrollContentBackground(.hidden).background(FondoApp())
@@ -254,6 +273,23 @@ struct InvitarAlEquipo: View {
             }
         }
         .presentationDetents([.medium, .large])
+        .onAppear { if lleno != nil { rol = "lector" } }
+    }
+
+    @ViewBuilder
+    private func bandaCupo(_ l: (usados: Int, tope: Int, plan: String, siguiente: Suscripcion.Plan?), _ s: Suscripcion) -> some View {
+        let personas = l.tope == 1 ? "1 persona que carga" : "\(l.tope) personas que cargan"
+        if let extra = s.planQueRige?.personaExtraMes, extra > 0 {
+            // El Equipo suma personas pagas, pero con Mercado Pago (la tienda no las vende).
+            BandaPlan(titulo: "Tu plan \(l.plan) es para \(personas)",
+                      texto: "Invitala como lectora (sin cargo). Cada persona más cuesta \(Formato.plata(extra)) por mes y se suma pagando con Mercado Pago desde la web.",
+                      plan: s.planQueRige?.id ?? "", ir: { irAPlan(s.planQueRige?.id ?? "") })
+        } else {
+            BandaPlan(titulo: "Tu plan \(l.plan) es para \(personas)",
+                      texto: "Invitala como lectora (sin cargo), o pasá a \(l.siguiente?.nombre ?? "un plan más grande") para sumar a alguien que cargue.",
+                      plan: l.siguiente?.id ?? "", accion: l.siguiente.map { "Pasar a \($0.nombre)" } ?? "Ver planes",
+                      ir: { irAPlan(l.siguiente?.id ?? "") })
+        }
     }
 
     @ViewBuilder
@@ -263,10 +299,15 @@ struct InvitarAlEquipo: View {
                 TextField("Mail", text: $mail, prompt: Text("nombre@gmail.com"))
                     .keyboardType(.emailAddress).textInputAutocapitalization(.never).autocorrectionDisabled().textContentType(.emailAddress)
                 ErrorDeCampo(texto: campos["email"])
+                if let f = frenoPlan {
+                    MensajeError(texto: f.detalle.isEmpty ? f.titulo : f.detalle).padding(.top, 2)
+                    Button("Ver planes") { irAPlan(f.plan) }.buttonStyle(BotonTexto(alto: 40))
+                }
             }
         } header: { Text("Mail") }
         Section {
-            Segmentado(opciones: [("agente", "Agente"), ("lector", "Lector"), ("duenio", "Dueño")], elegido: $rol)
+            // Con el cupo lleno, sólo Lector (sin cargo): la franja de arriba dice por qué.
+            Segmentado(opciones: lleno != nil ? [("lector", "Lector")] : [("agente", "Agente"), ("lector", "Lector"), ("duenio", "Dueño")], elegido: $rol)
                 .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             Text(Formato.sinViudas(Equipo.roles.first { $0.0 == rol }?.2 ?? "")).estilo(.footnote).foregroundStyle(C.texto2)
         } header: { Text("Rol") }
@@ -301,7 +342,15 @@ struct InvitarAlEquipo: View {
             let i = try Api.decodificador.decode(Equipo.Invitacion.self, from: d)
             link = i.link ?? ""
             await alInvitar()
-        } catch { campos = estado.camposDe(error) }
+        } catch {
+            frenoPlan = nil
+            if let e = (error as? ErrorCampos)?.api ?? (error as? ErrorApi), e.delPlan {
+                frenoPlan = e
+                await estado.cargarSuscripcion()
+                return
+            }
+            campos = estado.camposDe(error)
+        }
     }
 }
 

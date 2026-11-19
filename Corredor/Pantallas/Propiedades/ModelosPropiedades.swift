@@ -45,6 +45,12 @@ struct Propiedad: Codable, Identifiable, Hashable {
     var ficha: JSONLibre?
     var creadaEn: Date?
     var actualizadoEn: Date?
+    /// false: quedó fuera del plan al bajar (pasa el tope de propiedades activas). Se ve, pero no se edita ni
+    /// sale en la web ni en los portales. Vender, alquilar, suspender o borrar sí (libera lugar).
+    var enPlan: Bool?
+
+    /// Quedó fuera del plan (ver `enPlan`).
+    var fueraDelPlan: Bool { enPlan == false }
 
     var nombre: String { titulo?.nonEmpty ?? direccion ?? "Propiedad" }
     /// Captada con MIRA (lo que la web muestra en «Captadas»).

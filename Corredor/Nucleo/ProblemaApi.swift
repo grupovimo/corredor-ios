@@ -8,4 +8,7 @@ struct ProblemaApi: Decodable {
     var title: String?
     var detail: String?
     var issues: [Campo]?
+    /// En un 402 del plan: el plan que lo habilita y el recurso con tope (personas, propiedades…).
+    var plan: String?
+    var recurso: String?
 }

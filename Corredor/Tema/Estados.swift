@@ -49,13 +49,18 @@ struct EstadoVacio: View {
     }
 }
 
-/// El error de traer una lista (12f): «No pudimos traer los pedidos».
+/// El error de traer una lista (12f): «No pudimos traer los pedidos». Si lo frena el plan (402: los
+/// informes con Agente, un módulo del Equipo), no es un error: dice qué plan lo trae y lleva a Tu plan.
 struct EstadoError: View {
+    @Environment(Estado.self) private var estado
     var que: String
     var error: ErrorApi
     var reintentar: () -> Void
     var body: some View {
-        if error.sinConexion {
+        if error.delPlan {
+            EstadoVacio(icono: "lock", titulo: error.titulo, texto: error.detalle,
+                        accion: ("Ver planes", { estado.irAPlan(error.plan) }))
+        } else if error.sinConexion {
             EstadoVacio(icono: "wifi.slash", titulo: "Sin conexión",
                         texto: "Lo que cargues queda en cola y se sube solo cuando vuelva la señal.",
                         accion: ("Reintentar", reintentar))
@@ -182,6 +187,46 @@ struct VistaAviso: View {
         .shadow(color: C.verde800.opacity(0.4), radius: 12, y: 10)
         .accessibilityElement(children: .contain)
     }
+}
+
+/// El aviso de abajo dentro de una hoja o una pantalla completa (invitar, la acción rápida, MIRA): se
+/// presentan por encima de la raíz, así que el aviso de la raíz quedaría tapado (justo el «Llegaste al tope»
+/// en el momento de invitar o de cargar). Si la acción lleva a otra pantalla («Ver planes»), primero se
+/// cierra la hoja.
+struct ConAviso: ViewModifier {
+    @Environment(Estado.self) private var estado
+    @Environment(\.dismiss) private var cerrar
+
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .bottom) {
+                if let a = estado.aviso {
+                    VistaAviso(aviso: dentro(a)) { estado.aviso = nil }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 24)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+            .animation(.spring(duration: 0.3), value: estado.aviso)
+    }
+
+    private func dentro(_ a: Aviso) -> Aviso {
+        guard a.navega, let accion = a.accion else { return a }
+        var x = a
+        x.accion = (accion.0, {
+            cerrar()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(350))
+                accion.1()
+            }
+        })
+        return x
+    }
+}
+
+extension View {
+    /// El aviso de abajo también dentro de esta hoja (ver `ConAviso`).
+    func conAviso() -> some View { modifier(ConAviso()) }
 }
 
 /// Andamio mientras se arma un área: sólo para desarrollo, nunca llega a TestFlight así.

@@ -130,9 +130,15 @@ struct FichaContrato: View {
                 Text(plazo(k)).estilo(.footnote).foregroundStyle(C.texto2)
                 Text(k.propiedadTitulo ?? "Contrato sin propiedad").estilo(.titulo).foregroundStyle(C.texto)
             }
+            if k.enPlan == false {
+                // Quedó fuera del plan al bajar: se ve; no se cobra ni se rinde desde Corredor.
+                BandaPlan(titulo: "Quedó fuera de tu plan",
+                          texto: "Se ve, pero no se cobra ni se rinde desde Corredor. Nada se borró: pasá a un plan más grande, o marcá como rescindido otro que ya terminó.",
+                          icono: "lock")
+            }
             if estado.escribe {
                 HStack(spacing: 8) {
-                    if k.tipo == "alquiler" {
+                    if k.tipo == "alquiler", k.enPlan != false {
                         Button { cobrar(nil) } label: { Label("Registrar cobro", systemImage: "dollarsign.circle") }.buttonStyle(BotonHundido())
                     }
                     Button { renovando = true } label: { Label("Renovar", systemImage: "arrow.triangle.2.circlepath") }.buttonStyle(BotonHundido())
@@ -360,7 +366,7 @@ struct FichaContrato: View {
                 .frame(minWidth: 44, minHeight: 44)
             }
             .accessibilityLabel("Recibo y rendición de \(TextosCobro.nombreMes(m.periodo))")
-        } else if estado.escribe {
+        } else if estado.escribe, k.enPlan != false {
             HStack(spacing: 2) {
                 if k.contactoId != nil && m.estado != "sin_registro" {
                     Button { recordarMes(String(m.periodo.prefix(7))) } label: { Image(systemName: "bubble.left").font(.system(size: 18)).foregroundStyle(C.texto2).frame(width: 40, height: 44) }

@@ -692,7 +692,7 @@ enum Cobrar {
                 mostrar?()
                 let n = TextosCobro.primerNombre(a.nombre)
                 let detalle = (error as? ErrorApi)?.detalle ?? ""
-                estado.sugerir("No se guardó el cobro de \(n.isEmpty ? "este contrato" : n). \(detalle)", "Reintentar") {
+                estado.avisarConReintento(error, "No se guardó el cobro de \(n.isEmpty ? "este contrato" : n). \(detalle)") {
                     _ = registrar(estado, a, monto: monto, medio: medio, conceptos: conceptos, pagadoEl: pagadoEl, texto: texto,
                               ocultar: ocultar, mostrar: mostrar, recibo: recibo, alListo: alListo)
                 }

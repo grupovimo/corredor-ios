@@ -238,6 +238,12 @@ struct AltaContrato: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 16) {
                             cabeza.id("arriba")
+                            // Con el tope de contratos lleno se avisa al abrir (una renovación no ocupa otro lugar).
+                            if paso == 0, d.renueva == nil, let l = estado.suscripcion?.topeLleno("contratos") {
+                                BandaPlan(titulo: "Tenés \(l.usados) de \(l.tope) contratos de alquiler, el tope de tu plan \(l.plan)",
+                                          texto: "Lo que cargues queda como borrador hasta que pases a \(l.siguiente?.nombre ?? "un plan más grande") o marques como rescindido uno que ya terminó. Una renovación no ocupa otro lugar.",
+                                          plan: l.siguiente?.id ?? "")
+                            }
                             switch paso {
                             case 0: pasoPartes
                             case 1: pasoPlazo
@@ -768,7 +774,7 @@ struct AltaContrato: View {
             return
         } catch {
             creando = false
-            estado.sugerir((error as? ErrorApi).map { $0.detalle.isEmpty ? $0.titulo : $0.detalle } ?? "No se creó el contrato.", "Reintentar") { Task { await crear() } }
+            estado.avisarConReintento(error, (error as? ErrorApi).map { $0.detalle.isEmpty ? $0.titulo : $0.detalle } ?? "No se creó el contrato.") { Task { await crear() } }
             return
         }
         // Los documentos ya subidos se cuelgan del contrato.
