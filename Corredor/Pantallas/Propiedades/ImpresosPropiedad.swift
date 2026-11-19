@@ -31,7 +31,8 @@ enum FichaImpresa {
         let inmo: Inmobiliaria? = try? await api.get("/v1/inmobiliaria")
         let equipo: [Miembro] = (try? await api.get("/v1/equipo")) ?? []
         let m = equipo.first { $0.usuarioId == p.agenteId }
-        let publica = p.publicada == true && p.slug != nil ? "\(inmo?.web ?? Api.web().absoluteString)/propiedades/\(p.slug ?? "")" : nil
+        // slug o id, como Android y el panel: sin slug, el QR caía al WhatsApp y nunca a la ficha.
+        let publica = p.publicada == true ? "\(inmo?.web ?? Api.web().absoluteString)/propiedades/\(p.slug ?? p.id)" : nil
         let wa = m?.telefono.map { "https://wa.me/\($0.filter(\.isNumber))" }
         var fotos: [UIImage] = []
         for u in (p.fotosUrl ?? []).prefix(cuantas) {
