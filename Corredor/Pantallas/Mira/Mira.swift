@@ -611,7 +611,15 @@ struct MiraRaiz: View {
             fase = .sinSenal
         } catch {
             estado.avisar(error)
-            fase = .apuntando
+            // Una de la cola que vuelve a fallar (la IA apagada, un tope, sin respuesta) se carga a mano:
+            // la foto ya está y volver a la cámara la dejaba sin salida.
+            if x0.estado == "error" {
+                cola.actualizar(x)
+                foto = x
+                await completar(x)
+            } else {
+                fase = .apuntando
+            }
         }
     }
 
