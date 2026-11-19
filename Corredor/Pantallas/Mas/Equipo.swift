@@ -280,9 +280,9 @@ struct InvitarAlEquipo: View {
     private func bandaCupo(_ l: (usados: Int, tope: Int, plan: String, siguiente: Suscripcion.Plan?), _ s: Suscripcion) -> some View {
         let personas = l.tope == 1 ? "1 persona que carga" : "\(l.tope) personas que cargan"
         if let extra = s.planQueRige?.personaExtraMes, extra > 0 {
-            // El Equipo suma personas pagas, pero con Mercado Pago (la tienda no las vende).
+            // El Equipo suma personas pagas, pero no en la tienda. Sin decir dónde ni cuánto: las reglas de Apple y Google no dejan mandar a pagar por fuera.
             BandaPlan(titulo: "Tu plan \(l.plan) es para \(personas)",
-                      texto: "Invitala como lectora (sin cargo). Cada persona más cuesta \(Formato.plata(extra)) por mes y se suma pagando con Mercado Pago desde la web.",
+                      texto: "Invitala como lectora (sin cargo). Las personas extra no se contratan desde la app.",
                       plan: s.planQueRige?.id ?? "", ir: { irAPlan(s.planQueRige?.id ?? "") })
         } else {
             BandaPlan(titulo: "Tu plan \(l.plan) es para \(personas)",

@@ -223,9 +223,9 @@ struct PantallaPlan: View {
                         }
                     }
                     .padding(.top, 8)
-                // En el teléfono no se compran personas extra (Apple y Google no las venden): se dice.
+                // En el teléfono no se compran personas extra (Apple y Google no las venden): se dice, sin mandar a pagar por fuera (reglas de las tiendas).
                 if (p.personaExtraMes ?? 0) > 0 {
-                    Text(Formato.sinViudas("Las personas extra se suman pagando con Mercado Pago desde la web."))
+                    Text(Formato.sinViudas("Las personas extra no se contratan desde la app."))
                         .estilo(.caption).foregroundStyle(C.texto3).fixedSize(horizontal: false, vertical: true)
                 }
             }
