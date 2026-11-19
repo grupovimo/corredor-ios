@@ -7,7 +7,7 @@ extension View {
     /// Los destinos de Cobranzas, contratos, rendiciones y actas.
     func destinosCobranzas() -> some View {
         self
-            .navigationDestination(for: ACobranzas.self) { _ in Cobranzas() }
+            .navigationDestination(for: ACobranzas.self) { c in Cobranzas(recordar: c.recordar) }
             .navigationDestination(for: ARegistrarCobro.self) { r in Cobranzas(registrar: true, contrato: r.contrato) }
             .navigationDestination(for: AContratos.self) { _ in Contratos() }
             .navigationDestination(for: AContratosFiltro.self) { f in Contratos(vista: f.vista, indice: f.indice) }
@@ -167,6 +167,8 @@ struct Cobranzas: View {
     /// «Registrar cobro» abierto al entrar (de los avisos o la búsqueda) y el contrato, si viene.
     var registrar = false
     var contrato: String? = nil
+    /// «Recordar a todos» abierto al entrar (el asistente sin IA lleva acá), si alguien debe.
+    var recordar = false
     @State private var mes: MesCobranzas?
     @State private var previo: MesCobranzas?
     @State private var atrasadas: [Atraso] = []
@@ -619,7 +621,13 @@ struct Cobranzas: View {
 
     /// `?registrar=1&contrato=<id>`: abre el cobro de ese contrato, o «¿De quién es el cobro?».
     private func abrirPedido() {
-        guard registrar, !pedidoHecho, estado.escribe else { return }
+        guard !pedidoHecho else { return }
+        if recordar {
+            pedidoHecho = true
+            if !deben.isEmpty { todos = true }
+            return
+        }
+        guard registrar, estado.escribe else { return }
         pedidoHecho = true
         if let contrato, let f = (deben + visibles).first(where: { $0.contratoId == contrato }) { cobrando = f.aCobrar } else { elegir = true }
     }

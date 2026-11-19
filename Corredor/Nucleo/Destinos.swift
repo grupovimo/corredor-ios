@@ -32,7 +32,8 @@ struct AOperaciones: Hashable {}
 /// 9C Ficha de una operación.
 struct AFichaOperacion: Hashable { var id: String }
 /// 10A Por cobrar.
-struct ACobranzas: Hashable {}
+/// `recordar`: «Recordar a todos» abierto al entrar (`/cobranzas?recordar=1`, lo que ofrece el asistente sin IA).
+struct ACobranzas: Hashable { var recordar = false }
 /// Los contratos (la lista) y la ficha de uno.
 struct AContratos: Hashable {}
 struct AFichaContrato: Hashable { var id: String }
@@ -125,7 +126,7 @@ struct Ruta: Equatable {
         case "operacion", "operaciones": self.init(.inicio, id.map { AnyHashable(AFichaOperacion(id: $0)) } ?? AnyHashable(AOperaciones()))
         case "cobranzas":
             // `/cobranzas?registrar=1&contrato=<id>`: la hoja de «Registrar cobro» abierta.
-            if param("registrar") == "1" { self.init(.inicio, ARegistrarCobro(contrato: param("contrato"))) } else { self.init(.inicio, ACobranzas()) }
+            if param("registrar") == "1" { self.init(.inicio, ARegistrarCobro(contrato: param("contrato"))) } else { self.init(.inicio, ACobranzas(recordar: param("recordar") == "1")) }
         case "contrato", "contratos":
             if id == "nuevo" {
                 self.init(.inicio, AAltaContrato(borrador: borrador, renovar: param("renovar")))
