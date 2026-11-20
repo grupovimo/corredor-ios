@@ -187,7 +187,7 @@ struct MasRaiz: View {
 
     /// «Potenciá tu negocio»: lo que todavía no usa, en tarjetas que se deslizan, cada una con «Activar».
     private var potencia: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 0) {
             TituloBloque(texto: "Potenciá tu negocio")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
@@ -205,8 +205,10 @@ struct MasRaiz: View {
                         .tarjeta()
                     }
                 }
-                .padding(.horizontal, 16).padding(.vertical, 4)
+                // Aire arriba y abajo para la sombra de las tarjetas, que el carrusel no recorta.
+                .padding(.horizontal, 16).padding(.vertical, 12)
             }
+            .scrollClipDisabled()
             .padding(.horizontal, -16)
         }
     }
@@ -364,7 +366,9 @@ struct MasRaiz: View {
 
     private func fila(_ it: Estructura.Item, icono: String) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: icono).font(.system(size: 18, weight: .medium)).foregroundStyle(C.accion).frame(width: 28)
+            // Todos en la misma caja: los anchos (person.3 de «Equipo») se achican en vez de correr el texto.
+            Image(systemName: icono).resizable().scaledToFit().fontWeight(.medium).foregroundStyle(C.accion)
+                .frame(width: 24, height: 20).frame(width: 28)
             Text(it.nombre).estilo(.filaLista).foregroundStyle(C.texto)
             Spacer(minLength: 0)
             if case let (t, tono)? = estados[it.clave] {

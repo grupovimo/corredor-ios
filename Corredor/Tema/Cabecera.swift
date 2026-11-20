@@ -55,11 +55,9 @@ struct CabeceraPestana: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Con renglón de arriba (fecha, inmobiliaria), los botones van ahí; sin él, en el renglón del
-            // título (antes quedaban solos en una fila vacía, lejos de todo).
-            if sobre != nil {
-                HStack(spacing: 0) { Spacer(); botones }.frame(height: 44)
-            } else {
+            // Con renglón de arriba (fecha, inmobiliaria), los botones van a la derecha de ese renglón; sin él,
+            // en el renglón del título. Nunca solos en una fila vacía (la luna de Más quedaba colgada arriba).
+            if sobre == nil {
                 Color.clear.frame(height: 12)
             }
             if let sobre {
@@ -74,8 +72,11 @@ struct CabeceraPestana: View {
                     }
                     Text(sobre.uppercased()).font(Estilo(tamano: 13, peso: .semibold, relativo: .footnote).font)
                         .tracking(13 * 0.04).foregroundStyle(C.texto2).lineLimit(1)
+                    Spacer(minLength: 0)
+                    botones
                 }
-                .padding(.bottom, logo == nil ? 0 : 4)
+                .frame(minHeight: 44)
+                .padding(.top, 4)
             }
             HStack(alignment: .center, spacing: 8) {
                 Text(titulo).estilo(.tituloGrande).foregroundStyle(C.texto)
